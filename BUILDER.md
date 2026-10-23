@@ -1,12 +1,12 @@
 # How the Builder works
 
-Describes the Builder as implemented on 2026-10-23. Questioning is model-driven. The application has no fixed question list. Prompt text tells the model what to do; it does not guarantee the model will do it. Only the application checks below are enforced.
+Describes the Builder as implemented on 2026-10-24. Questioning is model-driven. The application has no fixed question list. Prompt text tells the model what to do; it does not guarantee the model will do it. Only the application checks below are enforced.
 
 ## What it does and produces
 
 The Builder interviews the business owner in chat and fills a draft business profile. The first line is fixed application text: it invites the owner to say what they do, says follow-ups will come, and mentions a summary to approve and `/test`. Later replies come from the model (`OPENAI_MODEL`, otherwise `gpt-4o-mini`).
 
-The draft can hold: business name, what the business does, services (name, price, notes), hours, location or service area, common customer questions (FAQ), information the bot should collect from the customer (intake), explicit unknowns, and tone. Unknown text fields are stored as null. `informationToCollect` uses a different convention: **null** means the owner has not been asked yet; **[]** means the owner said collect nothing; a non-empty array lists the items. Each turn saves that draft. Live approved fields change only when the model marks the turn approved and the minimum below is met. Approval writes `data/business-profile.json` (with `approvedAt`) and syncs a Flowise chatflow whose customer prompt is built from those approved fields, including unknowns and intake items.
+The draft can hold: business name, what the business does, services (name, price, notes), hours, location or service area, common customer questions (FAQ), information the bot should collect from the customer (intake), explicit unknowns, and tone. Unknown text fields are stored as null. `commonQuestions` is an array of `{ question, answer }` objects: `question` is what customers ask; `answer` is the owner’s explanation the Business Bot may tell customers. Legacy bare strings are normalized on load/merge to `{ question, answer: "" }`. Only FAQ items with a non-empty `answer` are injected into the Flowise customer prompt as approved facts. `informationToCollect` uses a different convention: **null** means the owner has not been asked yet; **[]** means the owner said collect nothing; a non-empty array lists the items. Each turn saves that draft. Live approved fields change only when the model marks the turn approved and the minimum below is met. Approval writes `data/business-profile.json` (with `approvedAt`) and syncs a Flowise chatflow whose customer prompt is built from those approved fields, including unknowns and intake items.
 
 ## What it asks
 
@@ -17,11 +17,11 @@ Nothing in code is labeled mandatory, optional, or conditional except the intake
 - Prices, if the owner has them, and how a price applies when that matters (per unit versus flat or per booking)
 - Opening hours or availability
 - Location or service area
-- Common customer questions (FAQ: questions customers ask the business; the Business Bot answers these from approved facts)
+- Common customer questions (FAQ: each entry is a customer question plus the owner’s answer; the Business Bot may use those answers as approved facts)
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, and similar; the Business Bot asks for these in chat)
 - Preferred tone
 
-The prompt tells the model to keep FAQ items in `commonQuestions` and intake items in `informationToCollect`, and not to mix them. It also tells the model to clarify ambiguities that would change a customer answer: pricing basis or units, discounts, what a service area covers, hours edge cases, cancellation or refund policy, and booking or availability rules. It says capacity or group size does not settle how price scales. Whether any of these questions actually appear depends on the model and the conversation. **Unverified:** which of these the model asks in a given interview.
+The prompt tells the model to keep FAQ items in `commonQuestions` as `{ question, answer }` (full answer text when the owner explained it — not topic titles alone) and intake items in `informationToCollect`, and not to mix them. It also tells the model to clarify ambiguities that would change a customer answer: pricing basis or units, discounts, what a service area covers, hours edge cases, cancellation or refund policy, and booking or availability rules. It says capacity or group size does not settle how price scales. Whether any of these questions actually appear depends on the model and the conversation. **Unverified:** that the model always stores the full owner answer in `commonQuestions[].answer` rather than a truncated paraphrase, and which clarification questions it asks in a given interview.
 
 Application checks (enforced):
 
@@ -34,7 +34,7 @@ Seeded or hand-written profiles that omit `informationToCollect` are treated as 
 
 The prompt tells the model to ask one or two questions at a time, adapt them to what was already said, and not repeat answered questions. The application does not count questions or pick the next one. It does send the current draft and a hint: either enough may already exist for a first bot, or basics are still missing, or intake is still unanswered.
 
-The prompt tells the model to set ready for review once there is identity plus at least one offering or a clear description **and** `informationToCollect` is an array, then show a short summary of known facts and explicit unknowns and ask the owner to approve, correct, or say “approve”. Code does not turn that hint into ready-for-review by itself. If the model does set ready for review and does not mark the turn approved, and its message does not already contain “approve”, the app appends a fixed summary (name, what they do, services, hours, location, tone, common questions, information to collect, unknowns) plus a line to reply **approve** or correct something.
+The prompt tells the model to set ready for review once there is identity plus at least one offering or a clear description **and** `informationToCollect` is an array, then show a short summary of known facts and explicit unknowns and ask the owner to approve, correct, or say “approve”. Code does not turn that hint into ready-for-review by itself. If the model does set ready for review and does not mark the turn approved, and its message does not already contain “approve”, the app appends a fixed summary (name, what they do, services, hours, location, tone, FAQ Q&A pairs, information to collect, unknowns) plus a line to reply **approve** or correct something. FAQ entries without an answer are shown as not recorded yet.
 
 ## Unknowns, contradictions, and corrections
 
@@ -52,4 +52,4 @@ The owner reviews the model’s message and, when the app appends it, the fixed 
 
 A later edit in BUILD is another interview turn. The prompt tells the model to update the draft, show the change, and leave it unapproved until the owner confirms. The pending draft is saved immediately; the live fields and the Flowise bot stay as last approved until a later turn is marked approved and syncs. If that sync fails, the new facts are still saved as approved locally but `flowiseSyncOk` is false, so `/test` stays blocked until a later successful sync.
 
-**Browser / local e2e:** profile file on disk; session transcript in memory (file-backed sessions). **WhatsApp:** each sender has isolated session + profile + inbound queue in Supabase (`easybot_*` tables). The Twilio webhook validates `X-Twilio-Signature`, enqueues by `MessageSid`, ACKs quickly, and a durable worker processes messages in order per sender. **Unverified:** that the model always waits for confirmation, preserves every unknown, splits FAQ vs intake correctly without the gate, or treats “yes” only as approval after a summary.
+**Browser / local e2e:** profile file on disk; session transcript in memory (file-backed sessions). **WhatsApp:** each sender has isolated session + profile + inbound queue in Supabase (`easybot_*` tables). The Twilio webhook validates `X-Twilio-Signature`, enqueues by `MessageSid`, ACKs quickly, and a durable worker processes messages in order per sender. **Unverified:** that the model always waits for confirmation, preserves every unknown, stores full FAQ answers (not truncated paraphrases), splits FAQ vs intake correctly without the gate, or treats “yes” only as approval after a summary.

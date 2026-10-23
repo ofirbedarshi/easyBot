@@ -16,6 +16,34 @@ export function testProfilePath(sessionKey) {
   return path.join(TEST_PROFILES_DIR, `${sessionKey}.json`);
 }
 
+/**
+ * FAQ item shape: { question, answer }.
+ * Legacy bare strings become { question, answer: '' }.
+ */
+export function normalizeFaqItem(item) {
+  if (item == null) return null;
+  if (typeof item === 'string') {
+    const q = item.trim();
+    if (!q) return null;
+    return { question: q, answer: '' };
+  }
+  if (typeof item === 'object') {
+    const question = String(item.question ?? item.q ?? '').trim();
+    const answer = String(item.answer ?? item.a ?? '').trim();
+    if (!question && !answer) return null;
+    return {
+      question: question || '(untitled)',
+      answer,
+    };
+  }
+  return null;
+}
+
+export function normalizeCommonQuestions(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeFaqItem).filter(Boolean);
+}
+
 export function emptyProfile() {
   return {
     name: null,
@@ -23,6 +51,7 @@ export function emptyProfile() {
     services: [],
     hours: null,
     locationOrArea: null,
+    /** FAQ: [{ question, answer }] — answer is what the Business Bot may tell customers. */
     commonQuestions: [],
     /**
      * What the Business Bot should ask the customer for.
@@ -42,6 +71,18 @@ export function emptyProfile() {
   };
 }
 
+function normalizeProfileFaq(profile) {
+  profile.commonQuestions = normalizeCommonQuestions(profile.commonQuestions);
+  if (profile.draft && typeof profile.draft === 'object') {
+    if (Array.isArray(profile.draft.commonQuestions)) {
+      profile.draft.commonQuestions = normalizeCommonQuestions(
+        profile.draft.commonQuestions
+      );
+    }
+  }
+  return profile;
+}
+
 export function loadProfile(profilePath = PROFILE_PATH) {
   const filePath = profilePath || PROFILE_PATH;
   if (!fs.existsSync(filePath)) {
@@ -49,7 +90,7 @@ export function loadProfile(profilePath = PROFILE_PATH) {
   }
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = JSON.parse(raw);
-  const profile = { ...emptyProfile(), ...parsed };
+  const profile = normalizeProfileFaq({ ...emptyProfile(), ...parsed });
   // Pre-flag profiles that already have a chatflow were syncable; allow /test
   if (
     parsed.flowiseSyncOk === undefined &&
@@ -83,7 +124,7 @@ export function mergeDraft(profile, draft) {
   }
   if (Array.isArray(draft.services)) next.services = draft.services;
   if (Array.isArray(draft.commonQuestions)) {
-    next.commonQuestions = draft.commonQuestions;
+    next.commonQuestions = normalizeCommonQuestions(draft.commonQuestions);
   }
   if (Array.isArray(draft.informationToCollect)) {
     next.informationToCollect = draft.informationToCollect;
@@ -110,8 +151,17 @@ export function formatSummary(profile) {
   lines.push(`Location / area: ${profile.locationOrArea || '(not set)'}`);
   lines.push(`Tone: ${profile.tone || '(not set)'}`);
   if (profile.commonQuestions?.length) {
-    lines.push('Common questions:');
-    for (const q of profile.commonQuestions) lines.push(`  • ${q}`);
+    lines.push('Common questions (FAQ — answers the customer bot may use):');
+    for (const q of profile.commonQuestions) {
+      const faq = normalizeFaqItem(q);
+      if (!faq) continue;
+      lines.push(`  • Q: ${faq.question}`);
+      lines.push(
+        faq.answer
+          ? `    A: ${faq.answer}`
+          : '    A: (not recorded yet — bot cannot invent this)'
+      );
+    }
   }
   if (Array.isArray(profile.informationToCollect)) {
     if (profile.informationToCollect.length) {

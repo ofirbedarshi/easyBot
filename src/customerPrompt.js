@@ -6,6 +6,8 @@
  * Handoff is demo placeholder wording only (no real message capture yet).
  */
 
+import { normalizeCommonQuestions } from './profile.js';
+
 /** Fixed demo off-ramp when approved facts do not fully answer the customer. */
 export const DEMO_HANDOFF =
   'If you need this clarified, leave a message for the owner and they will get back to you.';
@@ -31,9 +33,17 @@ export function buildCustomerSystemPrompt(profile) {
   if (profile.locationOrArea) {
     facts.push(`Location / service area: ${profile.locationOrArea}`);
   }
-  if (profile.commonQuestions?.length) {
-    facts.push('Topics customers often ask about (answer from approved facts):');
-    for (const q of profile.commonQuestions) facts.push(`- ${q}`);
+  const faq = normalizeCommonQuestions(profile.commonQuestions).filter(
+    (item) => item.answer
+  );
+  if (faq.length) {
+    facts.push(
+      'FAQ (approved Q&A — these answers are facts you may tell customers):'
+    );
+    for (const item of faq) {
+      facts.push(`- Q: ${item.question}`);
+      facts.push(`  A: ${item.answer}`);
+    }
   }
 
   const collect = Array.isArray(profile.informationToCollect)

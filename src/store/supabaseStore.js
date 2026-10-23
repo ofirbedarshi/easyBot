@@ -3,7 +3,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { emptyProfile } from '../profile.js';
+import { emptyProfile, normalizeCommonQuestions } from '../profile.js';
 
 export function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -74,6 +74,14 @@ export function createSupabaseStore() {
       if (error) throw new Error(`loadProfile: ${error.message}`);
       const parsed = data.profile || {};
       const profile = { ...emptyProfile(), ...parsed };
+      profile.commonQuestions = normalizeCommonQuestions(
+        profile.commonQuestions
+      );
+      if (profile.draft && Array.isArray(profile.draft.commonQuestions)) {
+        profile.draft.commonQuestions = normalizeCommonQuestions(
+          profile.draft.commonQuestions
+        );
+      }
       if (
         parsed.flowiseSyncOk === undefined &&
         profile.chatflowId &&
@@ -86,15 +94,27 @@ export function createSupabaseStore() {
 
     async saveProfile(senderId, profile) {
       await this.ensureSender(senderId);
+      const toSave = { ...profile };
+      toSave.commonQuestions = normalizeCommonQuestions(
+        toSave.commonQuestions
+      );
+      if (toSave.draft && Array.isArray(toSave.draft.commonQuestions)) {
+        toSave.draft = {
+          ...toSave.draft,
+          commonQuestions: normalizeCommonQuestions(
+            toSave.draft.commonQuestions
+          ),
+        };
+      }
       const { error } = await sb
         .from('easybot_business_profiles')
         .update({
-          profile,
+          profile: toSave,
           updated_at: new Date().toISOString(),
         })
         .eq('sender_id', senderId);
       if (error) throw new Error(`saveProfile: ${error.message}`);
-      return profile;
+      return toSave;
     },
 
     async loadSession(senderId) {

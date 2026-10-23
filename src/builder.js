@@ -3,6 +3,7 @@ import {
   formatSummary,
   hasEnoughForFirstBot,
   mergeDraft,
+  normalizeCommonQuestions,
 } from './profile.js';
 
 const INTAKE_GATE_QUESTION =
@@ -18,7 +19,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking)
 - Opening hours or availability
 - Location or service area
-- Common customer questions (FAQ: questions customers ask the business — the bot should answer these from approved facts)
+- Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers)
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers)
 - Preferred communication style / tone
 
@@ -33,14 +34,16 @@ Interview rules:
   - If the owner says it is undecided, unknown, or "not sure yet", record it in draft.unknowns as a clear statement of what is unknown. Keep known parts in the normal fields (e.g. rate known, application unknown).
   - Capacity limits, max group size, or similar are NOT pricing rules — do not treat them as settling how price scales.
 - commonQuestions vs informationToCollect:
-  - commonQuestions = topics customers ask YOU (FAQ the bot answers).
+  - commonQuestions = FAQ entries { question, answer }. question = what customers ask; answer = the owner's full explanation the Business Bot may use.
+  - When the owner explains a process, policy, or FAQ topic, store the COMPLETE answer in answer (not a one-line paraphrase that drops details). Topic titles alone are not enough.
+  - Do not put a FAQ item with an empty answer when the owner already gave the answer in chat — copy that answer into the field.
   - informationToCollect = details the bot should ASK the customer for (intake).
   - Never put intake items into commonQuestions, and never put FAQ topics into informationToCollect.
   - Keep draft.informationToCollect as null until the owner answers whether the bot should collect anything.
   - When they say collect nothing / none / no, set informationToCollect to [] (empty array).
   - When they list items, set informationToCollect to those strings.
 - Before readyForReview / approve, you MUST have asked (once) whether the bot should collect any information from the customer, and set informationToCollect to an array (possibly empty) based on their answer.
-- When the owner later clarifies an unknown or changes a fact, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
+- When the owner later clarifies an unknown or changes a fact, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
 - When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts AND explicit unknowns, asking them to approve, correct, or say "approve".
 - If they correct facts, update the draft and confirm.
 - If they say approve / looks good / yes after a summary (or after a clarification summary), set approved=true.
@@ -55,7 +58,7 @@ You MUST respond with a single JSON object only (no markdown fences):
     "services": [{"name": string, "price": string|null, "notes": string|null}],
     "hours": string|null,
     "locationOrArea": string|null,
-    "commonQuestions": [string],
+    "commonQuestions": [{"question": string, "answer": string}],
     "informationToCollect": [string]|null,
     "unknowns": [string],
     "tone": string|null
@@ -66,6 +69,7 @@ You MUST respond with a single JSON object only (no markdown fences):
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
 Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
+commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
 informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
 unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.`;
 
@@ -149,6 +153,9 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   }
 
   const draft = parsed.draft || currentDraft;
+  if (Array.isArray(draft.commonQuestions)) {
+    draft.commonQuestions = normalizeCommonQuestions(draft.commonQuestions);
+  }
   // Preserve prior informationToCollect when model omits it or sends null after settled
   if (
     !Array.isArray(draft.informationToCollect) &&

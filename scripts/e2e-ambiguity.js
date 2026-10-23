@@ -130,9 +130,18 @@ const dogWalkerAmbiguous = {
   hours: 'Daily at 8:00 AM',
   locationOrArea: 'Tel Aviv',
   commonQuestions: [
-    'What is the price?',
-    'What time is pickup?',
-    'Do you cover my neighborhood?',
+    {
+      question: 'What is the price?',
+      answer: 'Dog walking is $10 per hour.',
+    },
+    {
+      question: 'What time is pickup?',
+      answer: 'Pickup is daily at 8:00 AM.',
+    },
+    {
+      question: 'Do you cover my neighborhood?',
+      answer: 'Service area is Tel Aviv; exact neighborhoods may still be undecided.',
+    },
   ],
   unknowns: [
     'Whether the $10/hour walking rate is per dog or per booking/walk',
