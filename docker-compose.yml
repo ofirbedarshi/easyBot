@@ -12,7 +12,7 @@ services:
       PORT: "3000"
       # Optional: point at Supabase Postgres for durable chatflows
       # DATABASE_TYPE: postgres
-      # DATABASE_HOST: db.YOUR_REF.supabase.co
+      # DATABASE_HOST: aws-1-<region>.pooler.supabase.com  # session pooler, not db.<ref>.supabase.co (IPv6-only)
       # DATABASE_PORT: "5432"
       # DATABASE_USER: postgres
       # DATABASE_PASSWORD: (set locally; do not commit)

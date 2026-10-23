@@ -54,6 +54,8 @@ services:
         value: "3000"
       - key: DATABASE_TYPE
         value: postgres
+      # Session pooler (IPv4). Direct db.<ref>.supabase.co is IPv6-only; Render cannot reach it.
+      # This project’s pooler host is aws-1-eu-central-1.pooler.supabase.com (set in the dashboard).
       - key: DATABASE_HOST
         sync: false
       - key: DATABASE_PORT
@@ -61,10 +63,15 @@ services:
       - key: DATABASE_NAME
         value: postgres
       - key: DATABASE_USER
-        value: postgres
+        value: postgres.ikaljptwjamzxlyrwndi
       - key: DATABASE_PASSWORD
         sync: false
       - key: DATABASE_SSL
         value: "true"
+      # Base64 PEM of the Supabase root CA. Required with the pooler: DATABASE_SSL=true alone
+      # fails with "self-signed certificate in certificate chain", and Flowise only relaxes
+      # verification when this value is set.
+      - key: DATABASE_SSL_KEY_BASE64
+        sync: false
       - key: OPENAI_API_KEY
         sync: false

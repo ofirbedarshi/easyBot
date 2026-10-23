@@ -1,0 +1,12 @@
+node_modules
+.env
+.env.*
+.local
+.git
+data/test-results
+data/test-profiles
+data/business-profile.json
+supabase/.temp
+*.md
+.cursor
+agent-transcripts

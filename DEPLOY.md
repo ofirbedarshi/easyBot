@@ -22,7 +22,7 @@ Do **not** paste secrets into chat. Set them in Render Dashboard → Environment
    - `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    - `FLOWISE_URL=https://<your-easybot-flowise>.onrender.com`
    - Twilio vars when ready
-4. Set Flowise Postgres env to Supabase DB host/password (Dashboard → Project Settings → Database). Use SSL.
+4. Set Flowise Postgres env from Supabase → Connect → **Session pooler** (IPv4). Do not use the direct host `db.<ref>.supabase.co`: it is IPv6-only, and Render cannot reach it (`ENETUNREACH`), which leaves Flowise up on `/api/v1/ping` but unable to save chatflows. For this project: host `aws-1-eu-central-1.pooler.supabase.com`, user `postgres.ikaljptwjamzxlyrwndi`, port `5432`. Also set `DATABASE_SSL=true` and `DATABASE_SSL_KEY_BASE64` to the base64 PEM of the Supabase root CA (the pooler cert is signed by Supabase’s private CA; without the CA, Flowise logs `self-signed certificate in certificate chain` and still cannot save chatflows).
 5. Free tier sleeps ~15m; hit `/api/health` before Sandbox tests.
 
 ## You: Twilio (when WhatsApp number / Sandbox ready)
