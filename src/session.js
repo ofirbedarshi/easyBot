@@ -212,8 +212,32 @@ async function handleTest(session, question, flowiseSessionId) {
   try {
     reply = await predict(profile.chatflowId, question, sid);
   } catch (err) {
-    reply = `Flowise error: ${err.message}`;
-    source = 'error';
+    const missing =
+      /not found/i.test(err.message) || /getChatflowById/i.test(err.message);
+    if (missing && profile.approvedAt) {
+      try {
+        console.warn(
+          'Flowise chatflow missing; recreating:',
+          profile.chatflowId,
+          err.message
+        );
+        profile.chatflowId = null;
+        profile.flowiseSyncOk = false;
+        const newId = await createOrUpdateChatflow(profile);
+        profile.chatflowId = newId;
+        profile.flowiseSyncOk = true;
+        profile.flowiseSyncedAt = new Date().toISOString();
+        await saveAsync(session, profile);
+        reply = await predict(newId, question, sid);
+        source = 'real-flowise';
+      } catch (recoverErr) {
+        reply = `Flowise error: ${recoverErr.message}`;
+        source = 'error';
+      }
+    } else {
+      reply = `Flowise error: ${err.message}`;
+      source = 'error';
+    }
   }
 
   // Isolated Flowise ids (parallel customer probes) skip shared history to avoid races
