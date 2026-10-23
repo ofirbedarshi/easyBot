@@ -1,0 +1,70 @@
+# Render Blueprint — personal easyBot demo (free tier).
+# Create services from the dashboard or: render blueprint apply
+# Free web services spin down after ~15m idle; cold start can take ~1m.
+# Flowise uses Supabase Postgres (no persistent disk on free).
+
+services:
+  - type: web
+    name: easybot-app
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3080"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FLOWISE_URL
+        sync: false
+      - key: FLOWISE_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: DEMO_MAX_MSG_CHARS
+        value: "2000"
+      - key: DEMO_MAX_MSGS_PER_SENDER_PER_HOUR
+        value: "30"
+      - key: DEMO_MAX_MSGS_PER_SENDER_PER_DAY
+        value: "100"
+
+  - type: web
+    name: easybot-flowise
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.flowise
+    healthCheckPath: /api/v1/ping
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_TYPE
+        value: postgres
+      - key: DATABASE_HOST
+        sync: false
+      - key: DATABASE_PORT
+        value: "5432"
+      - key: DATABASE_NAME
+        value: postgres
+      - key: DATABASE_USER
+        value: postgres
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: OPENAI_API_KEY
+        sync: false

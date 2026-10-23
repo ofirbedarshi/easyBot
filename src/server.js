@@ -18,12 +18,36 @@ import {
   judgeModelName,
   JUDGE_VERSION,
 } from './judge.js';
+import { createStore, isSupabaseConfigured } from './store/index.js';
+import { createTwilioWhatsAppRouter } from './twilio/webhook.js';
+import { startInboundWorker } from './twilio/worker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT) || 3080;
+const isProd = process.env.NODE_ENV === 'production';
 
+/** Protect private Tester artifacts in deployed environments. */
+function blockTestResultsInProd(req, res, next) {
+  if (isProd && process.env.ALLOW_TEST_RESULTS !== '1') {
+    return res.status(404).json({ ok: false, error: 'Not found' });
+  }
+  next();
+}
+
+// Twilio webhook needs urlencoded body parser on its route (mounted below).
+// JSON for browser API.
 app.use(express.json({ limit: '1mb' }));
+
+const store = createStore();
+app.use('/webhooks/twilio', createTwilioWhatsAppRouter(store));
+
+if (isProd) {
+  app.get('/results.html', (_req, res) => {
+    res.status(404).send('Not found');
+  });
+}
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 /** Default UI / non-adaptive e2e session → data/business-profile.json */
@@ -97,13 +121,17 @@ app.get('/api/health', async (_req, res) => {
     openai: !!process.env.OPENAI_API_KEY,
     flowise,
     flowiseUrl: process.env.FLOWISE_URL || 'http://localhost:3000',
+    supabase: isSupabaseConfigured(),
+    store: store.kind,
+    twilioWebhook: !!process.env.TWILIO_AUTH_TOKEN,
+    publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
     judgeMode: resolveJudgeMode(),
     judgeModel: judgeModelName(),
     judgeVersion: JUDGE_VERSION,
   });
 });
 
-app.get('/api/test-results', (_req, res) => {
+app.get('/api/test-results', blockTestResultsInProd, (_req, res) => {
   if (!fs.existsSync(RESULTS_LATEST)) {
     return res.status(404).json({
       ok: false,
@@ -119,7 +147,7 @@ app.get('/api/test-results', (_req, res) => {
   }
 });
 
-app.get('/api/test-results/index', (_req, res) => {
+app.get('/api/test-results/index', blockTestResultsInProd, (_req, res) => {
   try {
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     const files = fs
@@ -137,7 +165,7 @@ app.get('/api/test-results/index', (_req, res) => {
   }
 });
 
-app.get('/api/test-results/file', (req, res) => {
+app.get('/api/test-results/file', blockTestResultsInProd, (req, res) => {
   const base = safeResultsBasename(req.query.name);
   if (!base) {
     return res.status(400).json({ ok: false, error: 'Invalid name' });
@@ -192,9 +220,17 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+const worker = startInboundWorker(store);
+
 app.listen(PORT, () => {
   console.log(`easyBot UI → http://localhost:${PORT}`);
+  console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
   if (!process.env.OPENAI_API_KEY) {
     console.warn('WARNING: OPENAI_API_KEY not set');
   }
+  if (isProd && !process.env.PUBLIC_BASE_URL) {
+    console.warn('WARNING: PUBLIC_BASE_URL not set — Twilio signature validation will fail');
+  }
 });
+
+export { app, store, worker };

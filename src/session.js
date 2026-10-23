@@ -11,7 +11,7 @@ import { createOrUpdateChatflow, predict } from './flowise.js';
 
 /**
  * In-memory session. Profile persists on disk at session.profilePath
- * (default: data/business-profile.json).
+ * (default: data/business-profile.json) unless session.store + senderId set.
  */
 export function createSession(profilePath) {
   return {
@@ -20,28 +20,95 @@ export function createSession(profilePath) {
     testHistory: [],
     testSessionId: `test-${Date.now()}`,
     profilePath: profilePath || defaultProfilePath(),
+    store: null,
+    senderId: null,
   };
 }
 
+/**
+ * Load WhatsApp / store-backed session for one sender (isolated).
+ */
+export async function createSenderSession(store, senderId) {
+  const saved = await store.loadSession(senderId);
+  return {
+    mode: saved.mode || 'BUILD',
+    buildHistory: saved.buildHistory || [],
+    testHistory: saved.testHistory || [],
+    testSessionId: saved.testSessionId || `test-${Date.now()}`,
+    profilePath: null,
+    store,
+    senderId,
+  };
+}
+
+export async function persistSenderSession(session) {
+  if (!session.store || !session.senderId) return;
+  await session.store.saveSession(session.senderId, session);
+}
+
 function load(session) {
+  if (session.store && session.senderId) {
+    throw new Error('Use loadAsync for store-backed sessions');
+  }
+  return loadProfile(session.profilePath);
+}
+
+async function loadAsync(session) {
+  if (session.store && session.senderId) {
+    return session.store.loadProfile(session.senderId);
+  }
   return loadProfile(session.profilePath);
 }
 
 function save(session, profile) {
+  if (session.store && session.senderId) {
+    throw new Error('Use saveAsync for store-backed sessions');
+  }
+  return saveProfile(profile, session.profilePath);
+}
+
+async function saveAsync(session, profile) {
+  if (session.store && session.senderId) {
+    return session.store.saveProfile(session.senderId, profile);
+  }
   return saveProfile(profile, session.profilePath);
 }
 
 export function getState(session) {
+  // Sync path for file-backed UI / e2e
+  if (session.store && session.senderId) {
+    return {
+      mode: session.mode,
+      profile: {},
+      summary: '',
+      hasChatflow: false,
+      approvedAt: null,
+      flowiseSyncOk: false,
+      buildHistory: session.buildHistory,
+      testHistory: session.testHistory,
+      async: true,
+    };
+  }
   const profile = load(session);
+  return stateFrom(session, profile);
+}
+
+async function getStateAsync(session) {
+  const profile = await loadAsync(session);
+  return stateFrom(session, profile);
+}
+
+function stateFrom(session, profile) {
   return {
     mode: session.mode,
     profile: {
       ...profile,
-      // never send API keys
     },
     summary: formatSummary(mergeDraft(profile, profile.draft || {})),
     hasChatflow: !!profile.chatflowId,
     approvedAt: profile.approvedAt,
+    flowiseSyncOk: !!profile.flowiseSyncOk,
+    flowiseSyncedAt: profile.flowiseSyncedAt || null,
     buildHistory: session.buildHistory,
     testHistory: session.testHistory,
   };
@@ -55,7 +122,7 @@ export function getState(session) {
 export async function handleMessage(session, text, options = {}) {
   const trimmed = (text || '').trim();
   if (!trimmed) {
-    return { ok: false, error: 'Empty message', ...getState(session) };
+    return { ok: false, error: 'Empty message', ...(await getStateAsync(session)) };
   }
 
   // Commands handled in app code — never by the LLM
@@ -66,7 +133,7 @@ export async function handleMessage(session, text, options = {}) {
     return enterBuild(session);
   }
   if (trimmed === '/reset') {
-    save(session, emptyProfile());
+    await saveAsync(session, emptyProfile());
     session.buildHistory = [];
     session.testHistory = [];
     session.mode = 'BUILD';
@@ -78,7 +145,7 @@ export async function handleMessage(session, text, options = {}) {
       reply: open.message,
       source: open.source,
       event: 'reset',
-      ...getState(session),
+      ...(await getStateAsync(session)),
     };
   }
 
@@ -89,14 +156,18 @@ export async function handleMessage(session, text, options = {}) {
 }
 
 async function enterTest(session) {
-  const profile = load(session);
-  if (!profile.approvedAt || !profile.chatflowId) {
+  const profile = await loadAsync(session);
+  if (!profile.approvedAt || !profile.chatflowId || !profile.flowiseSyncOk) {
     return {
       ok: false,
       reply:
-        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.',
+        !profile.approvedAt
+          ? 'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.'
+          : !profile.flowiseSyncOk
+            ? 'Approved facts are not synced to Flowise yet. Say **approve** again after fixing Flowise, or wait for a successful sync.'
+            : 'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.',
       source: 'app',
-      ...getState(session),
+      ...(await getStateAsync(session)),
     };
   }
   session.mode = 'TEST';
@@ -109,7 +180,7 @@ async function enterTest(session) {
     reply,
     source: 'app',
     event: 'enter_test',
-    ...getState(session),
+    ...(await getStateAsync(session)),
   };
 }
 
@@ -122,12 +193,12 @@ async function enterBuild(session) {
     reply,
     source: 'app',
     event: 'enter_build',
-    ...getState(session),
+    ...(await getStateAsync(session)),
   };
 }
 
 async function handleTest(session, question, flowiseSessionId) {
-  const profile = load(session);
+  const profile = await loadAsync(session);
   // TEST must never modify business facts
   const before = JSON.stringify({
     name: profile.name,
@@ -151,7 +222,7 @@ async function handleTest(session, question, flowiseSessionId) {
     session.testHistory.push({ role: 'assistant', content: reply });
   }
 
-  const afterProfile = load(session);
+  const afterProfile = await loadAsync(session);
   const after = JSON.stringify({
     name: afterProfile.name,
     services: afterProfile.services,
@@ -159,7 +230,7 @@ async function handleTest(session, question, flowiseSessionId) {
   });
   if (before !== after) {
     // Should be impossible — restore if somehow mutated
-    save(session, profile);
+    await saveAsync(session, profile);
   }
 
   return {
@@ -168,12 +239,12 @@ async function handleTest(session, question, flowiseSessionId) {
     source,
     event: 'test_turn',
     profileUnchanged: before === after,
-    ...getState(session),
+    ...(await getStateAsync(session)),
   };
 }
 
 async function handleBuild(session, userMessage) {
-  const profile = load(session);
+  const profile = await loadAsync(session);
   session.buildHistory.push({ role: 'user', content: userMessage });
 
   let result;
@@ -189,7 +260,7 @@ async function handleBuild(session, userMessage) {
       ok: false,
       reply: `Builder error: ${err.message}`,
       source: 'error',
-      ...getState(session),
+      ...(await getStateAsync(session)),
     };
   }
 
@@ -213,21 +284,26 @@ async function handleBuild(session, userMessage) {
       tone: merged.tone,
       draft: result.draft,
       approvedAt: new Date().toISOString(),
+      // Until Flowise sync succeeds, /test stays blocked
+      flowiseSyncOk: false,
     });
 
     try {
       const chatflowId = await createOrUpdateChatflow(profile);
       profile.chatflowId = chatflowId;
+      profile.flowiseSyncOk = true;
+      profile.flowiseSyncedAt = new Date().toISOString();
       syncNote = `\n\n[Bot updated in Flowise — chatflow ${chatflowId}. Type /test to try it.]`;
       event = 'approved_synced';
       result.source = `${result.source}+real-flowise-sync`;
     } catch (err) {
-      syncNote = `\n\n[Approved locally, but Flowise sync failed: ${err.message}]`;
+      profile.flowiseSyncOk = false;
+      syncNote = `\n\n[Approved locally, but Flowise sync failed: ${err.message}. /test is blocked until sync succeeds.]`;
       event = 'approved_sync_failed';
     }
   }
 
-  save(session, profile);
+  await saveAsync(session, profile);
   const reply = result.message + syncNote;
   session.buildHistory.push({ role: 'assistant', content: reply });
 
@@ -238,7 +314,7 @@ async function handleBuild(session, userMessage) {
     event,
     readyForReview: result.readyForReview,
     approved: result.approved,
-    ...getState(session),
+    ...(await getStateAsync(session)),
   };
 }
 
@@ -246,6 +322,17 @@ export function bootstrapSession(session) {
   const open = openingMessage();
   if (session.buildHistory.length === 0) {
     session.buildHistory.push({ role: 'assistant', content: open.message });
+  }
+  // Sync getState for file sessions; store sessions use histories only until persist
+  if (session.store && session.senderId) {
+    return {
+      ok: true,
+      reply: open.message,
+      source: open.source,
+      mode: session.mode,
+      buildHistory: session.buildHistory,
+      testHistory: session.testHistory,
+    };
   }
   return {
     ok: true,

@@ -34,6 +34,10 @@ export function emptyProfile() {
     tone: null,
     approvedAt: null,
     chatflowId: null,
+    /** Set only after Flowise create/update succeeds for the current approval. */
+    flowiseSyncedAt: null,
+    /** App gate for /test: true only after a successful Flowise sync. */
+    flowiseSyncOk: false,
     draft: null,
   };
 }
@@ -44,7 +48,17 @@ export function loadProfile(profilePath = PROFILE_PATH) {
     return emptyProfile();
   }
   const raw = fs.readFileSync(filePath, 'utf8');
-  return { ...emptyProfile(), ...JSON.parse(raw) };
+  const parsed = JSON.parse(raw);
+  const profile = { ...emptyProfile(), ...parsed };
+  // Pre-flag profiles that already have a chatflow were syncable; allow /test
+  if (
+    parsed.flowiseSyncOk === undefined &&
+    profile.chatflowId &&
+    profile.approvedAt
+  ) {
+    profile.flowiseSyncOk = true;
+  }
+  return profile;
 }
 
 export function saveProfile(profile, profilePath = PROFILE_PATH) {

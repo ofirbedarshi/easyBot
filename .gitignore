@@ -3,3 +3,7 @@ node_modules/
 data/business-profile.json
 data/test-profiles/
 .DS_Store
+
+.local/
+.env.render
+supabase/.temp/
