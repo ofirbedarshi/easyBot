@@ -5,6 +5,9 @@ import {
   mergeDraft,
 } from './profile.js';
 
+const INTAKE_GATE_QUESTION =
+  'Before we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.';
+
 const SYSTEM = `You are a smart business consultant helping a non-technical owner create a customer-facing chatbot.
 
 Your job: interview them naturally (NOT a questionnaire) to understand their business, then extract facts for the bot.
@@ -15,7 +18,8 @@ Discover when relevant (partial info is OK — do not force every category):
 - Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking)
 - Opening hours or availability
 - Location or service area
-- Common customer questions
+- Common customer questions (FAQ: questions customers ask the business — the bot should answer these from approved facts)
+- Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers)
 - Preferred communication style / tone
 
 Interview rules:
@@ -28,8 +32,16 @@ Interview rules:
   - Prefer one concise clarification question when the ambiguity is important for a useful bot.
   - If the owner says it is undecided, unknown, or "not sure yet", record it in draft.unknowns as a clear statement of what is unknown. Keep known parts in the normal fields (e.g. rate known, application unknown).
   - Capacity limits, max group size, or similar are NOT pricing rules — do not treat them as settling how price scales.
+- commonQuestions vs informationToCollect:
+  - commonQuestions = topics customers ask YOU (FAQ the bot answers).
+  - informationToCollect = details the bot should ASK the customer for (intake).
+  - Never put intake items into commonQuestions, and never put FAQ topics into informationToCollect.
+  - Keep draft.informationToCollect as null until the owner answers whether the bot should collect anything.
+  - When they say collect nothing / none / no, set informationToCollect to [] (empty array).
+  - When they list items, set informationToCollect to those strings.
+- Before readyForReview / approve, you MUST have asked (once) whether the bot should collect any information from the customer, and set informationToCollect to an array (possibly empty) based on their answer.
 - When the owner later clarifies an unknown or changes a fact, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
-- When you have enough for a useful first customer bot (identity + at least one offering or clear description), set readyForReview=true and present a concise summary that includes known facts AND explicit unknowns, asking them to approve, correct, or say "approve".
+- When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts AND explicit unknowns, asking them to approve, correct, or say "approve".
 - If they correct facts, update the draft and confirm.
 - If they say approve / looks good / yes after a summary (or after a clarification summary), set approved=true.
 - If they change something later (e.g. a new price), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved.
@@ -44,6 +56,7 @@ You MUST respond with a single JSON object only (no markdown fences):
     "hours": string|null,
     "locationOrArea": string|null,
     "commonQuestions": [string],
+    "informationToCollect": [string]|null,
     "unknowns": [string],
     "tone": string|null
   },
@@ -52,7 +65,8 @@ You MUST respond with a single JSON object only (no markdown fences):
 }
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
-Use null for unknown fields. services/commonQuestions/unknowns should be arrays (possibly empty).
+Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
+informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
 unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.`;
 
 function getClient() {
@@ -69,6 +83,11 @@ function parseJsonResponse(content) {
   return JSON.parse(text);
 }
 
+/** True once the owner has answered the intake question (array, possibly empty). */
+export function hasAnsweredInformationToCollect(draftOrProfile) {
+  return Array.isArray(draftOrProfile?.informationToCollect);
+}
+
 export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const client = getClient();
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -80,10 +99,15 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     hours: profile.hours,
     locationOrArea: profile.locationOrArea,
     commonQuestions: profile.commonQuestions,
+    informationToCollect:
+      profile.informationToCollect === undefined
+        ? null
+        : profile.informationToCollect,
     unknowns: profile.unknowns || [],
     tone: profile.tone,
   };
 
+  const intakeSettled = hasAnsweredInformationToCollect(currentDraft);
   const contextNote = [
     'Current draft profile JSON:',
     JSON.stringify(currentDraft, null, 2),
@@ -91,7 +115,9 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
       ? `Last approved at: ${profile.approvedAt}`
       : 'Not yet approved.',
     hasEnoughForFirstBot(mergeDraft(profile, currentDraft))
-      ? 'Hint: enough info may already exist for a first bot — consider readyForReview if appropriate.'
+      ? intakeSettled
+        ? 'Hint: enough info may already exist for a first bot — consider readyForReview if appropriate.'
+        : 'Hint: basics may be enough, but informationToCollect is still null — ask whether the bot should collect anything from the customer before readyForReview.'
       : 'Hint: still gathering basics.',
   ].join('\n');
 
@@ -123,6 +149,19 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   }
 
   const draft = parsed.draft || currentDraft;
+  // Preserve prior informationToCollect when model omits it or sends null after settled
+  if (
+    !Array.isArray(draft.informationToCollect) &&
+    Array.isArray(currentDraft.informationToCollect)
+  ) {
+    draft.informationToCollect = currentDraft.informationToCollect;
+  } else if (
+    draft.informationToCollect === undefined &&
+    currentDraft.informationToCollect === null
+  ) {
+    draft.informationToCollect = null;
+  }
+
   const mergedPreview = mergeDraft(profile, draft);
 
   // Soft guard: if model marks approved without enough info, require review instead
@@ -133,8 +172,16 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     readyForReview = true;
   }
 
+  // Application gate: cannot review/approve until owner answered intake collect question
+  const intakeAnswered = hasAnsweredInformationToCollect(draft);
   let message = parsed.message || 'Tell me a bit more about your business.';
-  if (readyForReview && !approved && !/approve/i.test(message)) {
+  if ((readyForReview || approved) && !intakeAnswered) {
+    approved = false;
+    readyForReview = false;
+    if (!message.includes(INTAKE_GATE_QUESTION)) {
+      message = `${message.trim()}\n\n${INTAKE_GATE_QUESTION}`;
+    }
+  } else if (readyForReview && !approved && !/approve/i.test(message)) {
     message +=
       '\n\n---\n' +
       formatSummary(mergedPreview) +

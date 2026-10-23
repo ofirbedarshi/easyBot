@@ -5,6 +5,16 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const PROFILE_PATH = path.join(DATA_DIR, 'business-profile.json');
+const TEST_PROFILES_DIR = path.join(DATA_DIR, 'test-profiles');
+
+export function defaultProfilePath() {
+  return PROFILE_PATH;
+}
+
+/** Per-fixture profile file for isolated adaptive e2e sessions. */
+export function testProfilePath(sessionKey) {
+  return path.join(TEST_PROFILES_DIR, `${sessionKey}.json`);
+}
 
 export function emptyProfile() {
   return {
@@ -14,6 +24,11 @@ export function emptyProfile() {
     hours: null,
     locationOrArea: null,
     commonQuestions: [],
+    /**
+     * What the Business Bot should ask the customer for.
+     * null = owner not asked yet; [] = collect nothing; non-empty = items to ask.
+     */
+    informationToCollect: null,
     /** Explicit gaps the owner left undecided or unclarified (must stay unknown until approved). */
     unknowns: [],
     tone: null,
@@ -23,17 +38,19 @@ export function emptyProfile() {
   };
 }
 
-export function loadProfile() {
-  if (!fs.existsSync(PROFILE_PATH)) {
+export function loadProfile(profilePath = PROFILE_PATH) {
+  const filePath = profilePath || PROFILE_PATH;
+  if (!fs.existsSync(filePath)) {
     return emptyProfile();
   }
-  const raw = fs.readFileSync(PROFILE_PATH, 'utf8');
+  const raw = fs.readFileSync(filePath, 'utf8');
   return { ...emptyProfile(), ...JSON.parse(raw) };
 }
 
-export function saveProfile(profile) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(PROFILE_PATH, JSON.stringify(profile, null, 2), 'utf8');
+export function saveProfile(profile, profilePath = PROFILE_PATH) {
+  const filePath = profilePath || PROFILE_PATH;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(profile, null, 2), 'utf8');
   return profile;
 }
 
@@ -53,6 +70,9 @@ export function mergeDraft(profile, draft) {
   if (Array.isArray(draft.services)) next.services = draft.services;
   if (Array.isArray(draft.commonQuestions)) {
     next.commonQuestions = draft.commonQuestions;
+  }
+  if (Array.isArray(draft.informationToCollect)) {
+    next.informationToCollect = draft.informationToCollect;
   }
   if (Array.isArray(draft.unknowns)) next.unknowns = draft.unknowns;
   return next;
@@ -78,6 +98,16 @@ export function formatSummary(profile) {
   if (profile.commonQuestions?.length) {
     lines.push('Common questions:');
     for (const q of profile.commonQuestions) lines.push(`  • ${q}`);
+  }
+  if (Array.isArray(profile.informationToCollect)) {
+    if (profile.informationToCollect.length) {
+      lines.push('Information the bot should collect:');
+      for (const item of profile.informationToCollect) {
+        lines.push(`  • ${item}`);
+      }
+    } else {
+      lines.push('Information the bot should collect: (none)');
+    }
   }
   if (profile.unknowns?.length) {
     lines.push('Explicitly unknown / undecided (bot must not invent these):');

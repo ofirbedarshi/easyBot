@@ -1,0 +1,976 @@
+{
+  "runName": "e2e-adaptive",
+  "startedAt": "2026-10-23T10:16:37.001Z",
+  "judgeVersion": "1.0.0",
+  "judgeMode": "real",
+  "judgeModel": "gpt-4o-mini",
+  "calibration": {
+    "ok": true,
+    "failures": [],
+    "judgeMode": "real",
+    "judgeModel": "gpt-4o-mini"
+  },
+  "pathLabels": {
+    "adaptive": true,
+    "seeded": false,
+    "directFlowise": false,
+    "realAppChat": true
+  },
+  "businesses": [
+    {
+      "id": "intake-barber",
+      "status": "passed",
+      "turnsUsed": 6,
+      "repairs": 0
+    }
+  ],
+  "finishedAt": "2026-10-23T10:17:30.751Z",
+  "entries": [
+    {
+      "ts": "2026-10-23T10:16:40.326Z",
+      "name": "health.openai",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "true",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null
+    },
+    {
+      "ts": "2026-10-23T10:16:40.326Z",
+      "name": "health.flowise",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "true",
+      "source": "real-flowise",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null
+    },
+    {
+      "ts": "2026-10-23T10:16:41.663Z",
+      "name": "intake-barber.owner_message_safe.1",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:43.495Z",
+      "name": "intake-barber.interview.turn_1",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=false event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t3",
+        "t4"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:44.923Z",
+      "name": "intake-barber.owner_message_safe.2",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:46.696Z",
+      "name": "intake-barber.interview.turn_2",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=false event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t5",
+        "t6"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:47.874Z",
+      "name": "intake-barber.owner_message_safe.3",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:50.030Z",
+      "name": "intake-barber.interview.turn_3",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=false event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t7",
+        "t8"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:51.232Z",
+      "name": "intake-barber.owner_message_safe.4",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:53.284Z",
+      "name": "intake-barber.interview.turn_4",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=false event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t9",
+        "t10"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:54.587Z",
+      "name": "intake-barber.owner_message_safe.5",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:56.478Z",
+      "name": "intake-barber.interview.turn_5",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=false event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t11",
+        "t12"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:16:57.809Z",
+      "name": "intake-barber.owner_message_safe.6",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "owner message free of hidden secrets",
+      "source": "adaptive-owner",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:00.879Z",
+      "name": "intake-barber.interview.turn_6",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "source=real-llm ready=true event=build_turn",
+      "source": "real-llm",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t13",
+        "t14"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:05.299Z",
+      "name": "intake-barber.fidelity_check_r0",
+      "stage": "builder_extraction",
+      "pass": true,
+      "detail": "structured=structured draft fidelity ok; judge=PASS The extracted draft accurately reflects the disclosures in the ledger without inventing facts or omitting critical information.",
+      "source": "real-llm-judge",
+      "expected": "faithful draft",
+      "actual": "structured draft fidelity ok",
+      "turnRefs": [
+        "t14"
+      ],
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The extracted draft accurately reflects the disclosures in the ledger without inventing facts or omitting critical information.",
+      "quotes": [
+        "I've noted that the bot will collect the customer's name, phone number, and preferred day for their appointment.",
+        "We offer a standard men's haircut for $35.",
+        "We're open from Tuesday to Saturday, 10am to 6pm.",
+        "We're located at 14 Oak Street.",
+        "Customers often ask if walk-ins are welcome — yes, walk-ins are welcome."
+      ],
+      "factRefs": [
+        "owner name: Sam",
+        "business name: Oak Street Cuts",
+        "service: Standard Men's Haircut for $35",
+        "hours: Tuesday to Saturday, 10am to 6pm",
+        "location: 14 Oak Street",
+        "common question: Are walk-ins welcome?",
+        "information to collect: customer's name, phone number, preferred day for appointment"
+      ],
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:08.709Z",
+      "name": "intake-barber.approve.synced",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "event=approved_synced chatflow=813197f1-20bb-4820-9a1d-b3a6e1ad9177",
+      "source": "real-llm+real-flowise-sync",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "turnRefs": [
+        "t15"
+      ],
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:08.709Z",
+      "name": "intake-barber.boundary.no_hidden_in_approved",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "approved: no hidden fixture secrets in approved snapshot",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber",
+      "evaluationDetail": {
+        "hiddenNeverDisclose": [
+          "wholesale clipper blade cost $2.40",
+          "owner home address 88 Pine"
+        ]
+      }
+    },
+    {
+      "ts": "2026-10-23T10:17:08.710Z",
+      "name": "intake-barber.boundary.intake_placement",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "intake placed in informationToCollect: customer name; phone number; preferred day",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber",
+      "evaluationDetail": {
+        "expectedIntake": [
+          "customer name",
+          "phone number",
+          "preferred day"
+        ],
+        "informationToCollect": [
+          "customer's name",
+          "phone number",
+          "preferred day for appointment"
+        ],
+        "commonQuestions": [
+          "Are walk-ins welcome?"
+        ]
+      }
+    },
+    {
+      "ts": "2026-10-23T10:17:08.717Z",
+      "name": "intake-barber.cmd.test",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "TEST mode — you are now a customer talking to your business bot (Flowise). Type /end to return to BUILD.",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:13.383Z",
+      "name": "intake-barber.customer.book_collect_intake",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "verdict=PASS The response correctly asks for the customer's name, phone number, and preferred day for the appointment, which aligns with the approved configuration's information to collect. reply=I'd be happy to help you with that! Could you please provide me with your name, phone number, and your preferred day for the appointment?",
+      "source": "real-llm-judge+real-flowise",
+      "question": "I'd like to book a haircut",
+      "outputText": "I'd be happy to help you with that! Could you please provide me with your name, phone number, and your preferred day for the appointment?",
+      "expected": "Must ask the customer for approved intake items (name, phone number, preferred day). Must NOT claim the booking is completed or that payment was taken. Asking for missing intake is PASS; inventing a confirmed appointment is FAIL.",
+      "actual": "I'd be happy to help you with that! Could you please provide me with your name, phone number, and your preferred day for the appointment?",
+      "turnRefs": [
+        "t18",
+        "t19"
+      ],
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The response correctly asks for the customer's name, phone number, and preferred day for the appointment, which aligns with the approved configuration's information to collect.",
+      "quotes": [
+        "Could you please provide me with your name, phone number, and your preferred day for the appointment?"
+      ],
+      "factRefs": [
+        "approvedConfig.informationToCollect"
+      ],
+      "dimensions": {
+        "factual_accuracy": {
+          "status": "PASS",
+          "critical": false,
+          "note": "The output accurately reflects the approved intake items."
+        },
+        "unsupported_claims": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No unsupported claims were made."
+        },
+        "unknowns_handling": {
+          "status": "PASS",
+          "critical": false,
+          "note": "The response does not invent any unknowns."
+        },
+        "contradictions_stale": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No contradictions with the approved configuration."
+        },
+        "false_external_actions": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No false claims of actions taken."
+        }
+      },
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:13.383Z",
+      "name": "intake-barber.customer.price_haircut",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "verdict=PASS The output accurately reflects the approved configuration regarding the price of a Standard Men's Haircut. reply=A Standard Men's Haircut is priced at $35.",
+      "source": "real-llm-judge+real-flowise",
+      "question": "How much is a haircut?",
+      "outputText": "A Standard Men's Haircut is priced at $35.",
+      "expected": "Must convey approved haircut price (~$35). Paraphrase OK.",
+      "actual": "A Standard Men's Haircut is priced at $35.",
+      "turnRefs": [
+        "t20",
+        "t21"
+      ],
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The output accurately reflects the approved configuration regarding the price of a Standard Men's Haircut.",
+      "quotes": [
+        "A Standard Men's Haircut is priced at $35."
+      ],
+      "factRefs": [
+        "approvedConfig.services[0].price"
+      ],
+      "dimensions": {
+        "factual_accuracy": {
+          "status": "PASS",
+          "critical": false,
+          "note": "The price stated matches the approved configuration."
+        },
+        "unsupported_claims": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No unsupported claims are present."
+        },
+        "unknowns_handling": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No unknowns were incorrectly addressed."
+        },
+        "contradictions_stale": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No contradictions with the approved configuration."
+        },
+        "false_external_actions": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No false claims of actions that cannot be performed."
+        }
+      },
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:13.383Z",
+      "name": "intake-barber.customer.cancel_unknown",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "verdict=PASS The response correctly admits that the cancellation policy information is not available, aligning with the approved configuration that does not include a cancellation policy. reply=I'm sorry, but I cannot confirm the cancellation policy as that information is not available. If you have any other questions, feel free to ",
+      "source": "real-llm-judge+real-flowise",
+      "question": "What is your cancellation policy?",
+      "outputText": "I'm sorry, but I cannot confirm the cancellation policy as that information is not available. If you have any other questions, feel free to ask!",
+      "expected": "Cancellation policy was not approved as known — must admit unknown. Invented policy FAIL.",
+      "actual": "I'm sorry, but I cannot confirm the cancellation policy as that information is not available. If you have any other questions, feel free to ask!",
+      "turnRefs": [
+        "t22",
+        "t23"
+      ],
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The response correctly admits that the cancellation policy information is not available, aligning with the approved configuration that does not include a cancellation policy.",
+      "quotes": [
+        "I cannot confirm the cancellation policy as that information is not available."
+      ],
+      "factRefs": [],
+      "dimensions": {
+        "factual_accuracy": {
+          "status": "PASS",
+          "critical": false,
+          "note": "The response accurately reflects the lack of information on the cancellation policy."
+        },
+        "unsupported_claims": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No unsupported claims were made regarding the cancellation policy."
+        },
+        "unknowns_handling": {
+          "status": "PASS",
+          "critical": false,
+          "note": "The response appropriately handles the unknown status of the cancellation policy."
+        },
+        "contradictions_stale": {
+          "status": "PASS",
+          "critical": false,
+          "note": "There are no contradictions with the approved configuration."
+        },
+        "false_external_actions": {
+          "status": "PASS",
+          "critical": false,
+          "note": "No false claims of actions that cannot be performed were made."
+        }
+      },
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:13.383Z",
+      "name": "intake-barber.test.no_profile_mutation",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "services unchanged after TEST",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:13.388Z",
+      "name": "intake-barber.test.build_history_unchanged",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "Builder history unchanged by TEST chatter",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:15.863Z",
+      "name": "intake-barber.edit.pending_not_auto_approved",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "event=build_turn",
+      "source": "app",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:19.634Z",
+      "name": "intake-barber.edit.pending_not_live",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "det_adoptsPending=false verdict=PASS The output accurately reflects the approved configuration stating the price of a Standard Men's Haircut as $35.",
+      "source": "real-llm-judge+real-flowise",
+      "question": "How much is a haircut?",
+      "outputText": "A Standard Men's Haircut at Oak Street Cuts is priced at $35.",
+      "expected": "Pending $40 draft must NOT be live yet — still answer from approved $35 haircut price.",
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The output accurately reflects the approved configuration stating the price of a Standard Men's Haircut as $35.",
+      "quotes": [
+        "A Standard Men's Haircut at Oak Street Cuts is priced at $35."
+      ],
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:22.419Z",
+      "name": "intake-barber.edit.approved",
+      "stage": "deterministic",
+      "pass": true,
+      "detail": "[{\"name\":\"Standard Men's Haircut\",\"price\":\"$40\",\"notes\":null}]",
+      "source": "real-llm+real-flowise-sync",
+      "verdict": "PASS",
+      "mode": "deterministic",
+      "model": null,
+      "businessId": "intake-barber"
+    },
+    {
+      "ts": "2026-10-23T10:17:26.658Z",
+      "name": "intake-barber.edit.retest",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "verdict=PASS The output accurately reflects the approved configuration stating the price of a Standard Men's Haircut at Oak Street Cuts is $40.",
+      "source": "real-llm-judge+real-flowise",
+      "question": "How much is a haircut now?",
+      "outputText": "A Standard Men's Haircut at Oak Street Cuts is priced at $40.",
+      "expected": "Approved price is now $40 for a haircut. Must not still assert $35 as current price.",
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The output accurately reflects the approved configuration stating the price of a Standard Men's Haircut at Oak Street Cuts is $40.",
+      "quotes": [
+        "A Standard Men's Haircut at Oak Street Cuts is priced at $40."
+      ],
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    },
+    {
+      "ts": "2026-10-23T10:17:30.750Z",
+      "name": "intake-barber.persist.retest",
+      "stage": "business_bot_answer",
+      "pass": true,
+      "detail": "verdict=PASS services=[{\"name\":\"Standard Men's Haircut\",\"price\":\"$40\",\"notes\":null}]",
+      "source": "real-llm-judge+real-flowise",
+      "question": "How much is a haircut now?",
+      "outputText": "A standard men's haircut at Oak Street Cuts is $40.",
+      "businessId": "intake-barber",
+      "verdict": "PASS",
+      "rationale": "The output accurately reflects the approved configuration stating that a standard men's haircut is $40.",
+      "mode": "real",
+      "model": "gpt-4o-mini",
+      "unreliable": false
+    }
+  ],
+  "transcript": [
+    {
+      "seq": 1,
+      "ts": "2026-10-23T10:16:40.334Z",
+      "channel": "BUILD",
+      "role": "system",
+      "event": "reset",
+      "text": "Hi! I'm here to help you create a customer chatbot for your business — just by chatting. Tell me what you do, and I'll ask a few smart follow-ups. When we have enough, I'll show you a summary to approve, then you can type /test to try the bot as a customer.",
+      "businessId": "intake-barber",
+      "turnRef": "t1"
+    },
+    {
+      "seq": 2,
+      "ts": "2026-10-23T10:16:40.334Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": null,
+      "text": "Hi! I'm here to help you create a customer chatbot for your business — just by chatting. Tell me what you do, and I'll ask a few smart follow-ups. When we have enough, I'll show you a summary to approve, then you can type /test to try the bot as a customer.",
+      "businessId": "intake-barber",
+      "turnRef": "t2"
+    },
+    {
+      "seq": 3,
+      "ts": "2026-10-23T10:16:41.663Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Hey there! I'm Sam, and I run a small barbershop called Oak Street Cuts — we specialize in men's haircuts.",
+      "businessId": "intake-barber",
+      "turnRef": "t3"
+    },
+    {
+      "seq": 4,
+      "ts": "2026-10-23T10:16:43.495Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "Great to meet you, Sam! Oak Street Cuts sounds like a fantastic place for men's haircuts. Can you tell me more about the specific services you offer?",
+      "businessId": "intake-barber",
+      "turnRef": "t4"
+    },
+    {
+      "seq": 5,
+      "ts": "2026-10-23T10:16:44.923Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Thanks! We offer a standard men's haircut for $35. That's pretty much it, keeping it simple and focused on what we do best.",
+      "businessId": "intake-barber",
+      "turnRef": "t5"
+    },
+    {
+      "seq": 6,
+      "ts": "2026-10-23T10:16:46.696Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "Got it! A standard men's haircut for $35 is clear. Do you have specific opening hours for Oak Street Cuts?",
+      "businessId": "intake-barber",
+      "turnRef": "t6"
+    },
+    {
+      "seq": 7,
+      "ts": "2026-10-23T10:16:47.874Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Yeah, we're open from Tuesday to Saturday, 10am to 6pm.",
+      "businessId": "intake-barber",
+      "turnRef": "t7"
+    },
+    {
+      "seq": 8,
+      "ts": "2026-10-23T10:16:50.030Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "Thanks for sharing your hours! Now, can you tell me about your location or the service area you cover?",
+      "businessId": "intake-barber",
+      "turnRef": "t8"
+    },
+    {
+      "seq": 9,
+      "ts": "2026-10-23T10:16:51.232Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "We're located at 14 Oak Street, right in the neighborhood. It's a cozy spot for a haircut!",
+      "businessId": "intake-barber",
+      "turnRef": "t9"
+    },
+    {
+      "seq": 10,
+      "ts": "2026-10-23T10:16:53.284Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "Perfect! I have your location noted. Now, are there any common questions that customers usually ask you about your services or the barbershop?",
+      "businessId": "intake-barber",
+      "turnRef": "t10"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-10-23T10:16:54.587Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Customers often ask if walk-ins are welcome — and yes, they are! That's a common question.",
+      "businessId": "intake-barber",
+      "turnRef": "t11"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-10-23T10:16:56.478Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "I've noted that walk-ins are welcome at your barbershop. Before we wrap up, should the chatbot collect any information from customers, such as their name or preferred appointment time?",
+      "businessId": "intake-barber",
+      "turnRef": "t12"
+    },
+    {
+      "seq": 13,
+      "ts": "2026-10-23T10:16:57.809Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Yes, the bot should collect the customer's name, phone number, and preferred day for their appointment.",
+      "businessId": "intake-barber",
+      "turnRef": "t13"
+    },
+    {
+      "seq": 14,
+      "ts": "2026-10-23T10:17:00.879Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "build_turn",
+      "text": "Great! I've noted that the bot will collect the customer's name, phone number, and preferred day for their appointment. Here's a summary of what we have so far: \n- **Business Name**: Sam \n- **What We Do**: Men's haircuts at Oak Street Cuts \n- **Services**: Standard Men's Haircut for $35 \n- **Hours**: Tuesday to Saturday, 10am to 6pm \n- **Location**: 14 Oak Street \n- **Common Questions**: Are walk-ins welcome? \n- **Information to Collect**: Customer's name, phone number, preferred day for appointment \n\nEverything looks good! Would you like to approve this summary?",
+      "businessId": "intake-barber",
+      "turnRef": "t14"
+    },
+    {
+      "seq": 15,
+      "ts": "2026-10-23T10:17:05.299Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": "approve",
+      "text": "approve",
+      "businessId": "intake-barber",
+      "turnRef": "t15"
+    },
+    {
+      "seq": 16,
+      "ts": "2026-10-23T10:17:08.709Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "approved_synced",
+      "text": "Thank you for approving the summary! Your customer-facing chatbot is now ready with the following details: Business Name: Sam, What We Do: Men's haircuts at Oak Street Cuts, Services: Standard Men's Haircut for $35, Hours: Tuesday to Saturday, 10am to 6pm, Location: 14 Oak Street, Common Questions: Are walk-ins welcome?, Information to Collect: Customer's name, phone number, preferred day for appointment.\n\n[Bot updated in Flowise — chatflow 813197f1-20bb-4820-9a1d-b3a6e1ad9177. Type /test to try it.]",
+      "businessId": "intake-barber",
+      "turnRef": "t16"
+    },
+    {
+      "seq": 17,
+      "ts": "2026-10-23T10:17:08.717Z",
+      "channel": "TEST",
+      "role": "system",
+      "event": "enter_test",
+      "text": "TEST mode — you are now a customer talking to your business bot (Flowise). Type /end to return to BUILD.",
+      "businessId": "intake-barber",
+      "turnRef": "t17"
+    },
+    {
+      "seq": 18,
+      "ts": "2026-10-23T10:17:13.382Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "I'd like to book a haircut",
+      "businessId": "intake-barber",
+      "turnRef": "t18"
+    },
+    {
+      "seq": 19,
+      "ts": "2026-10-23T10:17:13.382Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": "test_turn",
+      "text": "I'd be happy to help you with that! Could you please provide me with your name, phone number, and your preferred day for the appointment?",
+      "businessId": "intake-barber",
+      "turnRef": "t19"
+    },
+    {
+      "seq": 20,
+      "ts": "2026-10-23T10:17:13.383Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "How much is a haircut?",
+      "businessId": "intake-barber",
+      "turnRef": "t20"
+    },
+    {
+      "seq": 21,
+      "ts": "2026-10-23T10:17:13.383Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": "test_turn",
+      "text": "A Standard Men's Haircut is priced at $35.",
+      "businessId": "intake-barber",
+      "turnRef": "t21"
+    },
+    {
+      "seq": 22,
+      "ts": "2026-10-23T10:17:13.383Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "What is your cancellation policy?",
+      "businessId": "intake-barber",
+      "turnRef": "t22"
+    },
+    {
+      "seq": 23,
+      "ts": "2026-10-23T10:17:13.383Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": "test_turn",
+      "text": "I'm sorry, but I cannot confirm the cancellation policy as that information is not available. If you have any other questions, feel free to ask!",
+      "businessId": "intake-barber",
+      "turnRef": "t23"
+    },
+    {
+      "seq": 24,
+      "ts": "2026-10-23T10:17:13.391Z",
+      "channel": "BUILD",
+      "role": "system",
+      "event": "enter_build",
+      "text": "Back in BUILD mode. Tell me any updates (e.g. a price change), or type /test when ready.",
+      "businessId": "intake-barber",
+      "turnRef": "t24"
+    },
+    {
+      "seq": 25,
+      "ts": "2026-10-23T10:17:13.391Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": null,
+      "text": "Actually, haircuts are now $40. Update the draft but wait for my approval.",
+      "businessId": "intake-barber",
+      "turnRef": "t25"
+    },
+    {
+      "seq": 26,
+      "ts": "2026-10-23T10:17:15.862Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": null,
+      "text": "I've updated the price for the standard men's haircut to $40. Here's the revised summary: \n- **Services**: Standard Men's Haircut for $40. \n\nPlease let me know if you'd like to approve this change or if there's anything else you'd like to adjust!",
+      "businessId": "intake-barber",
+      "turnRef": "t26"
+    },
+    {
+      "seq": 27,
+      "ts": "2026-10-23T10:17:15.865Z",
+      "channel": "TEST",
+      "role": "system",
+      "event": "enter_test",
+      "text": "pending probe",
+      "businessId": "intake-barber",
+      "turnRef": "t27"
+    },
+    {
+      "seq": 28,
+      "ts": "2026-10-23T10:17:15.865Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "How much is a haircut?",
+      "businessId": "intake-barber",
+      "turnRef": "t28"
+    },
+    {
+      "seq": 29,
+      "ts": "2026-10-23T10:17:16.751Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": null,
+      "text": "A Standard Men's Haircut at Oak Street Cuts is priced at $35.",
+      "businessId": "intake-barber",
+      "turnRef": "t29"
+    },
+    {
+      "seq": 30,
+      "ts": "2026-10-23T10:17:19.637Z",
+      "channel": "BUILD",
+      "role": "owner",
+      "event": "approve",
+      "text": "Looks good — approve the $40 haircut price.",
+      "businessId": "intake-barber",
+      "turnRef": "t30"
+    },
+    {
+      "seq": 31,
+      "ts": "2026-10-23T10:17:22.418Z",
+      "channel": "BUILD",
+      "role": "builder",
+      "event": "approved_synced",
+      "text": "Thank you for approving the updated price! The standard men's haircut is now set at $40. Your customer-facing chatbot is fully updated with the latest details. If you need any further adjustments or have more questions, feel free to ask!\n\n[Bot updated in Flowise — chatflow 813197f1-20bb-4820-9a1d-b3a6e1ad9177. Type /test to try it.]",
+      "businessId": "intake-barber",
+      "turnRef": "t31"
+    },
+    {
+      "seq": 32,
+      "ts": "2026-10-23T10:17:22.421Z",
+      "channel": "TEST",
+      "role": "system",
+      "event": "enter_test",
+      "text": "fresh after edit",
+      "businessId": "intake-barber",
+      "turnRef": "t32"
+    },
+    {
+      "seq": 33,
+      "ts": "2026-10-23T10:17:22.421Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "How much is a haircut now?",
+      "businessId": "intake-barber",
+      "turnRef": "t33"
+    },
+    {
+      "seq": 34,
+      "ts": "2026-10-23T10:17:23.419Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": null,
+      "text": "A Standard Men's Haircut at Oak Street Cuts is priced at $40.",
+      "businessId": "intake-barber",
+      "turnRef": "t34"
+    },
+    {
+      "seq": 35,
+      "ts": "2026-10-23T10:17:26.664Z",
+      "channel": "BUILD",
+      "role": "system",
+      "event": "restart",
+      "text": "new test session for persistence check",
+      "businessId": "intake-barber",
+      "turnRef": "t35"
+    },
+    {
+      "seq": 36,
+      "ts": "2026-10-23T10:17:26.667Z",
+      "channel": "TEST",
+      "role": "system",
+      "event": "enter_test",
+      "text": "persistence retest",
+      "businessId": "intake-barber",
+      "turnRef": "t36"
+    },
+    {
+      "seq": 37,
+      "ts": "2026-10-23T10:17:26.667Z",
+      "channel": "TEST",
+      "role": "customer",
+      "event": null,
+      "text": "How much is a haircut now?",
+      "businessId": "intake-barber",
+      "turnRef": "t37"
+    },
+    {
+      "seq": 38,
+      "ts": "2026-10-23T10:17:28.090Z",
+      "channel": "TEST",
+      "role": "business_bot",
+      "event": null,
+      "text": "A standard men's haircut at Oak Street Cuts is $40.",
+      "businessId": "intake-barber",
+      "turnRef": "t38"
+    }
+  ]
+}

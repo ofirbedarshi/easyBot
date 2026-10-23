@@ -16,6 +16,7 @@ const BUSINESS_IDS = [
   'fitness-coach',
   'dog-walker',
   'home-baker',
+  'intake-barber',
 ];
 
 let _validate;

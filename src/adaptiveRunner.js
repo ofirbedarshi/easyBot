@@ -2,7 +2,7 @@
  * One-business adaptive E2E orchestration via real /api/chat only.
  * No approveSeed / direct Flowise predict in this path.
  */
-import { loadProfile } from './profile.js';
+import { loadProfile, testProfilePath } from './profile.js';
 import {
   emptyDisclosureLedger,
   assertNoHiddenInApproved,
@@ -20,13 +20,29 @@ export function ownerTurnLimit() {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 20;
 }
 
-async function chat(message) {
+function profilePathFor(biz) {
+  return testProfilePath(biz);
+}
+
+/**
+ * @param {string} message
+ * @param {string} sessionKey
+ * @param {{ flowiseSessionId?: string }} [extra]
+ */
+async function chat(message, sessionKey, extra = {}) {
+  const body = { message, sessionKey };
+  if (extra.flowiseSessionId) body.flowiseSessionId = extra.flowiseSessionId;
   const res = await fetch(`${BASE()}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
   return res.json();
+}
+
+async function fetchState(sessionKey) {
+  const q = new URLSearchParams({ sessionKey });
+  return fetch(`${BASE()}/api/state?${q}`).then((r) => r.json());
 }
 
 async function health() {
@@ -47,9 +63,59 @@ function approvedFactsOnly(profile) {
     hours: p.hours,
     locationOrArea: p.locationOrArea,
     commonQuestions: p.commonQuestions,
+    informationToCollect: Array.isArray(p.informationToCollect)
+      ? p.informationToCollect
+      : [],
     unknowns: p.unknowns,
     tone: p.tone,
     approvedAt: p.approvedAt,
+  };
+}
+
+/**
+ * Deterministic: fixture intake items must land in informationToCollect,
+ * not only in commonQuestions.
+ */
+export function assertIntakePlacement(profile, fixture) {
+  const expected = fixture.fullKnowledge?.informationToCollect;
+  if (!Array.isArray(expected) || expected.length === 0) {
+    return { ok: true, detail: 'no intake items expected in fixture' };
+  }
+  const collect = Array.isArray(profile?.informationToCollect)
+    ? profile.informationToCollect
+    : [];
+  const common = Array.isArray(profile?.commonQuestions)
+    ? profile.commonQuestions
+    : [];
+  const collectBlob = JSON.stringify(collect).toLowerCase();
+  const commonBlob = JSON.stringify(common).toLowerCase();
+
+  const missing = [];
+  const onlyInCommon = [];
+  for (const item of expected) {
+    const key = String(item).toLowerCase();
+    const tokens = key.split(/\s+/).filter((w) => w.length > 3);
+    const inCollect =
+      collectBlob.includes(key) ||
+      tokens.some((t) => collectBlob.includes(t));
+    const inCommon =
+      commonBlob.includes(key) ||
+      tokens.some((t) => commonBlob.includes(t));
+    if (!inCollect) missing.push(item);
+    if (!inCollect && inCommon) onlyInCommon.push(item);
+  }
+
+  const ok = missing.length === 0 && onlyInCommon.length === 0;
+  const parts = [];
+  if (missing.length) parts.push(`missing_from_collect:${missing.join('|')}`);
+  if (onlyInCommon.length) {
+    parts.push(`only_in_commonQuestions:${onlyInCommon.join('|')}`);
+  }
+  return {
+    ok,
+    detail: ok
+      ? `intake placed in informationToCollect: ${expected.join('; ')}`
+      : parts.join('; '),
   };
 }
 
@@ -68,6 +134,21 @@ function pickCorrection(fixture, issues) {
   return list.find((c) => c.when === 'generic') || list[0];
 }
 
+/** Stub judge result when structured hardFail already decides FAIL. */
+function skippedJudge(detail) {
+  return {
+    pass: false,
+    verdict: 'FAIL',
+    rationale: detail || 'skipped judge: structured hardFail',
+    quotes: [],
+    factRefs: [],
+    dimensions: undefined,
+    mode: 'deterministic',
+    model: null,
+    unreliable: false,
+  };
+}
+
 /**
  * @param {object} opts
  * @param {object} opts.fixture
@@ -78,6 +159,8 @@ function pickCorrection(fixture, issues) {
 export async function runAdaptiveBusiness(opts) {
   const { fixture, collector, judgeUnreliable, record } = opts;
   const biz = fixture.id;
+  const sessionKey = biz;
+  const profilePath = profilePathFor(biz);
   const limit = ownerTurnLimit();
   const ledger = emptyDisclosureLedger();
   ledger.neverDisclosed = [
@@ -94,8 +177,8 @@ export async function runAdaptiveBusiness(opts) {
   const t = (turn) =>
     collector.addTranscript({ ...turn, businessId: biz, text: redactSecrets(turn.text || '') });
 
-  // Reset for isolated interview
-  let r = await chat('/reset');
+  // Reset for isolated interview (clears this fixture's test-profiles file)
+  let r = await chat('/reset', sessionKey);
   t({
     channel: 'BUILD',
     role: 'system',
@@ -163,7 +246,7 @@ export async function runAdaptiveBusiness(opts) {
       text: owner.message,
     });
 
-    r = await chat(owner.message);
+    r = await chat(owner.message, sessionKey);
     lastBuilder = r.reply || '';
     const builderRef = t({
       channel: 'BUILD',
@@ -186,7 +269,7 @@ export async function runAdaptiveBusiness(opts) {
 
     if (r.event === 'approved_synced' || r.approved) {
       // Should only approve after fidelity — if model auto-approved early, still check
-      const profile = loadProfile();
+      const profile = loadProfile(profilePath);
       const draft = profile.draft || {
         name: profile.name,
         services: profile.services,
@@ -196,22 +279,27 @@ export async function runAdaptiveBusiness(opts) {
         locationOrArea: profile.locationOrArea,
       };
       const structured = structuredDraftFidelity(draft, ledger, fixture);
-      const j = await judgeSemantic({
-        stage: 'builder_extraction',
-        outputText: lastBuilder,
-        disclosureLedger: ledger,
-        extractedDraft: draft,
-        expectHint:
-          'Draft/summary must reflect disclosed facts and explicit unknowns; must not invent; must not require neverDisclosed.',
-        expectVerdict: 'PASS',
-        forceUnreliable: judgeUnreliable,
-      });
+      let j;
+      if (structured.hardFail) {
+        j = skippedJudge(`structured hardFail: ${structured.detail}`);
+      } else {
+        j = await judgeSemantic({
+          stage: 'builder_extraction',
+          outputText: lastBuilder,
+          disclosureLedger: ledger,
+          extractedDraft: draft,
+          expectHint:
+            'Draft/summary must reflect disclosed facts and explicit unknowns; must not invent; must not require neverDisclosed.',
+          expectVerdict: 'PASS',
+          forceUnreliable: judgeUnreliable,
+        });
+      }
       const pass = !structured.hardFail && !!j.pass;
       record(
         `${biz}.pre_approve_fidelity`,
         pass,
         `structured=${structured.detail}; judge=${j.verdict} ${j.rationale}`,
-        j.mode === 'stub' ? 'stub-judge' : 'real-llm-judge',
+        j.mode === 'stub' ? 'stub-judge' : j.mode === 'deterministic' ? 'app' : 'real-llm-judge',
         {
           stage: 'builder_extraction',
           businessId: biz,
@@ -248,19 +336,24 @@ export async function runAdaptiveBusiness(opts) {
 
     // When ready for review (or enough turns), run fidelity before approving
     if (r.readyForReview || turns >= Math.min(8, limit - 2)) {
-      const profile = loadProfile();
+      const profile = loadProfile(profilePath);
       const draft = profile.draft || {};
       const structured = structuredDraftFidelity(draft, ledger, fixture);
-      const j = await judgeSemantic({
-        stage: 'builder_extraction',
-        outputText: lastBuilder,
-        disclosureLedger: ledger,
-        extractedDraft: draft,
-        expectHint:
-          'Faithful to disclosures+unknowns; no inventions; hidden secrets not required. Soft omissions of optional detail are OK if core disclosed facts and fixture unknowns are handled.',
-        expectVerdict: 'PASS',
-        forceUnreliable: judgeUnreliable,
-      });
+      let j;
+      if (structured.hardFail) {
+        j = skippedJudge(`structured hardFail: ${structured.detail}`);
+      } else {
+        j = await judgeSemantic({
+          stage: 'builder_extraction',
+          outputText: lastBuilder,
+          disclosureLedger: ledger,
+          extractedDraft: draft,
+          expectHint:
+            'Faithful to disclosures+unknowns; no inventions; hidden secrets not required. Soft omissions of optional detail are OK if core disclosed facts and fixture unknowns are handled.',
+          expectVerdict: 'PASS',
+          forceUnreliable: judgeUnreliable,
+        });
+      }
       // Hard structured fails (hidden leaks) always fail. Soft structured issues alone
       // do not block when the semantic judge PASSes.
       const judgeOk = !!(j.pass || j.verdict === 'PASS');
@@ -270,7 +363,7 @@ export async function runAdaptiveBusiness(opts) {
         checkName,
         pass,
         `structured=${structured.detail}; judge=${j.verdict} ${j.rationale}`,
-        j.mode === 'stub' ? 'stub-judge' : 'real-llm-judge',
+        j.mode === 'stub' ? 'stub-judge' : j.mode === 'deterministic' ? 'app' : 'real-llm-judge',
         {
           stage: 'builder_extraction',
           businessId: biz,
@@ -317,7 +410,7 @@ export async function runAdaptiveBusiness(opts) {
           event: 'repair',
           text: corrMsg,
         });
-        r = await chat(corrMsg);
+        r = await chat(corrMsg, sessionKey);
         lastBuilder = r.reply || '';
         t({
           channel: 'BUILD',
@@ -353,7 +446,7 @@ export async function runAdaptiveBusiness(opts) {
         event: 'approve',
         text: approveMsg,
       });
-      r = await chat(approveMsg);
+      r = await chat(approveMsg, sessionKey);
       lastBuilder = r.reply || '';
       t({
         channel: 'BUILD',
@@ -363,15 +456,16 @@ export async function runAdaptiveBusiness(opts) {
       });
       record(
         `${biz}.approve.synced`,
-        r.event === 'approved_synced' || !!loadProfile().chatflowId,
-        `event=${r.event} chatflow=${loadProfile().chatflowId}`,
+        r.event === 'approved_synced' || !!loadProfile(profilePath).chatflowId,
+        `event=${r.event} chatflow=${loadProfile(profilePath).chatflowId}`,
         r.source || 'app',
         { stage: 'deterministic', businessId: biz, turnRefs: [aRef] }
       );
-      approved = r.event === 'approved_synced' || !!loadProfile().approvedAt;
+      approved =
+        r.event === 'approved_synced' || !!loadProfile(profilePath).approvedAt;
       if (!approved && !r.approved) {
         // try once more
-        r = await chat('Looks good, please approve.');
+        r = await chat('Looks good, please approve.', sessionKey);
         t({
           channel: 'BUILD',
           role: 'owner',
@@ -384,7 +478,9 @@ export async function runAdaptiveBusiness(opts) {
           event: r.event,
           text: r.reply || '',
         });
-        approved = r.event === 'approved_synced' || !!loadProfile().approvedAt;
+        approved =
+          r.event === 'approved_synced' ||
+          !!loadProfile(profilePath).approvedAt;
       }
       break;
     }
@@ -414,7 +510,7 @@ export async function runAdaptiveBusiness(opts) {
     return businessMeta;
   }
 
-  const profile = loadProfile();
+  const profile = loadProfile(profilePath);
   const hiddenCheck = assertNoHiddenInApproved(profile, fixture, 'approved');
   record(
     `${biz}.boundary.no_hidden_in_approved`,
@@ -430,14 +526,34 @@ export async function runAdaptiveBusiness(opts) {
     }
   );
 
-  // --- Customer TEST ---
-  const buildHistoryBefore = hashHistory(r.buildHistory || loadProfile() && []);
-  // Prefer state from last response
-  const stateBeforeTest = await fetch(`${BASE()}/api/state`).then((x) => x.json());
-  const buildHash = hashHistory(stateBeforeTest.buildHistory);
-  const servicesBefore = JSON.stringify(loadProfile().services);
+  const intakePlace = assertIntakePlacement(profile, fixture);
+  record(
+    `${biz}.boundary.intake_placement`,
+    intakePlace.ok,
+    intakePlace.detail,
+    'app',
+    {
+      stage: 'deterministic',
+      businessId: biz,
+      evaluationDetail: {
+        expectedIntake: fixture.fullKnowledge?.informationToCollect || [],
+        informationToCollect: profile.informationToCollect,
+        commonQuestions: profile.commonQuestions,
+      },
+    }
+  );
+  if (!intakePlace.ok) {
+    businessMeta.status = 'failed';
+    return businessMeta;
+  }
 
-  r = await chat('/test');
+  // --- Customer TEST ---
+  const buildHistoryBefore = hashHistory(r.buildHistory || []);
+  const stateBeforeTest = await fetchState(sessionKey);
+  const buildHash = hashHistory(stateBeforeTest.buildHistory);
+  const servicesBefore = JSON.stringify(loadProfile(profilePath).services);
+
+  r = await chat('/test', sessionKey);
   t({
     channel: 'TEST',
     role: 'system',
@@ -456,36 +572,45 @@ export async function runAdaptiveBusiness(opts) {
     (c) => !c.phase || c.phase === 'initial'
   );
 
-  for (const intent of intentions) {
+  const approvedCfgShared = approvedFactsOnly(loadProfile(profilePath));
+  const probeResults = await Promise.all(
+    intentions.map(async (intent) => {
+      const flowiseSessionId = `${biz}-${intent.id}`;
+      const replyRes = await chat(intent.question, sessionKey, {
+        flowiseSessionId,
+      });
+      const j = await judgeSemantic({
+        stage: 'business_bot_answer',
+        question: intent.question,
+        outputText: replyRes.reply,
+        approvedConfig: approvedCfgShared,
+        unknowns: approvedCfgShared.unknowns || [],
+        expectHint: intent.expectHint,
+        expectVerdict: 'PASS',
+        forceUnreliable: judgeUnreliable,
+      });
+      return { intent, r: replyRes, j };
+    })
+  );
+
+  // Record in fixture order so the results viewer stays stable
+  for (const { intent, r: replyRes, j } of probeResults) {
     const qRef = t({
       channel: 'TEST',
       role: 'customer',
       text: intent.question,
     });
-    r = await chat(intent.question);
     const aRef = t({
       channel: 'TEST',
       role: 'business_bot',
-      event: r.event || 'test_turn',
-      text: r.reply || '',
-    });
-
-    const approvedCfg = approvedFactsOnly(loadProfile());
-    const j = await judgeSemantic({
-      stage: 'business_bot_answer',
-      question: intent.question,
-      outputText: r.reply,
-      approvedConfig: approvedCfg,
-      unknowns: approvedCfg.unknowns || [],
-      expectHint: intent.expectHint,
-      expectVerdict: 'PASS',
-      forceUnreliable: judgeUnreliable,
+      event: replyRes.event || 'test_turn',
+      text: replyRes.reply || '',
     });
 
     record(
       `${biz}.customer.${intent.id}`,
       !!j.pass,
-      `verdict=${j.verdict} ${j.rationale} reply=${String(r.reply).slice(0, 140)}`,
+      `verdict=${j.verdict} ${j.rationale} reply=${String(replyRes.reply).slice(0, 140)}`,
       j.mode === 'stub'
         ? 'stub-judge+real-flowise'
         : 'real-llm-judge+real-flowise',
@@ -493,10 +618,10 @@ export async function runAdaptiveBusiness(opts) {
         stage: 'business_bot_answer',
         businessId: biz,
         question: intent.question,
-        outputText: r.reply,
+        outputText: replyRes.reply,
         turnRefs: [qRef, aRef],
         expected: intent.expectHint,
-        actual: r.reply,
+        actual: replyRes.reply,
         judge: {
           verdict: j.verdict,
           rationale: j.rationale,
@@ -510,7 +635,7 @@ export async function runAdaptiveBusiness(opts) {
       }
     );
 
-    if (r.profileUnchanged === false) {
+    if (replyRes.profileUnchanged === false) {
       record(
         `${biz}.test_mutated_profile`,
         false,
@@ -521,7 +646,7 @@ export async function runAdaptiveBusiness(opts) {
     }
   }
 
-  const servicesAfter = JSON.stringify(loadProfile().services);
+  const servicesAfter = JSON.stringify(loadProfile(profilePath).services);
   record(
     `${biz}.test.no_profile_mutation`,
     servicesBefore === servicesAfter,
@@ -530,7 +655,7 @@ export async function runAdaptiveBusiness(opts) {
     { stage: 'deterministic', businessId: biz }
   );
 
-  const stateAfterTest = await fetch(`${BASE()}/api/state`).then((x) => x.json());
+  const stateAfterTest = await fetchState(sessionKey);
   record(
     `${biz}.test.build_history_unchanged`,
     hashHistory(stateAfterTest.buildHistory) === buildHash,
@@ -539,8 +664,8 @@ export async function runAdaptiveBusiness(opts) {
     { stage: 'deterministic', businessId: biz }
   );
 
-  // --- Edit loop ---
-  r = await chat('/end');
+  // --- Edit loop (serial) ---
+  r = await chat('/end', sessionKey);
   t({
     channel: 'BUILD',
     role: 'system',
@@ -550,7 +675,7 @@ export async function runAdaptiveBusiness(opts) {
 
   const pending = fixture.editLoop.pendingMessage;
   t({ channel: 'BUILD', role: 'owner', text: pending });
-  r = await chat(pending);
+  r = await chat(pending, sessionKey);
   t({ channel: 'BUILD', role: 'builder', text: r.reply || '' });
 
   record(
@@ -562,7 +687,7 @@ export async function runAdaptiveBusiness(opts) {
   );
 
   // Pending must not be live
-  await chat('/test');
+  await chat('/test', sessionKey);
   t({
     channel: 'TEST',
     role: 'system',
@@ -572,11 +697,11 @@ export async function runAdaptiveBusiness(opts) {
   const probeQ =
     fixture.editLoop.pendingProbeQuestion || 'What is the current price?';
   t({ channel: 'TEST', role: 'customer', text: probeQ });
-  r = await chat(probeQ);
+  r = await chat(probeQ, sessionKey);
   t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
 
   {
-    const approvedCfg = approvedFactsOnly(loadProfile());
+    const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
     const reply = String(r.reply || '');
     const pendingPattern = fixture.editLoop.postApproveServicesMustMatch;
     // Deterministic: pending rule must not appear as confirmed live fact.
@@ -601,7 +726,9 @@ export async function runAdaptiveBusiness(opts) {
     });
     // Primary gate is deterministic: unapproved pending wording must not be adopted.
     // Judge rationale kept as evidence; when det is clean, do not fail on judge wording nits.
-    const finalPass = !adoptsPending && (!!j.pass || !new RegExp(pendingPattern || 'a^', 'i').test(reply));
+    const finalPass =
+      !adoptsPending &&
+      (!!j.pass || !new RegExp(pendingPattern || 'a^', 'i').test(reply));
     record(
       `${biz}.edit.pending_not_live`,
       finalPass,
@@ -625,7 +752,7 @@ export async function runAdaptiveBusiness(opts) {
     );
   }
 
-  await chat('/end');
+  await chat('/end', sessionKey);
   const approveEdit = fixture.editLoop.approveMessage;
   t({
     channel: 'BUILD',
@@ -633,7 +760,7 @@ export async function runAdaptiveBusiness(opts) {
     event: 'approve',
     text: approveEdit,
   });
-  r = await chat(approveEdit);
+  r = await chat(approveEdit, sessionKey);
   t({
     channel: 'BUILD',
     role: 'builder',
@@ -641,7 +768,7 @@ export async function runAdaptiveBusiness(opts) {
     text: r.reply || '',
   });
   if (!r.approved && r.event !== 'approved_synced') {
-    r = await chat('approve');
+    r = await chat('approve', sessionKey);
     t({
       channel: 'BUILD',
       role: 'owner',
@@ -656,7 +783,7 @@ export async function runAdaptiveBusiness(opts) {
     });
   }
 
-  const afterApprove = loadProfile();
+  const afterApprove = loadProfile(profilePath);
   const match = fixture.editLoop.postApproveServicesMustMatch;
   record(
     `${biz}.edit.approved`,
@@ -666,7 +793,7 @@ export async function runAdaptiveBusiness(opts) {
     { stage: 'deterministic', businessId: biz }
   );
 
-  await chat('/test');
+  await chat('/test', sessionKey);
   t({
     channel: 'TEST',
     role: 'system',
@@ -676,11 +803,11 @@ export async function runAdaptiveBusiness(opts) {
   const afterQ =
     fixture.editLoop.afterApproveQuestion || probeQ;
   t({ channel: 'TEST', role: 'customer', text: afterQ });
-  r = await chat(afterQ);
+  r = await chat(afterQ, sessionKey);
   t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
 
   {
-    const approvedCfg = approvedFactsOnly(loadProfile());
+    const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
     const j = await judgeSemantic({
       stage: 'business_bot_answer',
       question: afterQ,
@@ -715,14 +842,14 @@ export async function runAdaptiveBusiness(opts) {
   }
 
   // Persistence: new TEST session id via /end + /test (app-level restart of test session)
-  await chat('/end');
+  await chat('/end', sessionKey);
   t({
     channel: 'BUILD',
     role: 'system',
     event: 'restart',
     text: 'new test session for persistence check',
   });
-  await chat('/test');
+  await chat('/test', sessionKey);
   t({
     channel: 'TEST',
     role: 'system',
@@ -730,11 +857,11 @@ export async function runAdaptiveBusiness(opts) {
     text: 'persistence retest',
   });
   t({ channel: 'TEST', role: 'customer', text: afterQ });
-  r = await chat(afterQ);
+  r = await chat(afterQ, sessionKey);
   t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
 
   {
-    const approvedCfg = approvedFactsOnly(loadProfile());
+    const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
     const j = await judgeSemantic({
       stage: 'business_bot_answer',
       question: afterQ,

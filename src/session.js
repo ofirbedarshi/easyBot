@@ -4,24 +4,35 @@ import {
   mergeDraft,
   formatSummary,
   emptyProfile,
+  defaultProfilePath,
 } from './profile.js';
 import { runBuilderTurn, openingMessage } from './builder.js';
 import { createOrUpdateChatflow, predict } from './flowise.js';
 
 /**
- * In-memory session (one business POC). Profile persists on disk.
+ * In-memory session. Profile persists on disk at session.profilePath
+ * (default: data/business-profile.json).
  */
-export function createSession() {
+export function createSession(profilePath) {
   return {
     mode: 'BUILD', // BUILD | TEST
     buildHistory: [],
     testHistory: [],
     testSessionId: `test-${Date.now()}`,
+    profilePath: profilePath || defaultProfilePath(),
   };
 }
 
+function load(session) {
+  return loadProfile(session.profilePath);
+}
+
+function save(session, profile) {
+  return saveProfile(profile, session.profilePath);
+}
+
 export function getState(session) {
-  const profile = loadProfile();
+  const profile = load(session);
   return {
     mode: session.mode,
     profile: {
@@ -36,7 +47,12 @@ export function getState(session) {
   };
 }
 
-export async function handleMessage(session, text) {
+/**
+ * @param {ReturnType<typeof createSession>} session
+ * @param {string} text
+ * @param {{ flowiseSessionId?: string }} [options]
+ */
+export async function handleMessage(session, text, options = {}) {
   const trimmed = (text || '').trim();
   if (!trimmed) {
     return { ok: false, error: 'Empty message', ...getState(session) };
@@ -50,7 +66,7 @@ export async function handleMessage(session, text) {
     return enterBuild(session);
   }
   if (trimmed === '/reset') {
-    saveProfile(emptyProfile());
+    save(session, emptyProfile());
     session.buildHistory = [];
     session.testHistory = [];
     session.mode = 'BUILD';
@@ -67,13 +83,13 @@ export async function handleMessage(session, text) {
   }
 
   if (session.mode === 'TEST') {
-    return handleTest(session, trimmed);
+    return handleTest(session, trimmed, options.flowiseSessionId);
   }
   return handleBuild(session, trimmed);
 }
 
 async function enterTest(session) {
-  const profile = loadProfile();
+  const profile = load(session);
   if (!profile.approvedAt || !profile.chatflowId) {
     return {
       ok: false,
@@ -110,8 +126,8 @@ async function enterBuild(session) {
   };
 }
 
-async function handleTest(session, question) {
-  const profile = loadProfile();
+async function handleTest(session, question, flowiseSessionId) {
+  const profile = load(session);
   // TEST must never modify business facts
   const before = JSON.stringify({
     name: profile.name,
@@ -119,23 +135,23 @@ async function handleTest(session, question) {
     hours: profile.hours,
   });
 
+  const sid = flowiseSessionId || session.testSessionId;
   let reply;
   let source = 'real-flowise';
   try {
-    reply = await predict(
-      profile.chatflowId,
-      question,
-      session.testSessionId
-    );
+    reply = await predict(profile.chatflowId, question, sid);
   } catch (err) {
     reply = `Flowise error: ${err.message}`;
     source = 'error';
   }
 
-  session.testHistory.push({ role: 'user', content: question });
-  session.testHistory.push({ role: 'assistant', content: reply });
+  // Isolated Flowise ids (parallel customer probes) skip shared history to avoid races
+  if (!flowiseSessionId || flowiseSessionId === session.testSessionId) {
+    session.testHistory.push({ role: 'user', content: question });
+    session.testHistory.push({ role: 'assistant', content: reply });
+  }
 
-  const afterProfile = loadProfile();
+  const afterProfile = load(session);
   const after = JSON.stringify({
     name: afterProfile.name,
     services: afterProfile.services,
@@ -143,7 +159,7 @@ async function handleTest(session, question) {
   });
   if (before !== after) {
     // Should be impossible — restore if somehow mutated
-    saveProfile(profile);
+    save(session, profile);
   }
 
   return {
@@ -157,7 +173,7 @@ async function handleTest(session, question) {
 }
 
 async function handleBuild(session, userMessage) {
-  const profile = loadProfile();
+  const profile = load(session);
   session.buildHistory.push({ role: 'user', content: userMessage });
 
   let result;
@@ -190,6 +206,9 @@ async function handleBuild(session, userMessage) {
       hours: merged.hours,
       locationOrArea: merged.locationOrArea,
       commonQuestions: merged.commonQuestions || [],
+      informationToCollect: Array.isArray(merged.informationToCollect)
+        ? merged.informationToCollect
+        : [],
       unknowns: merged.unknowns || [],
       tone: merged.tone,
       draft: result.draft,
@@ -208,7 +227,7 @@ async function handleBuild(session, userMessage) {
     }
   }
 
-  saveProfile(profile);
+  save(session, profile);
   const reply = result.message + syncNote;
   session.buildHistory.push({ role: 'assistant', content: reply });
 

@@ -4,10 +4,12 @@
  *
  * Isolation: backs up data/business-profile.json before runs and restores
  * afterward so a manually created profile is not left deleted.
+ * Each fixture uses sessionKey=fixture.id → data/test-profiles/<id>.json
  *
  * Env:
  *   OWNER_TURN_LIMIT=20
  *   ADAPTIVE_BUSINESS=yoga-teacher   (optional single business)
+ *   ADAPTIVE_CONCURRENCY=2           (parallel businesses; default 2)
  */
 import 'dotenv/config';
 import fs from 'fs';
@@ -28,6 +30,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const PROFILE_PATH = path.join(ROOT, 'data', 'business-profile.json');
+const TEST_PROFILES_DIR = path.join(ROOT, 'data', 'test-profiles');
 const BACKUP_DIR = path.join(ROOT, 'data', 'test-isolation');
 const BACKUP_PATH = path.join(BACKUP_DIR, 'manual-profile-backup.json');
 
@@ -41,6 +44,36 @@ const collector = createResultsCollector('e2e-adaptive', {
   },
 });
 let judgeUnreliable = false;
+
+function adaptiveConcurrency(fixtureCount) {
+  const n = Number(process.env.ADAPTIVE_CONCURRENCY || 2);
+  const parsed = Number.isFinite(n) && n > 0 ? Math.floor(n) : 2;
+  return Math.min(parsed, fixtureCount);
+}
+
+/**
+ * Run items with limited concurrency; results preserve input order.
+ * @template T, R
+ * @param {T[]} items
+ * @param {number} limit
+ * @param {(item: T, index: number) => Promise<R>} fn
+ * @returns {Promise<R[]>}
+ */
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next;
+      next += 1;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i], i);
+    }
+  }
+  const n = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return out;
+}
 
 function record(name, pass, detail, source, extra = {}) {
   const safeDetail = redactSecrets(detail);
@@ -109,14 +142,67 @@ function restoreManualProfile() {
   }
 }
 
+function cleanTestProfiles(fixtureIds) {
+  fs.mkdirSync(TEST_PROFILES_DIR, { recursive: true });
+  for (const id of fixtureIds) {
+    const p = path.join(TEST_PROFILES_DIR, `${id}.json`);
+    if (fs.existsSync(p)) {
+      fs.unlinkSync(p);
+      console.log(`Cleared test profile → ${p}`);
+    }
+  }
+}
+
+function finalizeBusinessMeta(fixture, meta) {
+  // Preserved pre-repair failures stay FAIL in the report but do not fail the
+  // business if a later repair of the same check family succeeded.
+  const repairedIds = new Set(
+    results
+      .filter(
+        (x) =>
+          x.name.startsWith(`${fixture.id}.`) &&
+          x.repairOf &&
+          x.pass !== false
+      )
+      .map((x) => x.repairOf)
+  );
+  const bizFails = results.filter((x) => {
+    if (!x.name.startsWith(`${fixture.id}.`) || x.pass) return false;
+    if (repairedIds.has(x.name)) return false;
+    // Also ignore superseded fidelity_check_rN when a later rM passed
+    const m = x.name.match(/\.fidelity_check_r(\d+)$/);
+    if (m) {
+      const laterPass = results.some(
+        (y) =>
+          y.name.startsWith(`${fixture.id}.fidelity_check_r`) &&
+          y.pass &&
+          Number(y.name.match(/_r(\d+)$/)?.[1] || -1) > Number(m[1])
+      );
+      if (laterPass) return false;
+    }
+    return true;
+  });
+  if (meta.status === 'running' || meta.status === 'passed') {
+    meta.status = bizFails.length ? 'failed' : 'passed';
+  }
+  console.log(
+    `Business ${fixture.id}: status=${meta.status} turns=${meta.turnsUsed} repairs=${meta.repairs} unresolvedFails=${bizFails.length}`
+  );
+  return meta;
+}
+
 async function main() {
   console.log('=== e2e adaptive (Tester-as-Owner) ===');
   console.log(`Judge mode: ${resolveJudgeMode()}`);
+
+  const fixtures = loadAllFixtures(process.env.ADAPTIVE_BUSINESS || null);
+  const concurrency = adaptiveConcurrency(fixtures.length);
   console.log(
-    `OWNER_TURN_LIMIT=${process.env.OWNER_TURN_LIMIT || 20} ADAPTIVE_BUSINESS=${process.env.ADAPTIVE_BUSINESS || '(all)'}`
+    `OWNER_TURN_LIMIT=${process.env.OWNER_TURN_LIMIT || 20} ADAPTIVE_BUSINESS=${process.env.ADAPTIVE_BUSINESS || '(all)'} ADAPTIVE_CONCURRENCY=${concurrency}`
   );
 
   const hadBackup = backupManualProfile();
+  cleanTestProfiles(fixtures.map((f) => f.id));
 
   try {
     const cal = await runCalibration(judgeSemantic);
@@ -143,53 +229,20 @@ async function main() {
       throw new Error('Need OpenAI + Flowise before adaptive e2e');
     }
 
-    const fixtures = loadAllFixtures(process.env.ADAPTIVE_BUSINESS || null);
-    const businessSummaries = [];
-
-    for (const fixture of fixtures) {
-      console.log(`\n--- business: ${fixture.id} (${fixture.displayName}) ---`);
-      const meta = await runAdaptiveBusiness({
-        fixture,
-        collector,
-        judgeUnreliable,
-        record,
-      });
-      // Preserved pre-repair failures stay FAIL in the report but do not fail the
-      // business if a later repair of the same check family succeeded.
-      const repairedIds = new Set(
-        results
-          .filter(
-            (x) =>
-              x.name.startsWith(`${fixture.id}.`) &&
-              x.repairOf &&
-              x.pass !== false
-          )
-          .map((x) => x.repairOf)
-      );
-      const bizFails = results.filter((x) => {
-        if (!x.name.startsWith(`${fixture.id}.`) || x.pass) return false;
-        if (repairedIds.has(x.name)) return false;
-        // Also ignore superseded fidelity_check_rN when a later rM passed
-        const m = x.name.match(/\.fidelity_check_r(\d+)$/);
-        if (m) {
-          const laterPass = results.some(
-            (y) =>
-              y.name.startsWith(`${fixture.id}.fidelity_check_r`) &&
-              y.pass &&
-              Number(y.name.match(/_r(\d+)$/)?.[1] || -1) > Number(m[1])
-          );
-          if (laterPass) return false;
-        }
-        return true;
-      });
-      if (meta.status === 'running' || meta.status === 'passed') {
-        meta.status = bizFails.length ? 'failed' : 'passed';
+    const businessSummaries = await mapPool(
+      fixtures,
+      concurrency,
+      async (fixture) => {
+        console.log(`\n--- business: ${fixture.id} (${fixture.displayName}) ---`);
+        const meta = await runAdaptiveBusiness({
+          fixture,
+          collector,
+          judgeUnreliable,
+          record,
+        });
+        return finalizeBusinessMeta(fixture, meta);
       }
-      businessSummaries.push(meta);
-      console.log(
-        `Business ${fixture.id}: status=${meta.status} turns=${meta.turnsUsed} repairs=${meta.repairs} unresolvedFails=${bizFails.length}`
-      );
-    }
+    );
 
     collector.setBusinesses(businessSummaries);
     collector.setPathLabels({
@@ -222,6 +275,7 @@ async function main() {
     if (unresolvedBiz.length) process.exitCode = 1;
     else console.log('All adaptive businesses resolved (preserved pre-repair fails OK).');
   } finally {
+    cleanTestProfiles(fixtures.map((f) => f.id));
     restoreManualProfile();
     void hadBackup;
   }

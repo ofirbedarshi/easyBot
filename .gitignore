@@ -1,4 +1,5 @@
 node_modules/
 .env
 data/business-profile.json
+data/test-profiles/
 .DS_Store

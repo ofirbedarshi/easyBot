@@ -1,36 +1,52 @@
 {
-  "name": "My Dog Walker",
-  "whatWeDo": "Dog walking services to keep your furry friends happy and active",
+  "name": null,
+  "whatWeDo": "AI implementation for small businesses to optimize their workflow",
   "services": [
     {
-      "name": "Dog Walking",
-      "price": "$10 per hour",
-      "notes": "Includes feeding and watering during the walks. Maximum of 10 dogs per walk."
+      "name": "Consulting",
+      "price": "Pricing determined per project after meeting",
+      "notes": "This service involves assessing your business needs and identifying opportunities for AI implementation to optimize your workflow. We will discuss your specific challenges and goals to tailor a solution that fits your business."
+    },
+    {
+      "name": "Implementation",
+      "price": "One-time payment for building, monthly payment for maintenance",
+      "notes": "This service includes the actual development and deployment of the AI solution. We will build the automation according to the agreed specifications, ensuring it integrates smoothly with your existing processes. After the initial setup, we offer ongoing maintenance to ensure everything runs efficiently."
     }
   ],
-  "hours": "Daily at 8:00 AM",
-  "locationOrArea": "Tel Aviv",
-  "commonQuestions": [],
-  "unknowns": [
-    "Price application of $10 per hour (per dog or for the entire walk)"
+  "hours": "Clients need to contact me to schedule meetings.",
+  "locationOrArea": "Remotely",
+  "commonQuestions": [
+    "What is your business name and where are you located?",
+    "What does your business do?",
+    "Are you currently using any AI solutions in your business?"
   ],
-  "tone": "Friendly and casual",
-  "approvedAt": "2026-10-23T09:35:45.771Z",
-  "chatflowId": "72cd0585-8c09-4e55-8e4e-af3dfd05e5c8",
+  "unknowns": [],
+  "tone": null,
+  "approvedAt": "2026-10-23T10:03:53.745Z",
+  "chatflowId": "c61746bf-2761-4cfb-8f30-e6968e98c4ed",
   "draft": {
-    "name": "My Dog Walker",
-    "whatWeDo": "Dog walking services to keep your furry friends happy and active",
+    "name": null,
+    "whatWeDo": "AI implementation for small businesses to optimize their workflow",
     "services": [
       {
-        "name": "Dog Walking",
-        "price": "$10 total per hour for up to two dogs",
-        "notes": "Includes feeding and watering during the walks. Maximum of 10 dogs per walk."
+        "name": "Consulting",
+        "price": "Pricing determined per project after meeting",
+        "notes": "This service involves assessing your business needs and identifying opportunities for AI implementation to optimize your workflow. We will discuss your specific challenges and goals to tailor a solution that fits your business."
+      },
+      {
+        "name": "Implementation",
+        "price": "One-time payment for building, monthly payment for maintenance",
+        "notes": "This service includes the actual development and deployment of the AI solution. We will build the automation according to the agreed specifications, ensuring it integrates smoothly with your existing processes. After the initial setup, we offer ongoing maintenance to ensure everything runs efficiently."
       }
     ],
-    "hours": "Daily at 8:00 AM",
-    "locationOrArea": "Tel Aviv",
-    "commonQuestions": [],
+    "hours": "Clients need to contact me to schedule meetings.",
+    "locationOrArea": "Remotely",
+    "commonQuestions": [
+      "What is your business name and where are you located?",
+      "What does your business do?",
+      "Are you currently using any AI solutions in your business?"
+    ],
     "unknowns": [],
-    "tone": "Friendly and casual"
+    "tone": null
   }
 }

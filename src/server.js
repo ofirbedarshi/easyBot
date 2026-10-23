@@ -9,6 +9,7 @@ import {
   bootstrapSession,
   getState,
 } from './session.js';
+import { testProfilePath } from './profile.js';
 import { pingFlowise } from './flowise.js';
 import {
   RESULTS_LATEST,
@@ -25,7 +26,21 @@ const PORT = Number(process.env.PORT) || 3080;
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-const session = createSession();
+/** Default UI / non-adaptive e2e session → data/business-profile.json */
+const defaultSession = createSession();
+/** Adaptive e2e keyed sessions → data/test-profiles/<key>.json */
+const keyedSessions = new Map();
+const SESSION_KEY_RE = /^[a-z0-9-]{1,64}$/;
+
+function resolveSession(sessionKey) {
+  if (sessionKey == null || sessionKey === '') return defaultSession;
+  const key = String(sessionKey);
+  if (!SESSION_KEY_RE.test(key)) return null;
+  if (!keyedSessions.has(key)) {
+    keyedSessions.set(key, createSession(testProfilePath(key)));
+  }
+  return keyedSessions.get(key);
+}
 
 function safeResultsBasename(name) {
   const base = path.basename(String(name || ''));
@@ -140,18 +155,36 @@ app.get('/api/test-results/file', (req, res) => {
 });
 
 
-app.get('/api/state', (_req, res) => {
+app.get('/api/state', (req, res) => {
+  const raw = req.query.sessionKey;
+  if (raw != null && raw !== '' && !SESSION_KEY_RE.test(String(raw))) {
+    return res.status(400).json({ ok: false, error: 'Invalid sessionKey' });
+  }
+  const session = resolveSession(raw);
   res.json(getState(session));
 });
 
 app.post('/api/start', (_req, res) => {
-  res.json(bootstrapSession(session));
+  res.json(bootstrapSession(defaultSession));
 });
 
 app.post('/api/chat', async (req, res) => {
   try {
+    const sessionKey = req.body?.sessionKey;
+    if (
+      sessionKey != null &&
+      sessionKey !== '' &&
+      !SESSION_KEY_RE.test(String(sessionKey))
+    ) {
+      return res.status(400).json({ ok: false, error: 'Invalid sessionKey' });
+    }
+    const session = resolveSession(sessionKey);
     const text = req.body?.message ?? req.body?.text ?? '';
-    const result = await handleMessage(session, text);
+    const flowiseSessionId =
+      typeof req.body?.flowiseSessionId === 'string'
+        ? req.body.flowiseSessionId
+        : undefined;
+    const result = await handleMessage(session, text, { flowiseSessionId });
     res.json(result);
   } catch (err) {
     console.error(err);

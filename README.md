@@ -48,13 +48,14 @@ npm run e2e:ambiguity  # fabrication / unknowns regressions + semantic judge
 npm run e2e:adaptive   # adaptive Tester-as-Owner (fixtures; real /api/chat only)
 ```
 
-Adaptive suite env: `ADAPTIVE_BUSINESS=yoga-teacher` (one business), `OWNER_TURN_LIMIT=20`. Fixtures under `fixtures/businesses/`. Backs up/restores `data/business-profile.json` around the run.
+Adaptive suite env: `ADAPTIVE_BUSINESS=yoga-teacher` (one business), `OWNER_TURN_LIMIT=20`, `ADAPTIVE_CONCURRENCY=2` (parallel businesses; default 2). Fixtures under `fixtures/businesses/`. Backs up/restores `data/business-profile.json` around the run. Each fixture uses an isolated session writing `data/test-profiles/<id>.json` (cleaned before/after the run).
 
 Tester NL checks use a **separate judge call** (not phrase regex). Results: `data/test-results/latest.json` + stamped history; viewer http://localhost:3080/results.html (run picker + transcripts). Set `JUDGE_MODE=stub` to avoid paid judge calls.
 
 ## Notes
 
-- Approved profile: `data/business-profile.json`
+- Approved profile (UI): `data/business-profile.json`
+- Adaptive e2e profiles: `data/test-profiles/<fixture-id>.json`
 - Builder behavior (what it asks and approves): [BUILDER.md](BUILDER.md)
 - Graph template: `templates/customer-bot.flowise.json` (full nodes+edges)
 - Leave `FLOWISE_API_KEY` empty unless Flowise auth is enabled

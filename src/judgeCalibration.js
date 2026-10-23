@@ -97,21 +97,27 @@ export const CALIBRATION_CASES = [
  * Uses judgeSemantic; does not forceUnreliable on itself.
  */
 export async function runCalibration(judgeSemantic) {
+  const judgedList = await Promise.all(
+    CALIBRATION_CASES.map((c) =>
+      judgeSemantic({
+        stage: c.stage,
+        question: c.question,
+        outputText: c.outputText,
+        approvedConfig: c.approvedConfig,
+        unknowns: c.unknowns,
+        expectHint: c.expectHint,
+        expectVerdict: c.expectVerdict,
+        forceUnreliable: false,
+      })
+    )
+  );
+
   const results = [];
   const failures = [];
 
-  for (const c of CALIBRATION_CASES) {
-    const judged = await judgeSemantic({
-      stage: c.stage,
-      question: c.question,
-      outputText: c.outputText,
-      approvedConfig: c.approvedConfig,
-      unknowns: c.unknowns,
-      expectHint: c.expectHint,
-      expectVerdict: c.expectVerdict,
-      forceUnreliable: false,
-    });
-
+  for (let i = 0; i < CALIBRATION_CASES.length; i += 1) {
+    const c = CALIBRATION_CASES[i];
+    const judged = judgedList[i];
     const matched = judged.verdict === c.expectVerdict;
     const row = {
       id: c.id,

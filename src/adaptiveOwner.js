@@ -46,6 +46,13 @@ DISCLOSURE POLICY:
 - Do not paste the entire knowledge dump in one message
 - Do NOT invent extra unknowns that are not in fullKnowledge.explicitUnknowns
 
+INTAKE vs FAQ (important — do not mix):
+- If Builder asks whether the bot should collect / ask the customer for information (name, phone, preferred time/day, details to gather, etc.):
+  - If fullKnowledge.informationToCollect is a non-empty array: tell them those exact items are what the bot should collect. Do NOT call them "common questions".
+  - If fullKnowledge.informationToCollect is missing or empty: say the bot does not need to collect anything from the customer ("none").
+- If Builder asks about common questions / what customers usually ask: answer from optionalFacts / FAQ only. Do NOT volunteer the informationToCollect list as common questions.
+- Never volunteer informationToCollect until Builder asks about collecting or asking the customer for details.
+
 Current disclosure ledger (already told Builder):
 ${JSON.stringify(args.disclosureLedger, null, 2)}
 

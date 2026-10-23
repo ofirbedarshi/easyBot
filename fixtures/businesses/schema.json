@@ -58,6 +58,11 @@
         "pricingNotes": { "type": "array", "items": { "type": "string" } },
         "policies": { "type": "object", "additionalProperties": { "type": "string" } },
         "optionalFacts": { "type": "array", "items": { "type": "string" } },
+        "informationToCollect": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional. Items the Business Bot should ask the customer for. Owner reveals only when Builder asks about collecting/asking the customer."
+        },
         "explicitUnknowns": { "type": "array", "items": { "type": "string" } },
         "hiddenNeverDisclose": {
           "type": "array",
