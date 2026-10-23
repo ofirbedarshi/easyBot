@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>easyBot — Tester results</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #1a2f28;
+      --bg1: #243d34;
+      --ink: #f3f0e7;
+      --muted: #b8c4bc;
+      --accent: #e8a87c;
+      --pass: #7ec8a3;
+      --fail: #e07a7a;
+      --review: #e8c87c;
+      --line: rgba(243, 240, 231, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #2f5548 0%, transparent 55%),
+        linear-gradient(160deg, var(--bg0), var(--bg1));
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+    h1 { font-family: "Fraunces", serif; font-size: 1.65rem; margin: 0 0 0.35rem; }
+    h2 { font-family: "Fraunces", serif; font-size: 1.15rem; margin: 1.25rem 0 0.5rem; }
+    .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
+    .meta a { color: var(--accent); }
+    .banner {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .banner.warn { border-left: 3px solid var(--review); }
+    .banner.fail { border-left: 3px solid var(--fail); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    select.run {
+      flex: 1 1 220px;
+      min-width: 180px;
+      padding: 0.45rem 0.55rem;
+      background: rgba(0,0,0,0.35);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      font: inherit;
+    }
+    .entry, .turn-card {
+      border-top: 1px solid var(--line);
+      padding: 0.85rem 0;
+    }
+    .turn-card.highlight {
+      background: rgba(232, 168, 124, 0.08);
+      outline: 1px solid rgba(232, 168, 124, 0.35);
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; }
+    .name { font-weight: 600; }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.45rem;
+      border: 1px solid var(--line);
+    }
+    .badge.PASS { color: var(--pass); }
+    .badge.FAIL { color: var(--fail); }
+    .badge.REVIEW { color: var(--review); }
+    .badge.stub { color: var(--review); }
+    .badge.real { color: var(--pass); }
+    .badge.deterministic { color: var(--muted); }
+    .badge.event { color: var(--accent); }
+    .badge.owner { color: #9ec5e8; }
+    .badge.builder { color: #c5b0e8; }
+    .badge.customer { color: #e8c89e; }
+    .badge.business_bot { color: #9ee8c5; }
+    .badge.system { color: var(--muted); }
+    .rationale { margin: 0.4rem 0 0; font-size: 0.9rem; line-height: 1.4; }
+    .evidence {
+      margin: 0.5rem 0 0;
+      padding: 0.55rem 0.7rem;
+      background: rgba(255,255,255,0.05);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      color: var(--muted);
+      word-break: break-word;
+    }
+    .turn {
+      margin-top: 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .body-text {
+      margin: 0.35rem 0 0;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    button.refresh, button.linkish {
+      padding: 0.5rem 0.9rem;
+      border: none;
+      background: var(--accent);
+      color: #1a1a1a;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.linkish {
+      background: transparent;
+      color: var(--accent);
+      padding: 0;
+      font-weight: 600;
+      text-decoration: underline;
+      font-size: 0.8rem;
+    }
+    .two {
+      display: grid;
+      gap: 1rem;
+    }
+    @media (min-width: 860px) {
+      .two { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Tester results</h1>
+    <p class="meta">
+      Local run artifacts with history and transcripts.
+      <a href="/">← Builder chat</a>
+    </p>
+    <div class="toolbar">
+      <label class="meta" for="runSelect">Run</label>
+      <select id="runSelect" class="run" aria-label="Select test run"></select>
+      <button class="refresh" id="refresh" type="button">Refresh</button>
+    </div>
+    <div id="banner" class="banner" hidden></div>
+    <div id="meta" class="meta">Loading…</div>
+    <div class="two">
+      <div>
+        <h2>Transcript</h2>
+        <div id="timeline"></div>
+      </div>
+      <div>
+        <h2>Checks</h2>
+        <div id="list"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const list = document.getElementById('list');
+    const timeline = document.getElementById('timeline');
+    const metaEl = document.getElementById('meta');
+    const banner = document.getElementById('banner');
+    const runSelect = document.getElementById('runSelect');
+
+    function badge(text, cls) {
+      const s = document.createElement('span');
+      s.className = 'badge ' + (cls || text || '');
+      s.textContent = text;
+      return s;
+    }
+
+    function roleLabel(role) {
+      if (role === 'owner') return 'Simulated Owner';
+      if (role === 'builder') return 'Builder';
+      if (role === 'customer') return 'Simulated Customer';
+      if (role === 'business_bot') return 'Business Bot';
+      if (role === 'system') return 'System';
+      return role || 'unknown';
+    }
+
+    function scrollToTurn(turnRef) {
+      if (!turnRef) return;
+      const el = document.getElementById('turn-' + turnRef);
+      if (!el) return;
+      document.querySelectorAll('.turn-card.highlight').forEach((n) => n.classList.remove('highlight'));
+      el.classList.add('highlight');
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function renderTranscript(data) {
+      timeline.innerHTML = '';
+      const turns = data.transcript || [];
+      if (!turns.length) {
+        const p = document.createElement('p');
+        p.className = 'meta';
+        p.textContent = 'No transcript in this run (older scripted e2e may only have checks).';
+        timeline.appendChild(p);
+        return;
+      }
+      for (const turn of turns) {
+        const div = document.createElement('div');
+        div.className = 'turn-card';
+        div.id = 'turn-' + (turn.turnRef || turn.seq);
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.appendChild(badge(turn.channel || 'BUILD', 'deterministic'));
+        row.appendChild(badge(roleLabel(turn.role), turn.role || 'system'));
+        if (turn.event) row.appendChild(badge(turn.event, 'event'));
+        if (turn.businessId) row.appendChild(badge(turn.businessId, 'deterministic'));
+        if (turn.turnRef) {
+          const ref = document.createElement('span');
+          ref.className = 'meta';
+          ref.textContent = turn.turnRef;
+          row.appendChild(ref);
+        }
+        div.appendChild(row);
+        const body = document.createElement('div');
+        body.className = 'body-text';
+        body.textContent = turn.text || '';
+        div.appendChild(body);
+        timeline.appendChild(div);
+      }
+    }
+
+    function renderEntries(data) {
+      list.innerHTML = '';
+      const entries = data.entries || [];
+      if (!entries.length) {
+        list.textContent = 'No entries yet. Run npm run e2e, e2e:ambiguity, or e2e:adaptive.';
+        return;
+      }
+      for (const e of entries) {
+        const div = document.createElement('div');
+        div.className = 'entry';
+        const row = document.createElement('div');
+        row.className = 'row';
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = e.name || '(unnamed)';
+        row.appendChild(name);
+        const verdict = e.verdict || (e.pass ? 'PASS' : 'FAIL');
+        row.appendChild(badge(verdict, verdict));
+        if (e.mode) {
+          row.appendChild(
+            badge(
+              e.mode === 'stub' ? 'stub judge' : e.mode === 'real' ? 'real judge' : e.mode,
+              e.mode
+            )
+          );
+        }
+        if (e.model) row.appendChild(badge(e.model));
+        if (e.unreliable) row.appendChild(badge('unreliable', 'REVIEW'));
+        if (e.stage) row.appendChild(badge(e.stage, 'deterministic'));
+        if (e.repairOf) row.appendChild(badge('repair→' + e.repairOf, 'event'));
+        if (e.businessId) row.appendChild(badge(e.businessId, 'deterministic'));
+        div.appendChild(row);
+
+        if (e.rationale || e.detail) {
+          const p = document.createElement('p');
+          p.className = 'rationale';
+          p.textContent = e.rationale || e.detail || '';
+          div.appendChild(p);
+        }
+        if (e.expected || e.actual) {
+          const ea = document.createElement('div');
+          ea.className = 'evidence';
+          ea.textContent =
+            (e.expected ? 'Expected: ' + e.expected + '\n' : '') +
+            (e.actual ? 'Actual: ' + String(e.actual).slice(0, 600) : '');
+          div.appendChild(ea);
+        }
+        if (e.question || e.outputText) {
+          const t = document.createElement('div');
+          t.className = 'turn';
+          t.textContent =
+            (e.question ? 'Q: ' + e.question + '\n' : '') +
+            (e.outputText ? 'A: ' + String(e.outputText).slice(0, 600) : '');
+          div.appendChild(t);
+        }
+        const quotes = e.quotes || [];
+        const refs = e.factRefs || [];
+        if (quotes.length || refs.length) {
+          const ev = document.createElement('div');
+          ev.className = 'evidence';
+          ev.textContent =
+            (quotes.length ? 'Quotes:\n- ' + quotes.join('\n- ') : '') +
+            (refs.length
+              ? (quotes.length ? '\n\n' : '') + 'Fact refs:\n- ' + refs.join('\n- ')
+              : '');
+          div.appendChild(ev);
+        }
+        if (e.evaluationDetail) {
+          const hid = document.createElement('div');
+          hid.className = 'evidence';
+          hid.textContent =
+            'Evaluation detail (Tester-only; not transcript):\n' +
+            JSON.stringify(e.evaluationDetail, null, 2).slice(0, 1200);
+          div.appendChild(hid);
+        }
+        if (Array.isArray(e.turnRefs) && e.turnRefs.length) {
+          const links = document.createElement('div');
+          links.className = 'turn';
+          for (const ref of e.turnRefs) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'linkish';
+            b.textContent = '→ ' + ref + ' ';
+            b.addEventListener('click', () => scrollToTurn(ref));
+            links.appendChild(b);
+          }
+          div.appendChild(links);
+        }
+        list.appendChild(div);
+      }
+    }
+
+    function renderRun(data, selectedId) {
+      const cal = data.calibration;
+      const fails = (data.entries || []).filter((e) => e.pass === false).length;
+      const incomplete = (data.entries || []).some((e) =>
+        /incomplete|blocked/i.test(e.name || '')
+      );
+      metaEl.textContent =
+        `Run: ${data.runName || '—'} (${selectedId || 'latest'}) · judge ${data.judgeVersion || '—'} · ` +
+        `mode ${data.judgeMode || '—'} · model ${data.judgeModel || '—'} · ` +
+        `finished ${data.finishedAt || '—'} · fails ${fails}` +
+        (data.synthetic ? ' · SYNTHETIC FIXTURE' : '') +
+        (data.pathLabels ? ' · paths ' + JSON.stringify(data.pathLabels) : '');
+
+      if (data.synthetic) {
+        banner.hidden = false;
+        banner.className = 'banner warn';
+        banner.textContent =
+          'SYNTHETIC viewer fixture — not a real product run. Labelled for UI inspection only.';
+      } else if (cal && cal.ok === false) {
+        banner.hidden = false;
+        banner.className = 'banner warn';
+        banner.textContent =
+          'Calibration failed — semantic evaluations unreliable/REVIEW. Failures: ' +
+          (cal.failures || []).map((f) => f.id).join(', ');
+      } else if (incomplete || fails) {
+        banner.hidden = false;
+        banner.className = 'banner fail';
+        banner.textContent =
+          (incomplete ? 'Run has incomplete/blocked stages. ' : '') +
+          fails +
+          ' failed check(s). Original failures preserved (including linked repairs).';
+      } else if (cal && cal.ok) {
+        banner.hidden = false;
+        banner.className = 'banner';
+        banner.textContent = 'Calibration OK (' + (data.judgeMode || '') + ').';
+      } else {
+        banner.hidden = true;
+      }
+
+      if (Array.isArray(data.businesses) && data.businesses.length) {
+        const biz = document.createElement('div');
+        biz.className = 'meta';
+        biz.textContent =
+          'Businesses: ' +
+          data.businesses
+            .map((b) => `${b.id}=${b.status}(turns=${b.turnsUsed},repairs=${b.repairs})`)
+            .join(' · ');
+        metaEl.appendChild(document.createElement('br'));
+        metaEl.appendChild(biz);
+      }
+
+      renderTranscript(data);
+      renderEntries(data);
+    }
+
+    async function loadIndex() {
+      const idx = await fetch('/api/test-results/index').then((r) => r.json());
+      const runs = idx.runs || [];
+      const prev = runSelect.value;
+      runSelect.innerHTML = '';
+      for (const run of runs) {
+        const opt = document.createElement('option');
+        opt.value = run.id;
+        opt.textContent =
+          (run.isLatest ? '★ ' : '') +
+          run.id +
+          ' — ' +
+          (run.runName || '') +
+          ` (${run.pass || 0}pass/${run.fail || 0}fail)` +
+          (run.hasTranscript ? ' · transcript' : '') +
+          (run.synthetic ? ' · SYNTHETIC' : '');
+        runSelect.appendChild(opt);
+      }
+      if (!runs.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No runs yet';
+        runSelect.appendChild(opt);
+      }
+      if (prev && [...runSelect.options].some((o) => o.value === prev)) {
+        runSelect.value = prev;
+      } else if (runs.some((r) => r.id === 'latest.json')) {
+        runSelect.value = 'latest.json';
+      }
+    }
+
+    async function loadSelected() {
+      list.innerHTML = '';
+      timeline.innerHTML = '';
+      try {
+        await loadIndex();
+        const name = runSelect.value;
+        if (!name) {
+          metaEl.textContent = 'No results yet.';
+          return;
+        }
+        const url =
+          name === 'latest.json'
+            ? '/api/test-results'
+            : '/api/test-results/file?name=' + encodeURIComponent(name);
+        const data = await fetch(url).then((r) => {
+          if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+          return r.json();
+        });
+        renderRun(data, name);
+      } catch (err) {
+        metaEl.textContent = 'No results yet (or error): ' + err.message;
+        list.textContent = 'Run a Tester script to write data/test-results/*.json';
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', loadSelected);
+    runSelect.addEventListener('change', loadSelected);
+    loadSelected();
+  </script>
+</body>
+</html>

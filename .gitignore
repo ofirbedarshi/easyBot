@@ -1,0 +1,4 @@
+node_modules/
+.env
+data/business-profile.json
+.DS_Store

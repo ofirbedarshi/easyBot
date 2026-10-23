@@ -1,0 +1,36 @@
+{
+  "name": "My Dog Walker",
+  "whatWeDo": "Dog walking services to keep your furry friends happy and active",
+  "services": [
+    {
+      "name": "Dog Walking",
+      "price": "$10 per hour",
+      "notes": "Includes feeding and watering during the walks. Maximum of 10 dogs per walk."
+    }
+  ],
+  "hours": "Daily at 8:00 AM",
+  "locationOrArea": "Tel Aviv",
+  "commonQuestions": [],
+  "unknowns": [
+    "Price application of $10 per hour (per dog or for the entire walk)"
+  ],
+  "tone": "Friendly and casual",
+  "approvedAt": "2026-10-23T09:35:45.771Z",
+  "chatflowId": "72cd0585-8c09-4e55-8e4e-af3dfd05e5c8",
+  "draft": {
+    "name": "My Dog Walker",
+    "whatWeDo": "Dog walking services to keep your furry friends happy and active",
+    "services": [
+      {
+        "name": "Dog Walking",
+        "price": "$10 total per hour for up to two dogs",
+        "notes": "Includes feeding and watering during the walks. Maximum of 10 dogs per walk."
+      }
+    ],
+    "hours": "Daily at 8:00 AM",
+    "locationOrArea": "Tel Aviv",
+    "commonQuestions": [],
+    "unknowns": [],
+    "tone": "Friendly and casual"
+  }
+}

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>easyBot — Business Bot Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #1a2f28;
+      --bg1: #243d34;
+      --ink: #f3f0e7;
+      --muted: #b8c4bc;
+      --accent: #e8a87c;
+      --build: #7ec8a3;
+      --test: #e8a87c;
+      --line: rgba(243, 240, 231, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #2f5548 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #3d2e22 0%, transparent 50%),
+        linear-gradient(160deg, var(--bg0), var(--bg1));
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1rem 1rem;
+    }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-family: "Fraunces", serif;
+      font-size: 1.65rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .mode {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.65rem;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.2);
+    }
+    .mode.build { color: var(--build); }
+    .mode.test { color: var(--test); }
+    .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0 0 1rem;
+    }
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.5rem 0 1rem;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      min-height: 50vh;
+    }
+    .msg {
+      max-width: 92%;
+      padding: 0.75rem 0.9rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      font-size: 0.95rem;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: rgba(255,255,255,0.06);
+      border-left: 3px solid var(--build);
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: rgba(232, 168, 124, 0.15);
+      border-right: 3px solid var(--accent);
+    }
+    .msg .meta {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+      letter-spacing: 0.04em;
+    }
+    form {
+      display: flex;
+      gap: 0.5rem;
+      padding-top: 0.85rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+      color: var(--ink);
+      font: inherit;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    button {
+      padding: 0.85rem 1.15rem;
+      border: none;
+      background: var(--accent);
+      color: #1a1a1a;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    #status {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>easyBot</h1>
+      <div id="mode" class="mode build">BUILD</div>
+    </header>
+    <p class="hint">Chat to build your business bot. Commands: <code>/test</code> · <code>/end</code> · <code>/reset</code> · <a href="/results.html" style="color:var(--accent)">Tester results</a></p>
+    <div id="log"></div>
+    <form id="form">
+      <input id="input" type="text" placeholder="Type a message…" autocomplete="off" />
+      <button type="submit" id="send">Send</button>
+    </form>
+    <div id="status">Connecting…</div>
+  </div>
+  <script>
+    const log = document.getElementById('log');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const send = document.getElementById('send');
+    const modeEl = document.getElementById('mode');
+    const status = document.getElementById('status');
+
+    function addMsg(role, text, meta) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      if (meta) {
+        const m = document.createElement('span');
+        m.className = 'meta';
+        m.textContent = meta;
+        div.appendChild(m);
+      }
+      div.appendChild(document.createTextNode(text));
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function setMode(mode) {
+      modeEl.textContent = mode;
+      modeEl.className = 'mode ' + (mode === 'TEST' ? 'test' : 'build');
+    }
+
+    async function refreshHealth() {
+      try {
+        const h = await fetch('/api/health').then((r) => r.json());
+        status.textContent =
+          (h.openai ? 'OpenAI ready' : 'OpenAI key missing') +
+          ' · ' +
+          (h.flowise ? 'Flowise up' : 'Flowise down') +
+          ' · ' + h.flowiseUrl;
+      } catch {
+        status.textContent = 'Server unreachable';
+      }
+    }
+
+    async function start() {
+      await refreshHealth();
+      const data = await fetch('/api/start', { method: 'POST' }).then((r) => r.json());
+      setMode(data.mode || 'BUILD');
+      log.innerHTML = '';
+      for (const m of data.buildHistory || []) {
+        addMsg(m.role === 'user' ? 'user' : 'assistant', m.content);
+      }
+      if (!data.buildHistory?.length && data.reply) {
+        addMsg('assistant', data.reply, data.source);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      addMsg('user', text);
+      send.disabled = true;
+      try {
+        const data = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        }).then((r) => r.json());
+        setMode(data.mode || 'BUILD');
+        addMsg('assistant', data.reply || data.error || '(no reply)', data.source || data.event);
+        await refreshHealth();
+      } catch (err) {
+        addMsg('assistant', 'Request failed: ' + err.message, 'error');
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+
+    start();
+  </script>
+</body>
+</html>
