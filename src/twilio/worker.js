@@ -92,16 +92,20 @@ async function processRow(store, row) {
     const reply = result.reply || result.error || '(no reply)';
     let replySid = null;
     if (process.env.TWILIO_SKIP_OUTBOUND === '1') {
-      // Tests / dry-run
+      // Tests / dry-run — no Twilio send
+      replySid = 'SKIP';
     } else {
       const sent = await sendWhatsAppReply({ to: senderId, body: reply });
-      replySid = sent?.sid || null;
+      replySid = sent.sid;
     }
 
     await store.markInboundDone(row.id, {
       replySid,
       replyBody: reply,
     });
+    console.log(
+      `inbound ${row.message_sid} done reply_sid=${replySid} chars=${reply.length}`
+    );
   } catch (err) {
     console.error(`process inbound ${row.message_sid}:`, err.message);
     try {
