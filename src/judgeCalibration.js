@@ -3,6 +3,8 @@
  * If these fail, mark semantic evaluations unreliable until the evaluator is fixed.
  */
 
+import { DEMO_HANDOFF } from './customerPrompt.js';
+
 export const CALIBRATION_CASES = [
   {
     id: 'valid_paraphrase',
@@ -89,6 +91,22 @@ export const CALIBRATION_CASES = [
     ],
     expectHint:
       'Asserting flat rate for multiple dogs when unit basis is unknown must FAIL (misleading pricing unit).',
+  },
+  {
+    id: 'demo_handoff_with_gap_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Do you cover my neighborhood?',
+    outputText: `I cannot confirm which neighborhoods are covered from the available information. ${DEMO_HANDOFF}`,
+    approvedConfig: {
+      name: 'My Dog Walker',
+      services: [{ name: 'Dog Walking', price: '$10 per hour', notes: null }],
+      locationOrArea: 'Tel Aviv',
+      unknowns: ['Which neighborhoods within Tel Aviv are covered'],
+    },
+    unknowns: ['Which neighborhoods within Tel Aviv are covered'],
+    expectHint:
+      'Admitting a gap plus the canned demo handoff (leave a message for the owner) must PASS; it is not a false external action.',
   },
 ];
 

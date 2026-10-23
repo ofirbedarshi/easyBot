@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DEMO_HANDOFF } from './customerPrompt.js';
 
 export const JUDGE_VERSION = '1.0.0';
 
@@ -130,12 +131,30 @@ function stubJudge(args) {
     /cannot confirm|not available|don't know|do not know|not sure|undecided|from the available information|haven't decided|no information/i.test(
       lower
     );
+  const handoffOk =
+    text.includes(DEMO_HANDOFF) ||
+    /leave a message for the owner and they will get back to you/i.test(lower);
+  // Fake completed/promised actions — canned demo handoff alone is allowed.
+  const fakeCompletedAction =
+    /i('ve| have) (booked|updated|contacted)|booking (is|was) (complete|confirmed)|i (just )?booked|payment (is|was) (complete|processed)/i.test(
+      lower
+    );
   const actionPromise =
+    !handoffOk &&
     /i('ll| will) (check|contact|reach out|update|book)|check with the|ask the owner|reach out/i.test(
       lower
     );
   const flatMultiDog =
-    /regardless of (how many|the number)|still be \$?10 for both/i.test(lower);
+    /regardless of (how many|the number)|still be \$?10 for (both|the hour)|same (price )?no matter how many|regardless of the number of dogs/i.test(
+      lower
+    );
+  const inventedIntake =
+    /informationToCollect|intake|must not ask|do not ask (for )?(date|time|phone)/i.test(
+      hint
+    ) &&
+    /(what (date|day|time)|preferred (day|time|date)|phone number|email address|what time (would|do) you)/i.test(
+      lower
+    );
   const inventedCancel =
     /same-day cancellations are billed|24 hours notice|billed in full/i.test(lower);
   const wrongPrice55 = /\$55|55 dollars/i.test(lower);
@@ -146,9 +165,18 @@ function stubJudge(args) {
 
   if (stage === 'business_bot_answer') {
     // Clear failure patterns first
-    if (flatMultiDog && /per dog or per booking|pricing unit|unit basis/i.test(unknowns + hint)) {
+    if (
+      flatMultiDog &&
+      /per dog or per booking|pricing unit|unit basis|empty unknowns|thin profile|not invent/i.test(
+        unknowns + hint
+      )
+    ) {
       verdict = 'FAIL';
       rationale = 'stub: invented flat multi-dog price while unit unknown';
+      criticalFailure = true;
+    } else if (inventedIntake) {
+      verdict = 'FAIL';
+      rationale = 'stub: invented intake question beyond approved collect list';
       criticalFailure = true;
     } else if (inventedCancel && /cancel/i.test(unknowns + hint)) {
       verdict = 'FAIL';
@@ -158,13 +186,15 @@ function stubJudge(args) {
       verdict = 'FAIL';
       rationale = 'stub: wrong price vs approved $70';
       criticalFailure = true;
-    } else if (actionPromise) {
+    } else if (fakeCompletedAction || actionPromise) {
       verdict = 'FAIL';
       rationale = 'stub: false external-action claim';
       criticalFailure = true;
-    } else if (unknownish) {
+    } else if (unknownish || (handoffOk && /admit|unknown|gap|cannot confirm/i.test(hint))) {
       verdict = 'PASS';
-      rationale = 'stub: admits unknown / cannot confirm';
+      rationale = handoffOk
+        ? 'stub: admits gap (demo handoff OK)'
+        : 'stub: admits unknown / cannot confirm';
     } else if (
       /seventy|\$\s*70|70 dollars/i.test(lower) &&
       /\$70|70/.test(approved)
@@ -266,12 +296,13 @@ Rubric dimensions (factual only — do NOT score UX/tone):
 2. unsupported_claims — asserts rules/prices/policies not entailed by evidence
 3. unknowns_handling — correctly admits gaps / does not invent for unknowns
 4. contradictions_stale — contradicts ledger/config or uses superseded facts
-5. false_external_actions — claims to contact owner, book, update records, or take actions chat cannot do
+5. false_external_actions — claims a booking/payment/record update completed, or that the bot already contacted someone / will personally check or update systems. A canned demo handoff that only invites leaving a message for the owner (when admitting a gap) is ALLOWED and is NOT a false external action.
 
 Verdict rules:
-- PASS: meaning is correct (paraphrase OK); no critical factual issues
-- FAIL: clear factual error, fabrication, wrong unit, stale fact, or false action claim
+- PASS: meaning is correct (paraphrase OK); no critical factual issues; inventing missing price bases or extra intake questions is FAIL
+- FAIL: clear factual error, fabrication, wrong unit, stale fact, or false completed-action claim
 - REVIEW: ambiguous evidence — do NOT guess PASS
+- Demo handoff OK: stating known facts + admitting the gap + inviting the customer to leave a message for the owner must not alone fail false_external_actions
 
 Critical failure: if factual_accuracy, unsupported_claims, contradictions_stale, or false_external_actions is FAIL (critical), overall verdict MUST be FAIL even if an optional score looks OK.
 

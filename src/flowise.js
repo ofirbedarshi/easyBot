@@ -73,7 +73,7 @@ export function buildFlowData(profile) {
       node.data.inputs = {
         ...node.data.inputs,
         modelName: model,
-        temperature: 0.3,
+        temperature: 0,
         openAIApiKey: apiKey,
         allowImageUploads: false,
       };
