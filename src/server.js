@@ -220,11 +220,32 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-const worker = startInboundWorker(store);
+/**
+ * Only run the durable WhatsApp worker when Twilio outbound is configured.
+ * Prevents a local `npm start` (same Supabase, no Twilio) from claiming
+ * inbound rows and marking them done without sending a WhatsApp reply.
+ * Set DISABLE_INBOUND_WORKER=1 to force off; ENABLE_INBOUND_WORKER=1 to force on.
+ */
+function shouldStartInboundWorker() {
+  if (process.env.DISABLE_INBOUND_WORKER === '1') return false;
+  if (process.env.ENABLE_INBOUND_WORKER === '1') return true;
+  return !!process.env.TWILIO_AUTH_TOKEN;
+}
+
+const worker = shouldStartInboundWorker()
+  ? startInboundWorker(store)
+  : null;
 
 app.listen(PORT, () => {
   console.log(`easyBot UI → http://localhost:${PORT}`);
   console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
+  if (worker) {
+    console.log('Inbound worker: ON');
+  } else {
+    console.log(
+      'Inbound worker: OFF (no TWILIO_AUTH_TOKEN / disabled) — safe for local UI; Render handles WhatsApp'
+    );
+  }
   if (!process.env.OPENAI_API_KEY) {
     console.warn('WARNING: OPENAI_API_KEY not set');
   }
