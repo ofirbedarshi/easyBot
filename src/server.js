@@ -222,14 +222,27 @@ app.post('/api/chat', async (req, res) => {
 
 /**
  * Only run the durable WhatsApp worker when Twilio outbound is configured.
- * Prevents a local `npm start` (same Supabase, no Twilio) from claiming
- * inbound rows and marking them done without sending a WhatsApp reply.
+ * Prevents a local `npm start` (same Supabase) from claiming production
+ * inbound rows and answering via local Flowise (missing chatflows → errors).
  * Set DISABLE_INBOUND_WORKER=1 to force off; ENABLE_INBOUND_WORKER=1 to force on.
  */
 function shouldStartInboundWorker() {
   if (process.env.DISABLE_INBOUND_WORKER === '1') return false;
   if (process.env.ENABLE_INBOUND_WORKER === '1') return true;
-  return !!process.env.TWILIO_AUTH_TOKEN;
+  if (!process.env.TWILIO_AUTH_TOKEN) return false;
+
+  const flowise = (process.env.FLOWISE_URL || '').toLowerCase();
+  const publicBase = (process.env.PUBLIC_BASE_URL || '').toLowerCase();
+  const flowiseLocal =
+    !flowise ||
+    flowise.includes('localhost') ||
+    flowise.includes('127.0.0.1');
+  const publicRemote =
+    publicBase.startsWith('https://') && !publicBase.includes('localhost');
+  // Local UI + Twilio secrets + production Supabase must not steal the queue.
+  if (flowiseLocal && publicRemote) return false;
+
+  return true;
 }
 
 const worker = shouldStartInboundWorker()
