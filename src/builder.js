@@ -1,10 +1,14 @@
 import OpenAI from 'openai';
 import {
-  draftDiffersFromLive,
+  draftChangesOnlySettings,
+  draftReviewKey,
   formatSummary,
   hasEnoughForFirstBot,
+  identityResetFlag,
+  IDENTITY_KEYS,
   mergeDraft,
   normalizeCommonQuestions,
+  normalizeIdentityText,
   normalizePriceDisclosure,
   normalizeResponseLength,
 } from './profile.js';
@@ -43,7 +47,14 @@ Conversation settings (behavior — not business facts):
 - Map natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
 - If the owner asks for unsupported price behavior (never disclose prices, always lead with prices, hide all prices forever), clearly explain the two supported options and ask which they want. Do NOT invent a third policy and do NOT set priceDisclosure to an unsupported value.
 - Style/settings cannot establish service attributes, benefits, guarantees, capabilities, or extra intake. If a style request also contains a business fact, update the fact fields separately and keep settings as settings.
-- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style or price disclosure, update those draft fields, leave business facts unchanged, set readyForReview=true, show what changed, and ask for approval again (approved=false until they confirm).
+- Assistant identity (conversation settings, NOT business facts):
+  - assistantName: the name the owner gives the customer bot (e.g. "Maya"). Leave null unless the owner names it — never invent a name.
+  - openingMessage: the owner's exact opening text for the start of a fresh customer conversation. Store their wording as given (do not rewrite it). Leave null if they did not provide one; the default is a short introduction as the digital assistant of the business.
+  - The assistant must be introduced transparently as a digital assistant. It must never present itself as the owner or as a human.
+  - The opening is customer-facing content. Before accepting it, check it against the draft business facts, the demo scope above, and priceDisclosure. If it claims an unsupported capability (booking, payments, saving or forwarding inquiries, etc.), states a fact or price that is not in the draft, impersonates the owner or a human, or contradicts the price setting: explain the specific conflict, keep the PREVIOUS openingMessage in the draft (do not store the conflicting text), set readyForReview=false, and ask the owner for a corrected opening.
+  - When the owner changes only the opening, keep assistantName unchanged, and vice versa. If a new name would leave a different old name inside the opening, point that out and ask which they want.
+  - Explicit reset: if the owner asks to remove the assistant name, set assistantName=null AND assistantNameReset=true. If they ask to go back to the default opening, set openingMessage=null AND openingMessageReset=true. Otherwise omit the reset flags (or set false) — a null value alone means "keep the current value".
+- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style, price disclosure, assistant name, or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true, show what changed (quote the new opening), and ask for approval again (approved=false until they confirm). Do not switch to unrelated interview questions in that turn.
 
 Interview rules:
 - Start by understanding the business and the owner's desired outcome — not by listing features to enable.
@@ -96,7 +107,11 @@ You MUST respond with a single JSON object only (no markdown fences):
     "unknowns": [string],
     "tone": string|null,
     "responseLength": "short"|"standard"|null,
-    "priceDisclosure": "relevant"|"on_request"|null
+    "priceDisclosure": "relevant"|"on_request"|null,
+    "assistantName": string|null,
+    "openingMessage": string|null,
+    "assistantNameReset": boolean,
+    "openingMessageReset": boolean
   },
   "readyForReview": boolean,
   "approved": boolean
@@ -109,7 +124,8 @@ informationToCollect must stay null until the owner answers the collect question
 ownerGoal must stay null until the owner clarifies their desired outcome; never invent it.
 unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.
 responseLength and priceDisclosure must be one of the allowed enum values or null — never invent other policies.
-When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).`;
+When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).
+Keep previous assistantName and openingMessage in the draft unless the owner changed or explicitly reset them.`;
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -204,6 +220,25 @@ export function reconcileDraft(draft, currentDraft) {
     }
   }
 
+  // Identity: a new value wins; explicit reset flag clears (and stays pending
+  // until replaced); omitted / null / blank keeps the previous value.
+  for (const key of IDENTITY_KEYS) {
+    const flag = identityResetFlag(key);
+    const value = normalizeIdentityText(next[key]);
+    if (value != null) {
+      next[key] = value;
+      next[flag] = false;
+    } else if (next[flag] === true) {
+      next[key] = null;
+    } else if (prev[flag] === true) {
+      next[key] = null;
+      next[flag] = true;
+    } else {
+      next[key] = normalizeIdentityText(prev[key]);
+      next[flag] = false;
+    }
+  }
+
   return next;
 }
 
@@ -227,6 +262,8 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     tone: profile.tone,
     responseLength: profile.responseLength ?? null,
     priceDisclosure: profile.priceDisclosure ?? null,
+    assistantName: profile.assistantName ?? null,
+    openingMessage: profile.openingMessage ?? null,
   };
 
   const intakeSettled = hasAnsweredInformationToCollect(currentDraft);
@@ -291,24 +328,6 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     if (!message.includes(INTAKE_GATE_QUESTION)) {
       message = `${message.trim()}\n\n${INTAKE_GATE_QUESTION}`;
     }
-  } else if (
-    // Enforce short approve phrases when draft is reviewable — model often forgets approved=true
-    !approved &&
-    intakeAnswered &&
-    hasEnoughForFirstBot(mergedPreview) &&
-    isOwnerApproveMessage(userMessage) &&
-    (readyForReview ||
-      draftDiffersFromLive(profile, draft) ||
-      !profile.approvedAt)
-  ) {
-    approved = true;
-    readyForReview = true;
-  } else if (readyForReview && !approved && !/approve/i.test(message)) {
-    // Pass draft on the profile so Live vs Pending labeling works after first approve
-    message +=
-      '\n\n---\n' +
-      formatSummary({ ...profile, draft }) +
-      '\n---\nReply **approve** to create/update the customer bot, or tell me what to correct.';
   }
 
   return {
@@ -318,6 +337,69 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     approved,
     usage: completion.usage,
     source: 'real-llm',
+  };
+}
+
+const REVIEW_FOOTER =
+  'Reply **approve** to create/update the customer bot, or tell me what to correct.';
+const REVIEW_REQUIRED_NOTE =
+  'Before I apply anything, please review the current version below.';
+
+/**
+ * Application approval gate (runs after every Builder turn, real or stubbed).
+ * Approval is accepted only when the app already presented a review of exactly
+ * this draft (profile.reviewedDraftKey). Any later draft change invalidates it.
+ * A bare approve phrase cannot change content, so it approves the stored draft.
+ * Settings-only edits to an approved business are presented for review even if
+ * the model asked an unrelated question instead.
+ *
+ * @returns turn fields plus reviewedDraftKey to persist on the profile
+ */
+export function applyReviewGate(profile, turn, userMessage) {
+  const shortApprove = isOwnerApproveMessage(userMessage);
+  const draft = shortApprove && profile.draft ? profile.draft : turn.draft;
+  const key = draftReviewKey(profile, draft);
+  const reviewCurrent = !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
+  const intakeAnswered = hasAnsweredInformationToCollect(draft);
+  const enough = hasEnoughForFirstBot(mergeDraft(profile, draft));
+  const wantsApprove = !!turn.approved || shortApprove;
+
+  if (wantsApprove && intakeAnswered && enough && reviewCurrent) {
+    return {
+      ...turn,
+      draft,
+      approved: true,
+      readyForReview: true,
+      reviewedDraftKey: key,
+    };
+  }
+
+  let message = turn.message;
+  let readyForReview = !!turn.readyForReview;
+  if (wantsApprove && intakeAnswered) {
+    readyForReview = true;
+    message = REVIEW_REQUIRED_NOTE;
+  }
+  if (intakeAnswered && profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
+    readyForReview = true;
+  }
+
+  if (readyForReview && intakeAnswered) {
+    return {
+      ...turn,
+      draft,
+      approved: false,
+      readyForReview: true,
+      message: `${message.trim()}\n\n---\n${formatSummary({ ...profile, draft })}\n---\n${REVIEW_FOOTER}`,
+      reviewedDraftKey: key,
+    };
+  }
+  return {
+    ...turn,
+    draft,
+    approved: false,
+    readyForReview,
+    reviewedDraftKey: reviewCurrent ? key : null,
   };
 }
 

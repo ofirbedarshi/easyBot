@@ -176,6 +176,13 @@ export function buildUxPayload({
           tone: behaviorSettings.tone ?? null,
           responseLength: behaviorSettings.responseLength ?? null,
           priceDisclosure: behaviorSettings.priceDisclosure ?? null,
+          ...(behaviorSettings.assistantName !== undefined ||
+          behaviorSettings.openingMessage !== undefined
+            ? {
+                assistantName: behaviorSettings.assistantName ?? null,
+                openingMessage: behaviorSettings.openingMessage ?? null,
+              }
+            : {}),
         }
       : null,
     includeStyleMatch,

@@ -12,7 +12,7 @@ import {
 } from './judge.js';
 import { buildUxPayload, sha256Text } from './judgeEvidence.js';
 
-export const UX_JUDGE_VERSION = '2.0.1';
+export const UX_JUDGE_VERSION = '2.0.2';
 
 const SHARED_DIMS = ['clarity', 'warmth', 'feel'];
 const BUILDER_DIMS = [...SHARED_DIMS, 'ease', 'simplicity', 'arrangement'];
@@ -249,6 +249,7 @@ When behaviorSettings are provided, ALSO score:
 - style_match — reply matches the owner's tone and reply-length settings. Do NOT dock a professional/concise tone for being less effusive. Do NOT require volunteering prices.
 - Under responseLength "short": prefer brief replies. A *substantial* violation of short style (long padded expansion, many elaborating sentences, chatty wall beyond a compact shop answer) MUST materially lower both brevity and style_match (typically into the 1–2 range so soft-cap can apply). Mild length overshoot alone is not enough.
 - Do NOT equate multiple paragraphs with excessive length by itself — short can still use line breaks. Judge substance and padding, not paragraph count.
+- When behaviorSettings include assistantName / openingMessage (null = default short digital-assistant introduction): on the first Business Bot reply of a conversation (no priorConversation), an introduction consistent in meaning with those settings belongs in style_match — judge meaning, not exact wording. Re-introducing on a later turn lowers repetition. A first reply that is only a greeting when the customer asked a real question lowers relevance.
 - Do NOT apply a blanket overall-score cap merely because any dimension scored 3. Soft-cap (overall ≤3) applies only when a dimension is 1 or 2.
 
 Contextual criteria (no automatic high or low scores):

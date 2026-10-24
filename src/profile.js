@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,6 +19,18 @@ const TEXT_FACT_KEYS = [
 
 /** Conversation settings — expression / disclosure, not business facts. */
 export const BEHAVIOR_KEYS = ['tone', 'responseLength', 'priceDisclosure'];
+
+/**
+ * Assistant identity settings — customer-facing introduction, not business facts.
+ * null = default (no name; short digital-assistant intro using the business name).
+ * Draft-only reset flags (`<key>Reset: true`) clear the live value on approval;
+ * an omitted / null / blank draft value preserves the live value.
+ */
+export const IDENTITY_KEYS = ['assistantName', 'openingMessage'];
+
+export function identityResetFlag(key) {
+  return `${key}Reset`;
+}
 
 export const RESPONSE_LENGTH_VALUES = ['short', 'standard'];
 export const PRICE_DISCLOSURE_VALUES = ['relevant', 'on_request'];
@@ -104,6 +117,13 @@ export function normalizePriceDisclosure(value) {
   return null;
 }
 
+/** Trimmed non-empty string, or null. */
+export function normalizeIdentityText(value) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  return s || null;
+}
+
 /**
  * Drop invalid enum values to null on live profile and draft.
  * Does not invent defaults into stored fields.
@@ -122,7 +142,15 @@ export function normalizeBehaviorSettings(profile) {
   if ('priceDisclosure' in profile || profile.priceDisclosure !== undefined) {
     profile.priceDisclosure = normalizePriceDisclosure(profile.priceDisclosure);
   }
+  for (const key of IDENTITY_KEYS) {
+    if (key in profile) profile[key] = normalizeIdentityText(profile[key]);
+  }
   if (profile.draft && typeof profile.draft === 'object') {
+    for (const key of IDENTITY_KEYS) {
+      if (key in profile.draft) {
+        profile.draft[key] = normalizeIdentityText(profile.draft[key]);
+      }
+    }
     if (profile.draft.tone != null && typeof profile.draft.tone === 'string') {
       const t = profile.draft.tone.trim();
       profile.draft.tone = t || null;
@@ -179,9 +207,21 @@ export function businessFactsView(profile) {
   };
 }
 
+/** Approved assistant identity (null = default introduction, no invented name). */
+export function assistantIdentityView(profile) {
+  const p = profile || {};
+  const assistantName = normalizeIdentityText(p.assistantName);
+  const openingMessage = normalizeIdentityText(p.openingMessage);
+  return {
+    assistantName,
+    openingMessage,
+    usesDefaultIntroduction: !openingMessage,
+  };
+}
+
 /** Conversation settings view (effective values) for judges / prompts. */
 export function behaviorSettingsView(profile) {
-  return effectiveBehavior(profile);
+  return { ...effectiveBehavior(profile), ...assistantIdentityView(profile) };
 }
 
 export function emptyProfile() {
@@ -217,6 +257,10 @@ export function emptyProfile() {
      * null = use DEFAULT_BEHAVIOR.priceDisclosure ('relevant').
      */
     priceDisclosure: null,
+    /** Assistant display name. null = no name (never invented). */
+    assistantName: null,
+    /** Custom opening for a fresh customer conversation. null = default intro. */
+    openingMessage: null,
     approvedAt: null,
     chatflowId: null,
     /** Set only after Flowise create/update succeeds for the current approval. */
@@ -230,6 +274,11 @@ export function emptyProfile() {
     flowiseSyncPending: false,
     /** ISO time when pending sync was requested (wake + retry window). */
     flowiseSyncRequestedAt: null,
+    /**
+     * draftReviewKey of the last review the app presented to the owner.
+     * Approval is accepted only when it matches the current draft.
+     */
+    reviewedDraftKey: null,
     draft: null,
   };
 }
@@ -292,6 +341,11 @@ export function mergeDraft(profile, draft) {
       if (n != null) next.priceDisclosure = n;
     }
   }
+  for (const key of IDENTITY_KEYS) {
+    const value = normalizeIdentityText(draft[key]);
+    if (value != null) next[key] = value;
+    else if (draft[identityResetFlag(key)] === true) next[key] = null;
+  }
   if (Array.isArray(draft.services)) next.services = draft.services;
   if (Array.isArray(draft.commonQuestions)) {
     next.commonQuestions = normalizeCommonQuestions(draft.commonQuestions);
@@ -319,6 +373,13 @@ export function draftDiffersFromLive(profile, draft) {
   if (liveB.tone !== mergedB.tone) return true;
   if (liveB.responseLength !== mergedB.responseLength) return true;
   if (liveB.priceDisclosure !== mergedB.priceDisclosure) return true;
+  for (const key of IDENTITY_KEYS) {
+    if (
+      normalizeIdentityText(merged[key]) !== normalizeIdentityText(profile[key])
+    ) {
+      return true;
+    }
+  }
   if (stableJson(merged.services || []) !== stableJson(profile.services || [])) {
     return true;
   }
@@ -414,6 +475,17 @@ function formatFactsBlock(profile) {
   lines.push(
     `  Prices: ${formatPriceDisclosureLabel(eff.priceDisclosure, !storedPrice)}`
   );
+  const identity = assistantIdentityView(profile);
+  lines.push(
+    `  Assistant name: ${identity.assistantName || '(not set — no name)'}`
+  );
+  lines.push(
+    `  Opening: ${
+      identity.openingMessage
+        ? `“${identity.openingMessage}”`
+        : `(default) short introduction as the digital assistant of ${profile.name || 'this business'}`
+    }`
+  );
   return lines.join('\n');
 }
 
@@ -439,6 +511,25 @@ export function formatSummary(profile) {
   }
   const view = draft ? mergeDraft(profile, draft) : profile;
   return formatFactsBlock(view || emptyProfile());
+}
+
+/** Fingerprint of the pending configuration as rendered in the owner review. */
+export function draftReviewKey(profile, draft) {
+  const view = draft ? mergeDraft(profile, draft) : profile;
+  return crypto
+    .createHash('sha256')
+    .update(formatFactsBlock(view || emptyProfile()), 'utf8')
+    .digest('hex');
+}
+
+/** True when the draft changes only conversation settings / identity, not facts. */
+export function draftChangesOnlySettings(profile, draft) {
+  if (!draftDiffersFromLive(profile, draft)) return false;
+  const merged = mergeDraft(profile, draft);
+  return (
+    JSON.stringify(businessFactsView(merged)) ===
+    JSON.stringify(businessFactsView(profile))
+  );
 }
 
 export function hasEnoughForFirstBot(profile) {

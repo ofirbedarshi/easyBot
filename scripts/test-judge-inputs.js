@@ -281,9 +281,9 @@ check('suite files do not pass expectHint into judgeSemantic/judgeUx', () => {
   assert.deepStrictEqual(offenders, [], offenders.join('; '));
 });
 
-check(`versions are 2.0.1 (sem=${JUDGE_VERSION} ux=${UX_JUDGE_VERSION})`, () => {
-  assert.strictEqual(JUDGE_VERSION, '2.0.1');
-  assert.strictEqual(UX_JUDGE_VERSION, '2.0.1');
+check(`versions are 2.0.2 (sem=${JUDGE_VERSION} ux=${UX_JUDGE_VERSION})`, () => {
+  assert.strictEqual(JUDGE_VERSION, '2.0.2');
+  assert.strictEqual(UX_JUDGE_VERSION, '2.0.2');
 });
 
 await checkAsync('forceUnreliable does not convert UX to pass=true', async () => {

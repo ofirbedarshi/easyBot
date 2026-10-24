@@ -2,11 +2,15 @@
  * Closed-world Business Bot contract:
  * - APPROVED BUSINESS FACTS: only source for customer-facing business claims.
  * - BOT OBJECTIVE (ownerGoal): conversational direction within approved facts/capabilities.
- * - CONVERSATION SETTINGS: tone, reply length, price disclosure (expression / when to mention prices).
+ * - CONVERSATION SETTINGS: tone, reply length, price disclosure, assistant identity / opening.
  * - BEHAVIOR RULES: how to answer, handle gaps, collect listed intake.
  */
 
-import { effectiveBehavior, normalizeCommonQuestions } from './profile.js';
+import {
+  assistantIdentityView,
+  effectiveBehavior,
+  normalizeCommonQuestions,
+} from './profile.js';
 
 /**
  * Build the system message injected into the Flowise Conversation Chain.
@@ -83,12 +87,32 @@ It must NOT establish facts, policies, capabilities, promises, booking power, or
 - Do not dump prices into unrelated answers.
 - You are not required to volunteer a price in every general description.`;
 
+  const identity = assistantIdentityView(profile);
+  const businessLabel = profile.name || 'this business';
+  const nameLine = identity.assistantName
+    ? `Assistant name: ${identity.assistantName}.`
+    : 'Assistant name: none — do not invent a name for yourself.';
+  const openingLine = identity.openingMessage
+    ? `Approved opening (use this wording; light adaptation to the customer's language is OK):
+"${identity.openingMessage}"`
+    : `Opening: default — a short, friendly introduction as the digital assistant of ${businessLabel}, then offer help.`;
+  const identityBlock = `Assistant identity:
+- You are the digital assistant of ${businessLabel}. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.
+- ${nameLine}
+- ${openingLine}
+- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.
+- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.
+- If the customer later asks who they are talking to, answer briefly with the identity above.
+- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.`;
+
   const settingsBlock = `These settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.
 On any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.
 
 Tone: ${behavior.tone}.
 ${lengthLine}
-${priceLine}`;
+${priceLine}
+
+${identityBlock}`;
 
   return `You are the customer-facing assistant for this business. You talk to customers only.
 You are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.

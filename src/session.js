@@ -7,6 +7,7 @@ import {
   defaultProfilePath,
 } from './profile.js';
 import {
+  applyReviewGate,
   runBuilderTurn as defaultRunBuilderTurn,
   openingMessage,
 } from './builder.js';
@@ -408,7 +409,9 @@ async function handleBuild(session, userMessage) {
     };
   }
 
+  result = applyReviewGate(profile, result, userMessage);
   profile.draft = result.draft;
+  profile.reviewedDraftKey = result.reviewedDraftKey;
   let event = 'build_turn';
   let syncNote = '';
 
@@ -429,6 +432,8 @@ async function handleBuild(session, userMessage) {
       tone: merged.tone,
       responseLength: merged.responseLength ?? null,
       priceDisclosure: merged.priceDisclosure ?? null,
+      assistantName: merged.assistantName ?? null,
+      openingMessage: merged.openingMessage ?? null,
       draft: result.draft,
       approvedAt: new Date().toISOString(),
       // Until Flowise sync succeeds, /test stays blocked
