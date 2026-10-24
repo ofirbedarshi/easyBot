@@ -7,7 +7,14 @@ import {
   defaultProfilePath,
 } from './profile.js';
 import { runBuilderTurn, openingMessage } from './builder.js';
-import { createOrUpdateChatflow, predict } from './flowise.js';
+import {
+  createOrUpdateChatflow,
+  predict,
+  pingFlowise,
+  wakeFlowise,
+  truncateFlowiseErrorBody,
+  isFlowiseUnavailableError,
+} from './flowise.js';
 
 /**
  * In-memory session. Profile persists on disk at session.profilePath
@@ -109,9 +116,64 @@ function stateFrom(session, profile) {
     approvedAt: profile.approvedAt,
     flowiseSyncOk: !!profile.flowiseSyncOk,
     flowiseSyncedAt: profile.flowiseSyncedAt || null,
+    flowiseSyncPending: !!profile.flowiseSyncPending,
     buildHistory: session.buildHistory,
     testHistory: session.testHistory,
   };
+}
+
+function markFlowiseSyncPending(profile) {
+  profile.flowiseSyncOk = false;
+  profile.flowiseSyncPending = true;
+  profile.flowiseSyncRequestedAt = new Date().toISOString();
+  // Kick cold start without blocking the chat turn
+  wakeFlowise().catch(() => {});
+}
+
+const SYNC_PENDING_NOTE =
+  '\n\n[Approved. Flowise is waking up — syncing the customer bot usually takes 1–2 minutes. I will message you when it is ready; then type /test.]';
+
+/**
+ * Sync chatflow now, or mark pending + wake if Flowise is down / errors.
+ * @returns {Promise<{ event: string, syncNote: string, sourceSuffix?: string }>}
+ */
+async function syncApprovedProfile(profile) {
+  // Start cold-start early; do not block Approve on full wake.
+  wakeFlowise().catch(() => {});
+
+  const reachable = await pingFlowise({
+    timeoutMs: Number(process.env.FLOWISE_PING_TIMEOUT_MS) || 5000,
+  });
+  if (!reachable) {
+    markFlowiseSyncPending(profile);
+    return {
+      event: 'approved_sync_pending',
+      syncNote: SYNC_PENDING_NOTE,
+    };
+  }
+
+  try {
+    const chatflowId = await createOrUpdateChatflow(profile);
+    profile.chatflowId = chatflowId;
+    profile.flowiseSyncOk = true;
+    profile.flowiseSyncPending = false;
+    profile.flowiseSyncedAt = new Date().toISOString();
+    profile.flowiseSyncRequestedAt = null;
+    return {
+      event: 'approved_synced',
+      syncNote: `\n\n[Bot updated in Flowise — chatflow ${chatflowId}. Type /test to try it.]`,
+      sourceSuffix: '+real-flowise-sync',
+    };
+  } catch (err) {
+    // Stay pending; background worker retries. Keep note short (no HTML dump).
+    const short = truncateFlowiseErrorBody(err.message, 100);
+    console.warn('Flowise sync deferred (pending):', short);
+    markFlowiseSyncPending(profile);
+    return {
+      event: 'approved_sync_pending',
+      syncNote: SYNC_PENDING_NOTE,
+    };
+  }
 }
 
 /**
@@ -158,14 +220,24 @@ export async function handleMessage(session, text, options = {}) {
 async function enterTest(session) {
   const profile = await loadAsync(session);
   if (!profile.approvedAt || !profile.chatflowId || !profile.flowiseSyncOk) {
+    let reply;
+    if (!profile.approvedAt) {
+      reply =
+        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
+    } else if (profile.flowiseSyncPending) {
+      reply =
+        'Still syncing to Flowise (it may be waking up). Wait for the ready message, then try /test again.';
+      wakeFlowise().catch(() => {});
+    } else if (!profile.flowiseSyncOk) {
+      reply =
+        'Approved facts are not synced to Flowise yet. Say **approve** again to retry sync, then /test.';
+    } else {
+      reply =
+        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
+    }
     return {
       ok: false,
-      reply:
-        !profile.approvedAt
-          ? 'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.'
-          : !profile.flowiseSyncOk
-            ? 'Approved facts are not synced to Flowise yet. Say **approve** again after fixing Flowise, or wait for a successful sync.'
-            : 'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.',
+      reply,
       source: 'app',
       ...(await getStateAsync(session)),
     };
@@ -231,11 +303,22 @@ async function handleTest(session, question, flowiseSessionId) {
         reply = await predict(newId, question, sid);
         source = 'real-flowise';
       } catch (recoverErr) {
-        reply = `Flowise error: ${recoverErr.message}`;
+        if (isFlowiseUnavailableError(recoverErr)) {
+          wakeFlowise().catch(() => {});
+          reply =
+            'Flowise is waking up. Wait about a minute and send your question again.';
+        } else {
+          reply = `Flowise error: ${truncateFlowiseErrorBody(recoverErr.message)}`;
+        }
         source = 'error';
       }
+    } else if (isFlowiseUnavailableError(err)) {
+      wakeFlowise().catch(() => {});
+      reply =
+        'Flowise is waking up. Wait about a minute and send your question again.';
+      source = 'error';
     } else {
-      reply = `Flowise error: ${err.message}`;
+      reply = `Flowise error: ${truncateFlowiseErrorBody(err.message)}`;
       source = 'error';
     }
   }
@@ -310,20 +393,15 @@ async function handleBuild(session, userMessage) {
       approvedAt: new Date().toISOString(),
       // Until Flowise sync succeeds, /test stays blocked
       flowiseSyncOk: false,
+      flowiseSyncPending: false,
+      flowiseSyncRequestedAt: null,
     });
 
-    try {
-      const chatflowId = await createOrUpdateChatflow(profile);
-      profile.chatflowId = chatflowId;
-      profile.flowiseSyncOk = true;
-      profile.flowiseSyncedAt = new Date().toISOString();
-      syncNote = `\n\n[Bot updated in Flowise — chatflow ${chatflowId}. Type /test to try it.]`;
-      event = 'approved_synced';
-      result.source = `${result.source}+real-flowise-sync`;
-    } catch (err) {
-      profile.flowiseSyncOk = false;
-      syncNote = `\n\n[Approved locally, but Flowise sync failed: ${err.message}. /test is blocked until sync succeeds.]`;
-      event = 'approved_sync_failed';
+    const sync = await syncApprovedProfile(profile);
+    syncNote = sync.syncNote;
+    event = sync.event;
+    if (sync.sourceSuffix) {
+      result.source = `${result.source}${sync.sourceSuffix}`;
     }
   }
 

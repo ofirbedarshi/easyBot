@@ -1,0 +1,15 @@
+---
+description: >-
+  When debugging Twilio WhatsApp Sandbox chats, Flowise sync, or inbound
+  replies on Render, follow the WhatsApp sandbox debug skill first — do not
+  re-discover the connection path from scratch.
+alwaysApply: true
+---
+
+# WhatsApp Sandbox debugging
+
+If the task is about WhatsApp / Twilio Sandbox / inbound messages / Flowise sync on the personal demo:
+
+1. Read and follow `.cursor/skills/whatsapp-sandbox-debug/SKILL.md` before broad codebase exploration.
+2. Prefer Supabase `easybot_inbound_messages` + `easybot_sessions` + health/ping over guessing.
+3. Never paste Twilio or Supabase secrets into chat.

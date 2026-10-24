@@ -286,6 +286,21 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   assert.equal(blocked.ok, false);
   assert.ok(/sync/i.test(blocked.reply));
   ok('/test blocked when flowiseSyncOk is false');
+
+  // /test while pending sync — warmer copy + listPending
+  await store.saveProfile(a, {
+    ...pa,
+    flowiseSyncOk: false,
+    flowiseSyncPending: true,
+    flowiseSyncRequestedAt: new Date().toISOString(),
+  });
+  const sa3 = await createSenderSession(store, a);
+  const pendingTest = await handleMessage(sa3, '/test');
+  assert.equal(pendingTest.ok, false);
+  assert.ok(/waking|Still syncing/i.test(pendingTest.reply));
+  const pendingList = await store.listPendingFlowiseSyncs();
+  assert.ok(pendingList.some((p) => p.senderId === a));
+  ok('/test pending copy + listPendingFlowiseSyncs');
 }
 
 // --- Builder/test commands through webhook (MOCKED; no OpenAI/Flowise network) ---

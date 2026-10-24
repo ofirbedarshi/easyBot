@@ -130,6 +130,17 @@ export function createMemoryStore() {
       ).length;
     },
 
+    /** Profiles waiting for background Flowise sync after Approve. */
+    async listPendingFlowiseSyncs() {
+      const out = [];
+      for (const [senderId, profile] of profiles.entries()) {
+        if (profile?.flowiseSyncPending && profile?.approvedAt) {
+          out.push({ senderId, profile: structuredClone(profile) });
+        }
+      }
+      return out;
+    },
+
     /** Test helpers */
     _dump() {
       return {

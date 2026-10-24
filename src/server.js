@@ -21,6 +21,7 @@ import {
 import { createStore, isSupabaseConfigured } from './store/index.js';
 import { createTwilioWhatsAppRouter } from './twilio/webhook.js';
 import { startInboundWorker } from './twilio/worker.js';
+import { startFlowiseSyncWorker } from './flowiseSyncWorker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -248,12 +249,16 @@ function shouldStartInboundWorker() {
 const worker = shouldStartInboundWorker()
   ? startInboundWorker(store)
   : null;
+const flowiseSyncWorker = worker
+  ? startFlowiseSyncWorker(store)
+  : null;
 
 app.listen(PORT, () => {
   console.log(`easyBot UI → http://localhost:${PORT}`);
   console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
   if (worker) {
     console.log('Inbound worker: ON');
+    console.log('Flowise sync worker: ON');
   } else {
     console.log(
       'Inbound worker: OFF (no TWILIO_AUTH_TOKEN / disabled) — safe for local UI; Render handles WhatsApp'
@@ -267,4 +272,4 @@ app.listen(PORT, () => {
   }
 });
 
-export { app, store, worker };
+export { app, store, worker, flowiseSyncWorker };

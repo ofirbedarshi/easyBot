@@ -228,5 +228,24 @@ export function createSupabaseStore() {
       if (error) throw new Error(`countSenderMessagesSince: ${error.message}`);
       return Number(data) || 0;
     },
+
+    /** Profiles waiting for background Flowise sync after Approve. */
+    async listPendingFlowiseSyncs() {
+      const { data, error } = await sb
+        .from('easybot_business_profiles')
+        .select('sender_id, profile');
+      if (error) throw new Error(`listPendingFlowiseSyncs: ${error.message}`);
+      const out = [];
+      for (const row of data || []) {
+        const profile = row.profile || {};
+        if (profile.flowiseSyncPending && profile.approvedAt) {
+          out.push({
+            senderId: row.sender_id,
+            profile: { ...emptyProfile(), ...profile },
+          });
+        }
+      }
+      return out;
+    },
   };
 }

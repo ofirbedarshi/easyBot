@@ -15,6 +15,16 @@ function baseUrl() {
   return (process.env.FLOWISE_URL || 'http://localhost:3000').replace(/\/$/, '');
 }
 
+/** Cap error bodies so HTML 502 pages never poison WhatsApp Builder history. */
+export function truncateFlowiseErrorBody(raw, maxLen = 280) {
+  let s = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (/<!DOCTYPE|<html/i.test(s)) {
+    s = `HTML error page (${s.length} chars)`;
+  }
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, maxLen)}…`;
+}
+
 function authHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   const key = process.env.FLOWISE_API_KEY;
@@ -35,16 +45,63 @@ async function flowiseFetch(pathname, options = {}) {
     body = text;
   }
   if (!res.ok) {
-    const msg =
+    // Never embed full HTML/error pages — they get stored in Builder history and
+    // blow the next OpenAI context (saw 502 HTML → 150k+ tokens on Approve).
+    const raw =
       typeof body === 'object' ? JSON.stringify(body) : String(body);
-    throw new Error(`Flowise ${options.method || 'GET'} ${pathname} → ${res.status}: ${msg}`);
+    const msg = truncateFlowiseErrorBody(raw);
+    throw new Error(
+      `Flowise ${options.method || 'GET'} ${pathname} → ${res.status}: ${msg}`
+    );
   }
   return body;
 }
 
-export async function pingFlowise() {
-  const res = await fetch(`${baseUrl()}/api/v1/ping`);
-  return res.ok;
+function pingTimeoutMs(override) {
+  if (override != null) return override;
+  return Number(process.env.FLOWISE_PING_TIMEOUT_MS) || 5000;
+}
+
+/**
+ * @param {{ timeoutMs?: number }} [opts]
+ * @returns {Promise<boolean>}
+ */
+export async function pingFlowise(opts = {}) {
+  const timeoutMs = pingTimeoutMs(opts.timeoutMs);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/ping`, {
+      signal: ac.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Fire a longer ping to coax Render free-tier cold start. Does not throw.
+ * @returns {Promise<boolean>}
+ */
+export async function wakeFlowise() {
+  const timeoutMs =
+    Number(process.env.FLOWISE_WAKE_TIMEOUT_MS) || 120000;
+  return pingFlowise({ timeoutMs });
+}
+
+/** True when status/body looks like cold start / gateway down. */
+export function isFlowiseUnavailableError(err) {
+  const msg = String(err?.message || err || '');
+  return (
+    /\b502\b/.test(msg) ||
+    /\b503\b/.test(msg) ||
+    /\b504\b/.test(msg) ||
+    /HTML error page/i.test(msg) ||
+    /ECONNREFUSED|ETIMEDOUT|fetch failed|AbortError|aborted/i.test(msg)
+  );
 }
 
 export function loadGraphTemplate() {

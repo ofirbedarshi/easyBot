@@ -6,431 +6,1513 @@
   <title>easyBot — Tester results</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg0: #1a2f28;
-      --bg1: #243d34;
-      --ink: #f3f0e7;
-      --muted: #b8c4bc;
-      --accent: #e8a87c;
-      --pass: #7ec8a3;
-      --fail: #e07a7a;
-      --review: #e8c87c;
-      --line: rgba(243, 240, 231, 0.12);
+      --paper: #e8edf2;
+      --paper-2: #f4f7fa;
+      --surface: #ffffff;
+      --ink: #18212b;
+      --muted: #5a6878;
+      --line: #cfd7e0;
+      --line-strong: #b4c0cd;
+      --accent: #0b6e63;
+      --accent-soft: rgba(11, 110, 99, 0.1);
+      --build: #245a8c;
+      --build-soft: rgba(36, 90, 140, 0.1);
+      --test: #0b6e63;
+      --test-soft: rgba(11, 110, 99, 0.1);
+      --pass: #1b6b45;
+      --pass-soft: rgba(27, 107, 69, 0.1);
+      --fail: #b42318;
+      --fail-soft: rgba(180, 35, 24, 0.08);
+      --warn: #9a6700;
+      --warn-soft: rgba(154, 103, 0, 0.1);
+      --shadow: 0 1px 2px rgba(24, 33, 43, 0.04), 0 8px 24px rgba(24, 33, 43, 0.06);
+      --radius: 10px;
+      --font: "Atkinson Hyperlegible", system-ui, sans-serif;
+      --display: "Source Serif 4", Georgia, serif;
+      --chat-max: 42rem;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      min-height: 100vh;
-      font-family: "DM Sans", sans-serif;
+      min-height: 100%;
+      font-family: var(--font);
       color: var(--ink);
       background:
-        radial-gradient(ellipse 80% 50% at 10% 0%, #2f5548 0%, transparent 55%),
-        linear-gradient(160deg, var(--bg0), var(--bg1));
+        radial-gradient(ellipse 70% 45% at 0% 0%, #dce8e6 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 0%, #d9e2ec 0%, transparent 50%),
+        linear-gradient(180deg, var(--paper-2), var(--paper));
+      background-attachment: fixed;
     }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
-    h1 { font-family: "Fraunces", serif; font-size: 1.65rem; margin: 0 0 0.35rem; }
-    h2 { font-family: "Fraunces", serif; font-size: 1.15rem; margin: 1.25rem 0 0.5rem; }
-    .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
-    .meta a { color: var(--accent); }
-    .banner {
-      padding: 0.75rem 1rem;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.25);
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
     }
-    .banner.warn { border-left: 3px solid var(--review); }
-    .banner.fail { border-left: 3px solid var(--fail); }
+    body.is-detail {
+      overflow: hidden;
+      background: var(--paper);
+    }
+    body.is-detail .wrap {
+      max-width: none;
+      height: 100%;
+      padding: 0;
+    }
+
+    h1, h2 {
+      font-family: var(--display);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+    h1 { font-size: 1.75rem; line-height: 1.2; }
+    h2 { font-size: 1.25rem; line-height: 1.25; }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+    a:hover { text-decoration: underline; }
+    button:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .lede {
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.5;
+      margin: 0.4rem 0 0;
+      max-width: 36rem;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.6rem;
+      gap: 0.5rem;
       align-items: center;
       margin-bottom: 1rem;
+      padding: 0.65rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .toolbar label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding-left: 0.15rem;
     }
     select.run {
-      flex: 1 1 220px;
-      min-width: 180px;
-      padding: 0.45rem 0.55rem;
-      background: rgba(0,0,0,0.35);
+      flex: 1 1 240px;
+      min-width: 0;
+      padding: 0.5rem 0.65rem;
+      background: var(--paper-2);
       color: var(--ink);
       border: 1px solid var(--line);
+      border-radius: 6px;
       font: inherit;
     }
-    .entry, .turn-card {
-      border-top: 1px solid var(--line);
-      padding: 0.85rem 0;
-    }
-    .turn-card.highlight {
-      background: rgba(232, 168, 124, 0.08);
-      outline: 1px solid rgba(232, 168, 124, 0.35);
-      padding-left: 0.5rem;
-      padding-right: 0.5rem;
-    }
-    .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; }
-    .name { font-weight: 600; }
-    .badge {
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: 0.2rem 0.45rem;
-      border: 1px solid var(--line);
-    }
-    .badge.PASS { color: var(--pass); }
-    .badge.FAIL { color: var(--fail); }
-    .badge.REVIEW { color: var(--review); }
-    .badge.stub { color: var(--review); }
-    .badge.real { color: var(--pass); }
-    .badge.deterministic { color: var(--muted); }
-    .badge.event { color: var(--accent); }
-    .badge.owner { color: #9ec5e8; }
-    .badge.builder { color: #c5b0e8; }
-    .badge.customer { color: #e8c89e; }
-    .badge.business_bot { color: #9ee8c5; }
-    .badge.system { color: var(--muted); }
-    .badge.ux { color: #e8b87c; }
-    .rationale { margin: 0.4rem 0 0; font-size: 0.9rem; line-height: 1.4; }
-    .dims {
-      margin: 0.45rem 0 0;
-      font-size: 0.8rem;
-      color: var(--muted);
-      display: grid;
-      gap: 0.25rem;
-    }
-    .dims .dim-row { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; }
-    .evidence {
-      margin: 0.5rem 0 0;
-      padding: 0.55rem 0.7rem;
-      background: rgba(255,255,255,0.05);
-      font-size: 0.82rem;
-      white-space: pre-wrap;
-      color: var(--muted);
-      word-break: break-word;
-    }
-    .turn {
-      margin-top: 0.35rem;
-      font-size: 0.82rem;
-      color: var(--muted);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .body-text {
-      margin: 0.35rem 0 0;
-      font-size: 0.9rem;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    button.refresh, button.linkish {
-      padding: 0.5rem 0.9rem;
+    button.refresh {
+      padding: 0.5rem 0.95rem;
       border: none;
+      border-radius: 6px;
       background: var(--accent);
-      color: #1a1a1a;
+      color: #fff;
       font: inherit;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
     }
-    button.linkish {
+    button.refresh:hover { filter: brightness(1.05); }
+    button.back, button.nav-link {
+      appearance: none;
+      border: none;
       background: transparent;
       color: var(--accent);
-      padding: 0;
-      font-weight: 600;
-      text-decoration: underline;
-      font-size: 0.8rem;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0.25rem 0;
     }
-    .two {
+    button.nav-link:disabled {
+      color: var(--line-strong);
+      cursor: default;
+    }
+
+    .banner {
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--warn-soft);
+      margin-bottom: 0.85rem;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .banner.warn { border-color: rgba(154, 103, 0, 0.25); color: #6b4a00; }
+    .banner.fail { background: var(--fail-soft); border-color: rgba(180, 35, 24, 0.2); color: #7a1a14; }
+    .run-now {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 1.1rem;
+    }
+
+    .flow-list { display: grid; gap: 1.35rem; }
+    .biz-block {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .biz-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem 0.65rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fafcfd, var(--surface));
+    }
+    .biz-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .biz-name {
+      font-family: var(--display);
+      font-size: 1.15rem;
+      margin-top: 0.15rem;
+    }
+    .biz-tally {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: right;
+    }
+    .stage-rail {
       display: grid;
-      gap: 1rem;
+      grid-template-columns: 1fr;
+      gap: 0.55rem;
+      padding: 0.85rem;
     }
-    @media (min-width: 860px) {
-      .two { grid-template-columns: 1fr 1fr; align-items: start; }
+    @media (min-width: 760px) {
+      .stage-rail.has-both {
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+        gap: 0.35rem;
+      }
+    }
+    .stage-col { display: grid; gap: 0.55rem; min-width: 0; }
+    .stage-label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 0.15rem;
+    }
+    .stage-dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--line-strong);
+    }
+    .stage-dot.build { background: var(--build); }
+    .stage-dot.test { background: var(--test); }
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.2rem;
+      user-select: none;
+    }
+    .flow-arrow::before {
+      content: "↓ then";
+    }
+    @media (min-width: 760px) {
+      .has-both .flow-arrow::before { content: "→"; font-size: 1.35rem; letter-spacing: 0; }
+    }
+    .stage-empty {
+      padding: 1rem 0.85rem;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: center;
+    }
+
+    button.chat-card, button.other-card {
+      appearance: none;
+      width: 100%;
+      margin: 0;
+      padding: 0.85rem 0.9rem;
+      text-align: left;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper-2);
+      display: grid;
+      gap: 0.55rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    button.chat-card:hover, button.other-card:hover {
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow);
+      transform: translateY(-1px);
+    }
+    button.chat-card.is-fail { border-left: 3px solid var(--fail); }
+    button.chat-card.is-pass { border-left: 3px solid var(--pass); }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+    .card-title {
+      font-size: 0.98rem;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+    .who-mini {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 0.2rem;
+    }
+    .mode {
+      flex: none;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 0.28rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .mode.build { color: var(--build); background: var(--build-soft); }
+    .mode.test { color: var(--test); background: var(--test-soft); }
+    .scores-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.85rem;
+      font-size: 0.86rem;
+      line-height: 1.35;
+    }
+    .score-pill {
+      display: inline-flex;
+      gap: 0.35rem;
+      align-items: baseline;
+    }
+    .kicker {
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .ux-clip {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+    .open-hint {
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .pass { color: var(--pass); }
+    .bad { color: var(--fail); }
+    .quiet { color: var(--muted); }
+    .empty { color: var(--muted); padding: 1rem 0; }
+
+    /* Detail: fixed shell, chat scrolls inside */
+    #detail {
+      height: 100%;
+      display: none;
+    }
+    #detail:not([hidden]) { display: flex; flex-direction: column; }
+    .detail-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100vh;
+      height: 100dvh;
+      background: var(--paper);
+    }
+    .detail-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem 1rem;
+      padding: 0.75rem 1.1rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      flex: none;
+    }
+    .detail-top-left {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.65rem 1rem;
+      min-width: 0;
+    }
+    .detail-heading { min-width: 0; }
+    .detail-heading .who {
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .detail-heading h2 {
+      font-size: 1.05rem;
+      margin-top: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: min(52vw, 28rem);
+    }
+    .flow-nav {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .sticky-score {
+      margin: 0;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .detail-body {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(140px, 36%) minmax(0, 1fr);
+      min-height: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    @media (min-width: 900px) {
+      .detail-body {
+        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+      }
+    }
+    .detail-aside {
+      min-height: 0;
+      overflow: auto;
+      padding: 1rem 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      overscroll-behavior: contain;
+    }
+    @media (min-width: 900px) {
+      .detail-aside {
+        border-bottom: none;
+        border-right: 1px solid var(--line);
+      }
+    }
+    .detail-chat {
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, #eef3f6 0%, #e6ecf1 100%);
+    }
+    .chat-caption {
+      flex: none;
+      padding: 0.65rem 1.1rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.55);
+    }
+    .log {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      padding: 1rem 1.1rem 1.75rem;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+    .log::-webkit-scrollbar { width: 10px; }
+    .log::-webkit-scrollbar-thumb {
+      background: var(--line-strong);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .verdict { display: grid; gap: 1.1rem; }
+    .block h3 {
+      margin: 0 0 0.35rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .score-label {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+    .words { margin: 0.4rem 0 0; line-height: 1.5; font-size: 0.95rem; }
+    .note {
+      margin: 0.5rem 0 0;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      background: var(--warn-soft);
+      color: #6b4a00;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+    .fail-list, .pass-list {
+      list-style: none;
+      margin: 0.5rem 0 0;
+      padding: 0;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .fail-list li, .pass-list li {
+      padding: 0.5rem 0.65rem;
+      background: var(--fail-soft);
+      border-radius: 6px;
+      border-left: 3px solid var(--fail);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .pass-list li {
+      background: var(--pass-soft);
+      border-left-color: var(--pass);
+    }
+    .why { display: block; color: var(--muted); margin-top: 0.2rem; }
+    details.fold { margin-top: 0.45rem; }
+    details.fold summary {
+      cursor: pointer;
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .dim { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+
+    .msg {
+      max-width: min(92%, var(--chat-max));
+      padding: 0.7rem 0.85rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 0.95rem;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: 0 1px 2px rgba(24, 33, 43, 0.03);
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      border-left: 3px solid var(--build);
+    }
+    .msg.assistant.bot {
+      border-left-color: var(--test);
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #fff;
+      border-right: 3px solid var(--accent);
+    }
+    .msg.system {
+      align-self: center;
+      max-width: 100%;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 0.15rem 0.4rem;
+    }
+    .msg .meta {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+    }
+    .chip { font-weight: 700; letter-spacing: 0.02em; }
+    .chip.bad { color: var(--fail); }
+
+    .other-wrap { margin-top: 0.25rem; }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 1rem 0.85rem 2rem; }
+      .detail-heading h2 { max-width: 70vw; }
+      .biz-head { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      button.chat-card, button.other-card { transition: none; }
+      .log { scroll-behavior: auto; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Tester results</h1>
-    <p class="meta">
-      Local run artifacts with history and transcripts.
-      <a href="/">← Builder chat</a>
-    </p>
-    <div class="toolbar">
-      <label class="meta" for="runSelect">Run</label>
-      <select id="runSelect" class="run" aria-label="Select test run"></select>
-      <button class="refresh" id="refresh" type="button">Refresh</button>
-    </div>
-    <div id="banner" class="banner" hidden></div>
-    <div id="meta" class="meta">Loading…</div>
-    <div class="two">
-      <div>
-        <h2>Transcript</h2>
-        <div id="timeline"></div>
+    <div id="home">
+      <header class="top">
+        <div>
+          <h1>Test chats</h1>
+          <p class="lede">Follow each business from Builder setup to Business Bot answers. Open a chat to read the thread and scores.</p>
+        </div>
+        <a href="/">Builder chat</a>
+      </header>
+      <div class="toolbar">
+        <label for="runSelect">Run</label>
+        <select id="runSelect" class="run" aria-label="Select test run"></select>
+        <button class="refresh" id="refresh" type="button">Refresh</button>
       </div>
-      <div>
-        <h2>Checks</h2>
-        <div id="list"></div>
-      </div>
+      <div id="banner" class="banner" hidden></div>
+      <p id="runNow" class="run-now">Loading chats…</p>
+      <div id="desk" class="flow-list"></div>
     </div>
+    <div id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
   </div>
   <script>
-    const list = document.getElementById('list');
-    const timeline = document.getElementById('timeline');
-    const metaEl = document.getElementById('meta');
+    const desk = document.getElementById('desk');
+    const home = document.getElementById('home');
+    const detail = document.getElementById('detail');
+    const runNow = document.getElementById('runNow');
     const banner = document.getElementById('banner');
     const runSelect = document.getElementById('runSelect');
 
-    function badge(text, cls) {
-      const s = document.createElement('span');
-      s.className = 'badge ' + (cls || text || '');
-      s.textContent = text;
-      return s;
+    const START_EVENTS = new Set(['reset', 'enter_test', 'enter_build']);
+    const SHARED_PREFIX = new Set(['ux', 'health', 'prompt', 'interview', 'test', 'approve', 'persist', 'cmd']);
+    const DIM_LABEL = {
+      ease: 'Ease',
+      simplicity: 'Simple language',
+      warmth: 'Warmth',
+      feel: 'Feel',
+      arrangement: 'Flow',
+      answer_first: 'Answer first',
+      shop_voice: 'Sounds like the shop',
+      factual_accuracy: 'Facts',
+      unsupported_claims: 'Invented claims',
+      unknowns_handling: 'Unknowns',
+      contradictions_stale: 'Contradictions',
+      false_external_actions: 'Fake actions',
+    };
+
+    let items = [];
+    let lastFocusId = null;
+
+    function el(tag, className, text) {
+      const n = document.createElement(tag);
+      if (className) n.className = className;
+      if (text != null) n.textContent = text;
+      return n;
     }
 
-    function roleLabel(role) {
+    function clip(text, n) {
+      const s = String(text || '').replace(/\s+/g, ' ').trim();
+      if (s.length <= n) return s;
+      return s.slice(0, n - 1).trimEnd() + '…';
+    }
+
+    function cleanRationale(text) {
+      return tidy(
+        String(text || '').replace(/^\[ux evaluator unreliable — calibration failed\]\s*/i, '')
+      );
+    }
+
+    function formatWhen(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    }
+
+    function isUx(e) {
+      return e.stage === 'ux' || !!(e.name && /(^|\.)ux\./.test(e.name) && typeof e.score === 'number');
+    }
+
+    function isOverallUx(e) {
+      return isUx(e) && (e.scope === 'overall' || /\.overall$/.test(e.name || ''));
+    }
+
+    function isFail(e) {
+      return e.pass === false || e.verdict === 'FAIL';
+    }
+
+    function isAnswerCheck(e) {
+      if (isUx(e)) return false;
+      return (
+        e.stage === 'business_bot_answer' ||
+        e.stage === 'builder_extraction' ||
+        !!(e.rationale && e.stage !== 'deterministic' && e.stage !== 'ux')
+      );
+    }
+
+    function channelOfUx(e) {
+      if (e.channel === 'builder' || e.channel === 'BUILD') return 'BUILD';
+      if (e.channel === 'business_bot' || e.channel === 'TEST') return 'TEST';
+      if (/\.bot\.|business_bot/.test(e.name || '')) return 'TEST';
+      return 'BUILD';
+    }
+
+    function speaker(role) {
       if (role === 'owner') return 'Simulated Owner';
       if (role === 'builder') return 'Builder';
       if (role === 'customer') return 'Simulated Customer';
       if (role === 'business_bot') return 'Business Bot';
       if (role === 'system') return 'System';
-      return role || 'unknown';
+      return role || 'Message';
     }
 
-    function scrollToTurn(turnRef) {
-      if (!turnRef) return;
-      const el = document.getElementById('turn-' + turnRef);
-      if (!el) return;
-      document.querySelectorAll('.turn-card.highlight').forEach((n) => n.classList.remove('highlight'));
-      el.classList.add('highlight');
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    function bubbleClass(role) {
+      if (role === 'owner' || role === 'customer') return 'user';
+      if (role === 'system') return 'system';
+      if (role === 'business_bot') return 'assistant bot';
+      return 'assistant';
     }
 
-    function renderTranscript(data) {
-      timeline.innerHTML = '';
-      const turns = data.transcript || [];
-      if (!turns.length) {
-        const p = document.createElement('p');
-        p.className = 'meta';
-        p.textContent = 'No transcript in this run (older scripted e2e may only have checks).';
-        timeline.appendChild(p);
-        return;
-      }
+    function plainName(e, businessId) {
+      let n = e.name || 'check';
+      const biz = e.businessId || businessId;
+      if (biz && n.startsWith(biz + '.')) n = n.slice(biz.length + 1);
+      n = n.replace(/^(interview|test|cmd|persist|approve|boundary|owner_message_safe|customer|edit)\./, '');
+      n = n.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+      return n || 'check';
+    }
+
+    function tidy(text) {
+      return String(text || '').replace(/\*\*/g, '').replace(/`/g, '').trim();
+    }
+
+    function humanReason(e) {
+      const cleaned = tidy(cleanRationale(e.rationale || ''));
+      if (cleaned) return cleaned;
+      const d = tidy(e.detail || '');
+      const m = d.match(/reason=([\s\S]*?)(?:\s+reply=|$)/);
+      if (m && m[1].trim()) return m[1].trim();
+      return d;
+    }
+
+    function isMachineDetail(text) {
+      const s = String(text || '').trim();
+      if (!s || /reason=/.test(s)) return false;
+      const equals = (s.match(/=/g) || []).length;
+      return equals >= 1 && s.length < 220 && !/[.!?](\s|$)/.test(s);
+    }
+
+    function channelKey(s) {
+      return (s.channel || '') + '|' + (s.businessId || '');
+    }
+
+    function splitSessions(turns) {
+      const sessions = [];
+      let cur = null;
       for (const turn of turns) {
-        const div = document.createElement('div');
-        div.className = 'turn-card';
-        div.id = 'turn-' + (turn.turnRef || turn.seq);
-        const row = document.createElement('div');
-        row.className = 'row';
-        row.appendChild(badge(turn.channel || 'BUILD', 'deterministic'));
-        row.appendChild(badge(roleLabel(turn.role), turn.role || 'system'));
-        if (turn.event) row.appendChild(badge(turn.event, 'event'));
-        if (turn.businessId) row.appendChild(badge(turn.businessId, 'deterministic'));
-        if (turn.turnRef) {
-          const ref = document.createElement('span');
-          ref.className = 'meta';
-          ref.textContent = turn.turnRef;
-          row.appendChild(ref);
+        const channel = turn.channel || 'BUILD';
+        const businessId = turn.businessId || null;
+        const boundary =
+          !cur ||
+          cur.channel !== channel ||
+          cur.businessId !== businessId ||
+          (turn.event && START_EVENTS.has(turn.event) && cur.turns.length > 0);
+        if (boundary) {
+          cur = {
+            id: 's' + sessions.length,
+            kind: 'chat',
+            channel,
+            businessId,
+            turns: [],
+          };
+          sessions.push(cur);
         }
-        div.appendChild(row);
-        const body = document.createElement('div');
-        body.className = 'body-text';
-        body.textContent = turn.text || '';
-        div.appendChild(body);
-        timeline.appendChild(div);
+        cur.turns.push(turn);
+      }
+      return sessions;
+    }
+
+    function inferChannel(e) {
+      if (e.channel === 'business_bot' || e.channel === 'TEST') return 'TEST';
+      if (e.channel === 'builder' || e.channel === 'BUILD') return 'BUILD';
+      if (e.stage === 'business_bot_answer') return 'TEST';
+      if (e.stage === 'builder_extraction') return 'BUILD';
+      if (e.name && /(^|\.)ux\.bot\./.test(e.name)) return 'TEST';
+      if (e.name && /(^|\.)ux\.builder\./.test(e.name)) return 'BUILD';
+      return 'TEST';
+    }
+
+    function bizKey(e) {
+      if (e.businessId) return e.businessId;
+      if (!e.name) return null;
+      const head = e.name.split('.')[0];
+      if (SHARED_PREFIX.has(head)) return null;
+      return head;
+    }
+
+    function reconstructSessions(entries) {
+      const groups = new Map();
+      entries.forEach((e, index) => {
+        if (isOverallUx(e)) return;
+        if (!e.question && !e.outputText) return;
+        const channel = inferChannel(e);
+        const businessId = bizKey(e);
+        const key = channel + '|' + (businessId || '');
+        if (!groups.has(key)) {
+          groups.set(key, {
+            id: 'r' + groups.size,
+            kind: 'chat',
+            channel,
+            businessId,
+            turns: [],
+          });
+        }
+        const g = groups.get(key);
+        const human = channel === 'TEST' ? 'customer' : 'owner';
+        const bot = channel === 'TEST' ? 'business_bot' : 'builder';
+        if (e.question) {
+          g.turns.push({
+            role: human,
+            text: e.question,
+            turnRef: 'q' + index,
+            channel,
+            ts: e.ts || null,
+          });
+        }
+        if (e.outputText) {
+          g.turns.push({
+            role: bot,
+            text: e.outputText,
+            turnRef: 'a' + index,
+            channel,
+            ts: e.ts || null,
+          });
+        }
+      });
+      return [...groups.values()];
+    }
+
+    function timeDelta(entry, turn) {
+      const a = Date.parse(entry.ts || '');
+      const b = Date.parse(turn.ts || '');
+      if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+      return Math.abs(a - b);
+    }
+
+    function assignEntries(sessions, entries) {
+      const bags = sessions.map(() => ({ checks: [], uxReplies: [], uxOverall: null }));
+      const used = new Set();
+
+      function place(i, idx, entry) {
+        used.add(i);
+        if (isUx(entry)) bags[idx].uxReplies.push(entry);
+        else bags[idx].checks.push(entry);
+      }
+
+      entries.forEach((entry, i) => {
+        if (isOverallUx(entry) || !entry.turnRefs || !entry.turnRefs.length) return;
+        const idx = sessions.findIndex((s) => {
+          const refs = new Set(s.turns.map((t) => t.turnRef).filter(Boolean));
+          return entry.turnRefs.some((r) => refs.has(r));
+        });
+        if (idx >= 0) place(i, idx, entry);
+      });
+
+      entries.forEach((entry, i) => {
+        if (used.has(i) || isOverallUx(entry)) return;
+        let best = -1;
+        let bestScore = 0;
+        let bestDelta = Infinity;
+        sessions.forEach((s, idx) => {
+          if (entry.businessId && s.businessId && entry.businessId !== s.businessId) return;
+          let score = 0;
+          let delta = Infinity;
+          for (const t of s.turns) {
+            let hit = 0;
+            if (entry.question && t.text && t.text.trim() === entry.question.trim()) hit = 5;
+            if (entry.outputText && t.text && t.text.trim() === entry.outputText.trim()) hit = Math.max(hit, 5);
+            if (entry.detail && t.text && entry.detail.trim() === t.text.trim()) hit = Math.max(hit, 5);
+            if (t.event && t.event.length >= 5 && entry.detail && entry.detail.includes(t.event)) hit = Math.max(hit, 4);
+            if (!hit) continue;
+            score = Math.max(score, hit);
+            delta = Math.min(delta, timeDelta(entry, t));
+          }
+          if (score > bestScore || (score === bestScore && score > 0 && delta < bestDelta)) {
+            best = idx;
+            bestScore = score;
+            bestDelta = delta;
+          }
+        });
+        if (best >= 0 && bestScore >= 4) place(i, best, entry);
+      });
+
+      entries.forEach((entry, i) => {
+        if (!isOverallUx(entry)) return;
+        const ch = channelOfUx(entry);
+        let attached = false;
+        sessions.forEach((s, idx) => {
+          if (s.channel !== ch) return;
+          if (entry.businessId && s.businessId && entry.businessId !== s.businessId) return;
+          if (!bags[idx].uxOverall) bags[idx].uxOverall = entry;
+          attached = true;
+        });
+        if (attached) used.add(i);
+      });
+
+      const other = entries.filter((entry, i) => !used.has(i) && !isOverallUx(entry));
+      return { bags, other };
+    }
+
+    function firstHumanText(turns, channel) {
+      const role = channel === 'TEST' ? 'customer' : 'owner';
+      const human = turns.find((t) => t.role === role && t.text);
+      if (human) return human.text;
+      const any = turns.find((t) => t.role !== 'system' && t.text);
+      return any ? any.text : 'Conversation';
+    }
+
+    function whoLabel(session, sessions) {
+      const base = session.channel === 'TEST' ? 'Customer → Business Bot' : 'Owner → Builder';
+      const siblings = sessions.filter((s) => channelKey(s) === channelKey(session));
+      const numbered = siblings.length > 1 ? base + ' · ' + (siblings.indexOf(session) + 1) : base;
+      return session.businessId ? numbered : numbered;
+    }
+
+    function sideName(channel) {
+      return channel === 'TEST' ? 'customer' : 'Builder';
+    }
+
+    function buildUx(replies, overall, ctx) {
+      const scored = (replies || []).filter((e) => typeof e.score === 'number');
+      const unreliable = scored.some((e) => e.unreliable) || !!(overall && overall.unreliable);
+      const low = scored.length ? Math.min(...scored.map((e) => e.score)) : null;
+      const high = scored.length ? Math.max(...scored.map((e) => e.score)) : null;
+      const worst = scored.length ? scored.reduce((a, b) => (a.score <= b.score ? a : b)) : null;
+      const best = scored.length ? scored.reduce((a, b) => (a.score >= b.score ? a : b)) : null;
+      const worstWords = worst ? cleanRationale(worst.rationale || worst.detail) : '';
+      const bestWords = best && best !== worst ? cleanRationale(best.rationale || best.detail) : '';
+
+      let together = '';
+      if (!ctx.alone && ctx.first && overall && typeof overall.score === 'number' && scored.length) {
+        together =
+          'All ' +
+          sideName(ctx.channel) +
+          ' chats in this run scored ' +
+          overall.score +
+          ' out of 5. ' +
+          cleanRationale(overall.rationale || overall.detail);
+      }
+
+      if (ctx.alone && overall && typeof overall.score === 'number') {
+        let words = cleanRationale(overall.rationale || overall.detail);
+        if (scored.length && (low !== high || low !== overall.score)) {
+          words += low === high
+            ? ' Replies each scored ' + low + ' out of 5.'
+            : ' Replies scored ' + low + ' to ' + high + ' out of 5.';
+          if (worstWords && low < overall.score) words += ' Weakest reply: ' + worstWords;
+        }
+        return {
+          scoreLabel: overall.score + ' out of 5',
+          words: words || 'No written explanation for this score.',
+          together: '',
+          unreliable,
+          source: overall,
+        };
+      }
+
+      if (!scored.length && overall && typeof overall.score === 'number') {
+        const prefix = ctx.alone
+          ? ''
+          : 'This score covers every ' + sideName(ctx.channel) + ' chat in the run. ';
+        return {
+          scoreLabel: overall.score + ' out of 5',
+          words: prefix + (cleanRationale(overall.rationale || overall.detail) || 'No written explanation for this score.'),
+          together: '',
+          unreliable,
+          source: overall,
+        };
+      }
+
+      if (!scored.length) return null;
+
+      let words = worstWords;
+      if (scored.length > 1 && low === high) {
+        words = 'Same score on ' + scored.length + ' replies. ' + worstWords;
+      } else if (scored.length > 1 && low !== high) {
+        const about = clip(worst.question || worst.outputText || 'a reply', 72);
+        words = 'The weakest reply (“' + about + '”) is ' + low + ' out of 5. ' + worstWords;
+        if (bestWords) words += ' The strongest is ' + high + ' out of 5. ' + bestWords;
+      }
+      return {
+        scoreLabel: low === high ? low + ' out of 5' : low + ' to ' + high + ' out of 5',
+        words: words || 'No written explanation for this score.',
+        together,
+        unreliable,
+        source: worst,
+      };
+    }
+
+    function correctness(checks, businessId) {
+      if (!checks.length) {
+        return {
+          kind: 'none',
+          short: 'No fact check',
+          text: 'No correctness checks are tied to this chat.',
+          failed: [],
+          passed: [],
+        };
+      }
+      const answers = checks.filter(isAnswerCheck);
+      const setup = checks.filter((e) => !isAnswerCheck(e));
+      const answerFails = answers.filter(isFail);
+      const setupFails = setup.filter(isFail);
+      const failed = answerFails.concat(setupFails);
+      const passed = checks.filter((e) => !isFail(e));
+
+      if (answers.length && !answerFails.length && !setupFails.length) {
+        return {
+          kind: 'pass',
+          short: 'Correct',
+          text: answers.length === 1
+            ? 'Correct. The answer check passed.'
+            : 'Correct. All ' + answers.length + ' answer checks passed.',
+          failed,
+          passed,
+        };
+      }
+      if (answers.length && !answerFails.length && setupFails.length) {
+        const short = setupFails.length === 1 ? '1 setup check failed' : setupFails.length + ' setup checks failed';
+        return {
+          kind: 'fail',
+          short,
+          text: 'The answers checked out. ' + short + '.',
+          failed,
+          passed,
+        };
+      }
+      if (answerFails.length) {
+        const short = answerFails.length === 1 ? '1 answer failed' : answerFails.length + ' answers failed';
+        let text = short + ': ' + answerFails.map((e) => plainName(e, businessId)).slice(0, 3).join(', ') + '.';
+        if (setupFails.length) {
+          text += ' Also ' + setupFails.length + ' setup check' + (setupFails.length > 1 ? 's' : '') + ' failed.';
+        }
+        return { kind: 'fail', short, text, failed, passed };
+      }
+      if (!setupFails.length) {
+        return {
+          kind: 'pass',
+          short: 'All passed',
+          text: setup.length === 1
+            ? 'The setup check passed. This chat has no separate answer check.'
+            : 'All ' + setup.length + ' setup checks passed. This chat has no separate answer check.',
+          failed,
+          passed,
+        };
+      }
+      const short = setupFails.length === 1 ? '1 check failed' : setupFails.length + ' checks failed';
+      return {
+        kind: 'fail',
+        short,
+        text: short + ': ' + setupFails.map((e) => plainName(e, businessId)).slice(0, 3).join(', ') + '.',
+        failed,
+        passed,
+      };
+    }
+
+    function dimensionLines(dimensions) {
+      if (!dimensions || typeof dimensions !== 'object') return [];
+      return Object.keys(dimensions)
+        .map((key) => {
+          const d = dimensions[key] || {};
+          const label = DIM_LABEL[key] || key.replace(/_/g, ' ');
+          if (d.score != null) {
+            return label + ': ' + d.score + ' out of 5.' + (d.note ? ' ' + d.note : '');
+          }
+          if (d.status) {
+            const word = d.status === 'PASS' ? 'ok' : d.status === 'FAIL' ? 'failed' : d.status;
+            return label + ': ' + word + '.' + (d.note ? ' ' + d.note : '');
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    function toneClass(kind) {
+      if (kind === 'pass') return 'pass';
+      if (kind === 'fail') return 'bad';
+      return 'quiet';
+    }
+
+    function anchorMap(session) {
+      const ux = new Map();
+      const fails = new Set();
+      const refs = new Set(session.turns.map((t) => t.turnRef).filter(Boolean));
+      function anchor(entry) {
+        const hits = (entry.turnRefs || []).filter((r) => refs.has(r));
+        if (hits.length) return hits[hits.length - 1];
+        if (entry.outputText) {
+          const t = [...session.turns].reverse().find((turn) => turn.text && turn.text.trim() === entry.outputText.trim());
+          if (t) return t.turnRef;
+        }
+        if (entry.question) {
+          const t = session.turns.find((turn) => turn.text && turn.text.trim() === entry.question.trim());
+          if (t && t.turnRef) {
+            const i = session.turns.indexOf(t);
+            const next = session.turns[i + 1];
+            if (next && next.turnRef) return next.turnRef;
+          }
+        }
+        return null;
+      }
+      for (const entry of session.uxReplies || []) {
+        if (typeof entry.score !== 'number') continue;
+        const ref = anchor(entry);
+        if (ref) ux.set(ref, entry.score);
+      }
+      for (const entry of session.checks || []) {
+        if (!isFail(entry)) continue;
+        const ref = anchor(entry);
+        if (ref) fails.add(ref);
+      }
+      return { ux, fails };
+    }
+
+    function renderBubbles(parent, turns, chips) {
+      for (const turn of turns) {
+        const div = el('div', 'msg ' + bubbleClass(turn.role));
+        if (turn.turnRef) div.id = 'turn-' + turn.turnRef;
+        if (turn.role !== 'system') {
+          const meta = el('span', 'meta');
+          meta.textContent = speaker(turn.role);
+          if (chips && turn.turnRef && chips.ux.has(turn.turnRef)) {
+            const score = chips.ux.get(turn.turnRef);
+            const chip = el('span', 'chip' + (score <= 2 ? ' bad' : ''), ' · UX ' + score + '/5');
+            meta.appendChild(chip);
+          }
+          if (chips && turn.turnRef && chips.fails.has(turn.turnRef)) {
+            meta.appendChild(el('span', 'chip bad', ' · Check failed'));
+          }
+          div.appendChild(meta);
+        }
+        div.appendChild(document.createTextNode(turn.text || ''));
+        parent.appendChild(div);
       }
     }
 
-    function renderEntries(data) {
-      list.innerHTML = '';
+    function checkItem(entry, failed, businessId) {
+      const li = el('li');
+      li.appendChild(document.createTextNode(plainName(entry, businessId)));
+      if (entry.repairOf) {
+        li.appendChild(el('span', 'why', 'Repair of ' + entry.repairOf + '.'));
+      }
+      const why = humanReason(entry);
+      if (why && (failed || !isMachineDetail(why))) li.appendChild(el('span', 'why', why));
+      if (entry.expected) li.appendChild(el('span', 'why', 'Expected: ' + entry.expected));
+      if (entry.actual) li.appendChild(el('span', 'why', 'Got: ' + clip(String(entry.actual), 280)));
+      return li;
+    }
+
+    function relatedFlow(item) {
+      const chats = items.filter((i) => i.kind === 'chat');
+      const sameBiz = chats.filter((i) => (i.businessId || '') === (item.businessId || ''));
+      const ordered = sameBiz.length ? sameBiz : chats;
+      const idx = ordered.findIndex((i) => i.id === item.id);
+      return {
+        prev: idx > 0 ? ordered[idx - 1] : null,
+        next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null,
+        index: idx,
+        total: ordered.length,
+      };
+    }
+
+    function groupItems(list) {
+      const chats = list.filter((i) => i.kind === 'chat');
+      const others = list.filter((i) => i.kind !== 'chat');
+      const order = [];
+      const map = new Map();
+      for (const item of chats) {
+        const key = item.businessId || '__shared__';
+        if (!map.has(key)) {
+          const group = { key, build: [], test: [] };
+          map.set(key, group);
+          order.push(group);
+        }
+        const g = map.get(key);
+        if (item.channel === 'TEST') g.test.push(item);
+        else g.build.push(item);
+      }
+      return { groups: order, others };
+    }
+
+    function renderCard(item) {
+      const statusClass = item.correct.kind === 'fail' ? 'is-fail' : item.correct.kind === 'pass' ? 'is-pass' : '';
+      const btn = el('button', (item.kind === 'chat' ? 'chat-card ' : 'other-card ') + statusClass);
+      btn.type = 'button';
+      btn.id = 'card-' + item.id;
+      const uxBit = item.ux ? item.ux.scoreLabel + '. ' + clip(item.ux.words, 140) : 'No UX score.';
+      btn.setAttribute('aria-label', item.who + '. ' + item.title + '. Correctness ' + item.correct.short + '. UX ' + uxBit);
+      btn.addEventListener('click', () => openItem(item.id));
+
+      const top = el('div', 'card-top');
+      const titles = el('div');
+      titles.appendChild(el('div', 'card-title', item.title));
+      titles.appendChild(el('div', 'who-mini', item.who + ' · ' + item.turns.length + ' messages'));
+      top.appendChild(titles);
+      if (item.kind === 'chat') {
+        top.appendChild(el('div', 'mode ' + (item.channel === 'TEST' ? 'test' : 'build'), item.channel === 'TEST' ? 'Test' : 'Build'));
+      }
+      btn.appendChild(top);
+
+      const scores = el('div', 'scores-row');
+      const c = el('span', 'score-pill');
+      c.appendChild(el('span', 'kicker', 'Correct'));
+      c.appendChild(el('strong', toneClass(item.correct.kind), item.correct.short));
+      scores.appendChild(c);
+      const u = el('span', 'score-pill');
+      u.appendChild(el('span', 'kicker', 'UX'));
+      u.appendChild(el('strong', null, item.ux ? item.ux.scoreLabel : '—'));
+      scores.appendChild(u);
+      btn.appendChild(scores);
+
+      if (item.ux) btn.appendChild(el('div', 'ux-clip', item.ux.words));
+      btn.appendChild(el('div', 'open-hint', 'Open conversation'));
+      return btn;
+    }
+
+    function renderStageCol(label, channel, cards) {
+      const col = el('div', 'stage-col');
+      const lab = el('div', 'stage-label');
+      lab.appendChild(el('span', 'stage-dot ' + (channel === 'TEST' ? 'test' : 'build')));
+      lab.appendChild(document.createTextNode(label));
+      col.appendChild(lab);
+      if (!cards.length) {
+        col.appendChild(el('div', 'stage-empty', channel === 'TEST' ? 'No Business Bot chat yet' : 'No Builder chat yet'));
+        return col;
+      }
+      for (const item of cards) col.appendChild(renderCard(item));
+      return col;
+    }
+
+    function renderBizBlock(group) {
+      const block = el('section', 'biz-block');
+      const head = el('div', 'biz-head');
+      const left = el('div');
+      left.appendChild(el('div', 'biz-label', 'Business'));
+      left.appendChild(el('div', 'biz-name', group.key === '__shared__' ? 'Shared / no business id' : group.key));
+      head.appendChild(left);
+
+      const failCount = [...group.build, ...group.test].filter((i) => i.correct.kind === 'fail').length;
+      const tally = el('div', 'biz-tally');
+      tally.textContent =
+        group.build.length + ' build · ' + group.test.length + ' test' +
+        (failCount ? ' · ' + failCount + ' with failed checks' : '');
+      head.appendChild(tally);
+      block.appendChild(head);
+
+      const hasBoth = group.build.length > 0 && group.test.length > 0;
+      const rail = el('div', 'stage-rail' + (hasBoth ? ' has-both' : ''));
+      rail.appendChild(renderStageCol('1 · Builder', 'BUILD', group.build));
+      if (hasBoth) rail.appendChild(el('div', 'flow-arrow', ''));
+      rail.appendChild(renderStageCol('2 · Business Bot', 'TEST', group.test));
+      block.appendChild(rail);
+      return block;
+    }
+
+    function renderVerdict(item) {
+      const verdict = el('div', 'verdict');
+
+      const correctBlock = el('section', 'block');
+      correctBlock.appendChild(el('h3', null, 'Correctness'));
+      correctBlock.appendChild(el('p', 'score-label ' + toneClass(item.correct.kind), item.correct.short));
+      correctBlock.appendChild(el('p', 'words', item.correct.text));
+      if (item.correct.failed.length) {
+        const ul = el('ul', 'fail-list');
+        for (const entry of item.correct.failed) ul.appendChild(checkItem(entry, true, item.businessId));
+        correctBlock.appendChild(ul);
+      }
+      if (item.correct.passed.length) {
+        const fold = el('details', 'fold');
+        fold.appendChild(el('summary', null, item.correct.passed.length + ' passed checks'));
+        const ul = el('ul', 'pass-list');
+        for (const entry of item.correct.passed) ul.appendChild(checkItem(entry, false, item.businessId));
+        fold.appendChild(ul);
+        correctBlock.appendChild(fold);
+      }
+      verdict.appendChild(correctBlock);
+
+      const uxBlock = el('section', 'block');
+      uxBlock.appendChild(el('h3', null, 'UX'));
+      if (!item.ux) {
+        uxBlock.appendChild(el('p', 'score-label quiet', 'No score'));
+        uxBlock.appendChild(el('p', 'words', item.kind === 'chat'
+          ? 'This chat has no UX score.'
+          : 'UX is scored on conversations, so these checks have no UX score.'));
+      } else {
+        uxBlock.appendChild(el('p', 'score-label', item.ux.scoreLabel));
+        uxBlock.appendChild(el('p', 'words', item.ux.words));
+        if (item.ux.together) uxBlock.appendChild(el('p', 'words', item.ux.together));
+        if (item.ux.unreliable) {
+          uxBlock.appendChild(el('p', 'note', 'The UX judge missed its calibration, so this score may be off.'));
+        }
+        const dims = dimensionLines(item.ux.source && item.ux.source.dimensions);
+        if (dims.length) {
+          const fold = el('details', 'fold');
+          fold.appendChild(el('summary', null, 'What that score is made of'));
+          for (const line of dims) fold.appendChild(el('p', 'dim', line));
+          uxBlock.appendChild(fold);
+        }
+      }
+      verdict.appendChild(uxBlock);
+      return verdict;
+    }
+
+    function renderDetail(item) {
+      detail.innerHTML = '';
+      const shell = el('div', 'detail-shell');
+      const flow = relatedFlow(item);
+
+      const top = el('div', 'detail-top');
+      const left = el('div', 'detail-top-left');
+      const back = el('button', 'back', '← All chats');
+      back.type = 'button';
+      back.addEventListener('click', closeDetail);
+      left.appendChild(back);
+
+      const heading = el('div', 'detail-heading');
+      heading.appendChild(el('div', 'who', item.kind === 'chat' ? item.who : 'Outside the chats'));
+      const h = el('h2', null, item.title);
+      h.id = 'detailTitle';
+      heading.appendChild(h);
+      left.appendChild(heading);
+
+      if (item.kind === 'chat') {
+        left.appendChild(el('div', 'mode ' + (item.channel === 'TEST' ? 'test' : 'build'), item.channel === 'TEST' ? 'Test' : 'Build'));
+      }
+      top.appendChild(left);
+
+      const right = el('div');
+      right.style.display = 'flex';
+      right.style.flexDirection = 'column';
+      right.style.alignItems = 'flex-end';
+      right.style.gap = '0.35rem';
+
+      if (item.kind === 'chat' && flow.total > 1) {
+        const nav = el('div', 'flow-nav');
+        const prev = el('button', 'nav-link', '← Prev in flow');
+        prev.type = 'button';
+        prev.disabled = !flow.prev;
+        if (flow.prev) prev.addEventListener('click', () => openItem(flow.prev.id));
+        const pos = el('span', 'quiet', (flow.index + 1) + ' / ' + flow.total);
+        const next = el('button', 'nav-link', 'Next in flow →');
+        next.type = 'button';
+        next.disabled = !flow.next;
+        if (flow.next) next.addEventListener('click', () => openItem(flow.next.id));
+        nav.appendChild(prev);
+        nav.appendChild(pos);
+        nav.appendChild(next);
+        right.appendChild(nav);
+      }
+
+      const sticky = item.ux
+        ? item.correct.short + ' · UX ' + item.ux.scoreLabel
+        : item.correct.short + ' · UX —';
+      right.appendChild(el('p', 'sticky-score', sticky));
+      top.appendChild(right);
+      shell.appendChild(top);
+
+      const body = el('div', 'detail-body');
+      const aside = el('div', 'detail-aside');
+      aside.appendChild(renderVerdict(item));
+      body.appendChild(aside);
+
+      const chatPane = el('div', 'detail-chat');
+      if (item.kind === 'chat') {
+        chatPane.appendChild(el('div', 'chat-caption', 'Conversation'));
+        const log = el('div', 'log');
+        log.setAttribute('tabindex', '0');
+        log.setAttribute('aria-label', 'Conversation messages');
+        renderBubbles(log, item.turns, anchorMap(item));
+        chatPane.appendChild(log);
+      } else {
+        chatPane.appendChild(el('div', 'chat-caption', 'Checks outside chats'));
+        const log = el('div', 'log');
+        log.appendChild(el('p', 'empty', 'These checks are not tied to a single conversation. Review them in the panel on the left.'));
+        chatPane.appendChild(log);
+      }
+      body.appendChild(chatPane);
+      shell.appendChild(body);
+      detail.appendChild(shell);
+    }
+
+    function openItem(id) {
+      const item = items.find((x) => x.id === id);
+      if (!item) return;
+      lastFocusId = id;
+      renderDetail(item);
+      home.hidden = true;
+      detail.hidden = false;
+      document.body.classList.add('is-detail');
+      const back = detail.querySelector('button.back');
+      if (back) back.focus();
+      const log = detail.querySelector('.log');
+      if (log) log.scrollTop = 0;
+    }
+
+    function closeDetail() {
+      detail.hidden = true;
+      detail.innerHTML = '';
+      home.hidden = false;
+      document.body.classList.remove('is-detail');
+      const btn = document.getElementById('card-' + lastFocusId);
+      if (btn) btn.focus();
+    }
+
+    function buildItems(data) {
       const entries = data.entries || [];
-      if (!entries.length) {
-        list.textContent = 'No entries yet. Run npm run e2e, e2e:ambiguity, or e2e:adaptive.';
-        return;
+      const turns = Array.isArray(data.transcript) ? data.transcript : [];
+      const sessions = turns.length ? splitSessions(turns) : reconstructSessions(entries);
+      const { bags, other } = assignEntries(sessions, entries);
+      const built = sessions.map((session, i) => {
+        const siblings = sessions.filter((s) => channelKey(s) === channelKey(session));
+        const ctx = {
+          alone: siblings.length === 1,
+          first: siblings[0] === session,
+          channel: session.channel,
+        };
+        return {
+          ...session,
+          who: whoLabel(session, sessions),
+          title: clip(firstHumanText(session.turns, session.channel), 78),
+          checks: bags[i].checks,
+          uxReplies: bags[i].uxReplies,
+          correct: correctness(bags[i].checks, session.businessId),
+          ux: buildUx(bags[i].uxReplies, bags[i].uxOverall, ctx),
+        };
+      });
+      if (other.length) {
+        const correct = correctness(other);
+        built.push({
+          id: 'other',
+          kind: 'checks',
+          title: 'Other checks',
+          who: 'Outside the chats',
+          checks: other,
+          turns: [],
+          correct,
+          ux: null,
+        });
       }
-      for (const e of entries) {
-        const div = document.createElement('div');
-        div.className = 'entry';
-        const row = document.createElement('div');
-        row.className = 'row';
-        const name = document.createElement('span');
-        name.className = 'name';
-        name.textContent = e.name || '(unnamed)';
-        row.appendChild(name);
-        const verdict = e.verdict || (e.pass ? 'PASS' : 'FAIL');
-        row.appendChild(badge(verdict, verdict));
-        const isUx = e.stage === 'ux' || (typeof e.score === 'number' && e.name && /\.ux\.|^ux\./.test(e.name));
-        if (isUx && e.score != null) {
-          row.appendChild(badge('UX ' + e.score + '/5', 'ux'));
-        }
-        if (e.mode) {
-          row.appendChild(
-            badge(
-              e.mode === 'stub'
-                ? isUx
-                  ? 'stub ux'
-                  : 'stub judge'
-                : e.mode === 'real'
-                  ? isUx
-                    ? 'real ux'
-                    : 'real judge'
-                  : e.mode,
-              e.mode
-            )
-          );
-        }
-        if (e.model) row.appendChild(badge(e.model));
-        if (e.unreliable) row.appendChild(badge('unreliable', 'REVIEW'));
-        if (e.skippedUnreliable) row.appendChild(badge('ux skipped', 'REVIEW'));
-        if (e.stage) row.appendChild(badge(e.stage, e.stage === 'ux' ? 'ux' : 'deterministic'));
-        if (e.repairOf) row.appendChild(badge('repair→' + e.repairOf, 'event'));
-        if (e.businessId) row.appendChild(badge(e.businessId, 'deterministic'));
-        div.appendChild(row);
-
-        if (e.rationale || e.detail) {
-          const p = document.createElement('p');
-          p.className = 'rationale';
-          p.textContent = e.rationale || e.detail || '';
-          div.appendChild(p);
-        }
-        if (e.dimensions && typeof e.dimensions === 'object') {
-          const dims = document.createElement('div');
-          dims.className = 'dims';
-          const keys = Object.keys(e.dimensions);
-          for (const key of keys) {
-            const d = e.dimensions[key] || {};
-            const rowD = document.createElement('div');
-            rowD.className = 'dim-row';
-            const scorePart =
-              d.score != null ? key + ' ' + d.score + '/5' : key;
-            rowD.textContent =
-              scorePart + (d.note ? ' — ' + d.note : d.status ? ' — ' + d.status : '');
-            dims.appendChild(rowD);
-          }
-          if (keys.length) div.appendChild(dims);
-        }
-        if (e.expected || e.actual) {
-          const ea = document.createElement('div');
-          ea.className = 'evidence';
-          ea.textContent =
-            (e.expected ? 'Expected: ' + e.expected + '\n' : '') +
-            (e.actual ? 'Actual: ' + String(e.actual).slice(0, 600) : '');
-          div.appendChild(ea);
-        }
-        if (e.question || e.outputText) {
-          const t = document.createElement('div');
-          t.className = 'turn';
-          t.textContent =
-            (e.question ? 'Q: ' + e.question + '\n' : '') +
-            (e.outputText ? 'A: ' + String(e.outputText).slice(0, 600) : '');
-          div.appendChild(t);
-        }
-        const quotes = e.quotes || [];
-        const refs = e.factRefs || [];
-        if (quotes.length || refs.length) {
-          const ev = document.createElement('div');
-          ev.className = 'evidence';
-          ev.textContent =
-            (quotes.length ? 'Quotes:\n- ' + quotes.join('\n- ') : '') +
-            (refs.length
-              ? (quotes.length ? '\n\n' : '') + 'Fact refs:\n- ' + refs.join('\n- ')
-              : '');
-          div.appendChild(ev);
-        }
-        if (e.evaluationDetail) {
-          const hid = document.createElement('div');
-          hid.className = 'evidence';
-          hid.textContent =
-            'Evaluation detail (Tester-only; not transcript):\n' +
-            JSON.stringify(e.evaluationDetail, null, 2).slice(0, 1200);
-          div.appendChild(hid);
-        }
-        if (Array.isArray(e.turnRefs) && e.turnRefs.length) {
-          const links = document.createElement('div');
-          links.className = 'turn';
-          for (const ref of e.turnRefs) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'linkish';
-            b.textContent = '→ ' + ref + ' ';
-            b.addEventListener('click', () => scrollToTurn(ref));
-            links.appendChild(b);
-          }
-          div.appendChild(links);
-        }
-        list.appendChild(div);
-      }
+      return built;
     }
 
-    function renderRun(data, selectedId) {
-      const cal = data.calibration;
-      const fails = (data.entries || []).filter((e) => e.pass === false).length;
-      const incomplete = (data.entries || []).some((e) =>
-        /incomplete|blocked/i.test(e.name || '')
-      );
-      metaEl.textContent =
-        `Run: ${data.runName || '—'} (${selectedId || 'latest'}) · judge ${data.judgeVersion || '—'} · ` +
-        (data.uxJudgeVersion ? `ux ${data.uxJudgeVersion} · ` : '') +
-        `mode ${data.judgeMode || '—'} · model ${data.judgeModel || '—'} · ` +
-        `finished ${data.finishedAt || '—'} · fails ${fails}` +
-        (data.synthetic ? ' · SYNTHETIC FIXTURE' : '') +
-        (data.pathLabels ? ' · paths ' + JSON.stringify(data.pathLabels) : '');
+    function renderHome(data, selectedId) {
+      items = buildItems(data);
+      const fails = (data.entries || []).filter(isFail).length;
+      const passes = (data.entries || []).filter((e) => e.pass === true).length;
+      const when = formatWhen(data.finishedAt || data.startedAt);
+      const chatCount = items.filter((i) => i.kind === 'chat').length;
+      runNow.textContent =
+        (data.runName || selectedId || 'Run') +
+        ' · ' + passes + ' passed, ' + fails + ' failed' +
+        (when ? ' · finished ' + when : '') +
+        ' · ' + chatCount + (chatCount === 1 ? ' chat' : ' chats');
 
-      const uxCal = data.uxCalibration;
       const parts = [];
-      if (data.synthetic) {
-        parts.push(
-          'SYNTHETIC viewer fixture — not a real product run. Labelled for UI inspection only.'
-        );
+      if (data.synthetic) parts.push('Sample fixture for the viewer, not a real run.');
+      if (data.calibration && data.calibration.ok === false) {
+        parts.push('Factual calibration failed, so answer judgments may be off.');
       }
-      if (cal && cal.ok === false) {
-        parts.push(
-          'Factual calibration failed — semantic evaluations unreliable/REVIEW. Failures: ' +
-            (cal.failures || []).map((f) => f.id).join(', ')
-        );
+      if (data.uxCalibration && data.uxCalibration.ok === false) {
+        parts.push('UX calibration failed, so the UX scores may be off.');
       }
-      if (uxCal && uxCal.ok === false) {
-        parts.push(
-          'UX calibration failed — UX scores shown but do not fail the run. Failures: ' +
-            (uxCal.failures || []).map((f) => f.id).join(', ')
-        );
+      if (Array.isArray(data.businesses)) {
+        const stuck = data.businesses.filter((b) => /incomplete|blocked/i.test(b.status || ''));
+        if (stuck.length) {
+          parts.push(stuck.map((b) => b.id + ' ended ' + b.status).join('. ') + '.');
+        }
       }
-      if (incomplete || fails) {
-        parts.push(
-          (incomplete ? 'Run has incomplete/blocked stages. ' : '') +
-            fails +
-            ' failed check(s). Original failures preserved (including linked repairs).'
-        );
-      }
+      if (fails) parts.push(fails === 1 ? '1 check failed in this run.' : fails + ' checks failed in this run.');
       if (parts.length) {
         banner.hidden = false;
-        // Product fails win red; otherwise warn (synthetic / calib issues).
-        banner.className =
-          fails || incomplete ? 'banner fail' : 'banner warn';
+        banner.className = fails || (data.businesses || []).some((b) => /incomplete|blocked/i.test(b.status || ''))
+          ? 'banner fail'
+          : 'banner warn';
         banner.textContent = parts.join(' ');
-      } else if (cal && cal.ok) {
-        banner.hidden = false;
-        banner.className = 'banner';
-        banner.textContent = 'Calibration OK (' + (data.judgeMode || '') + ').';
       } else {
         banner.hidden = true;
+        banner.textContent = '';
       }
 
-      if (Array.isArray(data.businesses) && data.businesses.length) {
-        const biz = document.createElement('div');
-        biz.className = 'meta';
-        biz.textContent =
-          'Businesses: ' +
-          data.businesses
-            .map((b) => `${b.id}=${b.status}(turns=${b.turnsUsed},repairs=${b.repairs})`)
-            .join(' · ');
-        metaEl.appendChild(document.createElement('br'));
-        metaEl.appendChild(biz);
+      desk.innerHTML = '';
+      if (!items.length) {
+        desk.appendChild(el('p', 'empty', 'No chats in this run yet.'));
+        return;
       }
 
-      renderTranscript(data);
-      renderEntries(data);
+      const { groups, others } = groupItems(items);
+      for (const group of groups) desk.appendChild(renderBizBlock(group));
+      if (others.length) {
+        const wrap = el('div', 'other-wrap');
+        for (const item of others) wrap.appendChild(renderCard(item));
+        desk.appendChild(wrap);
+      }
+    }
+
+    function friendlyRun(run) {
+      const raw = String(run.runName || 'run').replace(/^e2e-/, '');
+      const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+      const bits = [];
+      if (run.isLatest) bits.push('Latest');
+      bits.push(name);
+      bits.push((run.pass || 0) + ' passed, ' + (run.fail || 0) + ' failed');
+      if (run.synthetic) bits.push('sample');
+      return bits.join(' · ');
     }
 
     async function loadIndex() {
@@ -441,14 +1523,8 @@
       for (const run of runs) {
         const opt = document.createElement('option');
         opt.value = run.id;
-        opt.textContent =
-          (run.isLatest ? '★ ' : '') +
-          run.id +
-          ' — ' +
-          (run.runName || '') +
-          ` (${run.pass || 0}pass/${run.fail || 0}fail)` +
-          (run.hasTranscript ? ' · transcript' : '') +
-          (run.synthetic ? ' · SYNTHETIC' : '');
+        opt.textContent = friendlyRun(run);
+        opt.title = run.id;
         runSelect.appendChild(opt);
       }
       if (!runs.length) {
@@ -457,40 +1533,41 @@
         opt.textContent = 'No runs yet';
         runSelect.appendChild(opt);
       }
-      if (prev && [...runSelect.options].some((o) => o.value === prev)) {
-        runSelect.value = prev;
-      } else if (runs.some((r) => r.id === 'latest.json')) {
-        runSelect.value = 'latest.json';
-      }
+      if (prev && [...runSelect.options].some((o) => o.value === prev)) runSelect.value = prev;
+      else if (runs.some((r) => r.id === 'latest.json')) runSelect.value = 'latest.json';
     }
 
     async function loadSelected() {
-      list.innerHTML = '';
-      timeline.innerHTML = '';
+      closeDetail();
+      desk.innerHTML = '';
       try {
         await loadIndex();
         const name = runSelect.value;
         if (!name) {
-          metaEl.textContent = 'No results yet.';
+          runNow.textContent = 'No results yet.';
           return;
         }
-        const url =
-          name === 'latest.json'
-            ? '/api/test-results'
-            : '/api/test-results/file?name=' + encodeURIComponent(name);
-        const data = await fetch(url).then((r) => {
-          if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-          return r.json();
-        });
-        renderRun(data, name);
+        const url = name === 'latest.json'
+          ? '/api/test-results'
+          : '/api/test-results/file?name=' + encodeURIComponent(name);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        renderHome(await res.json(), name);
       } catch (err) {
-        metaEl.textContent = 'No results yet (or error): ' + err.message;
-        list.textContent = 'Run a Tester script to write data/test-results/*.json';
+        banner.hidden = true;
+        runNow.textContent = 'No results yet.';
+        desk.appendChild(el('p', 'empty', 'Could not load this run. ' + err.message));
       }
     }
 
     document.getElementById('refresh').addEventListener('click', loadSelected);
     runSelect.addEventListener('change', loadSelected);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !detail.hidden) {
+        e.preventDefault();
+        closeDetail();
+      }
+    });
     loadSelected();
   </script>
 </body>

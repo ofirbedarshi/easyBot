@@ -67,6 +67,13 @@ export function emptyProfile() {
     flowiseSyncedAt: null,
     /** App gate for /test: true only after a successful Flowise sync. */
     flowiseSyncOk: false,
+    /**
+     * True while approved facts await background Flowise sync (cold start / 502).
+     * Cleared on success or after sync worker gives up.
+     */
+    flowiseSyncPending: false,
+    /** ISO time when pending sync was requested (wake + retry window). */
+    flowiseSyncRequestedAt: null,
     draft: null,
   };
 }
