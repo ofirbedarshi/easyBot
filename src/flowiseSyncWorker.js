@@ -5,6 +5,12 @@ import {
   truncateFlowiseErrorBody,
 } from './flowise.js';
 import { sendWhatsAppReply } from './twilio/send.js';
+import {
+  ownerLanguage,
+  renderSyncDone,
+  renderSyncSuccess,
+  renderSyncSuccessInTest,
+} from './ownerNav.js';
 
 const DEFAULT_POLL_MS = 15000;
 const DEFAULT_MAX_WAIT_MS = 5 * 60 * 1000;
@@ -17,10 +23,6 @@ function maxWaitMs() {
   return Number(process.env.FLOWISE_SYNC_MAX_WAIT_MS) || DEFAULT_MAX_WAIT_MS;
 }
 
-function readyMessage(chatflowId) {
-  return `Flowise is ready — your customer bot is synced (chatflow ${chatflowId}). Type /test to try it.`;
-}
-
 function timeoutMessage() {
   return 'Flowise is still unavailable after waiting. Your facts stay approved locally. Say **approve** again later when the service is up, then /test.';
 }
@@ -30,9 +32,12 @@ function timeoutMessage() {
  * Runs beside the inbound worker (same process gate).
  *
  * @param {object} store
- * @param {{ intervalMs?: number, maxWaitMs?: number }} [opts]
+ * @param {{ intervalMs?: number, maxWaitMs?: number, deps?: object }} [opts]
  */
 export function startFlowiseSyncWorker(store, opts = {}) {
+  const ping = opts.deps?.pingFlowise || pingFlowise;
+  const wake = opts.deps?.wakeFlowise || wakeFlowise;
+  const sync = opts.deps?.createOrUpdateChatflow || createOrUpdateChatflow;
   if (typeof store.listPendingFlowiseSyncs !== 'function') {
     console.warn('Flowise sync worker: store missing listPendingFlowiseSyncs — OFF');
     return { stop() {}, tick: async () => {} };
@@ -68,6 +73,35 @@ export function startFlowiseSyncWorker(store, opts = {}) {
     }
   }
 
+  /**
+   * Success note chosen from the sender's current mode: editing menu (menu
+   * navigation active) only in BUILD; TEST gets a plain note without a menu.
+   */
+  async function appendSyncSuccess(senderId) {
+    let session;
+    try {
+      session = await store.loadSession(senderId);
+    } catch (err) {
+      console.warn('flowise sync session load failed:', err.message);
+      return renderSyncDone('en');
+    }
+    session.buildHistory = session.buildHistory || [];
+    const lang = ownerLanguage(session.buildHistory);
+    const inTest = session.mode === 'TEST';
+    const msg = inTest ? renderSyncSuccessInTest(lang) : renderSyncSuccess(lang);
+    session.buildHistory.push(
+      inTest
+        ? { role: 'assistant', content: msg }
+        : { role: 'assistant', content: msg, nav: 'menu' }
+    );
+    try {
+      await store.saveSession(senderId, session);
+    } catch (err) {
+      console.warn('flowise sync history append failed:', err.message);
+    }
+    return msg;
+  }
+
   async function processOne(row) {
     const { senderId, profile } = row;
     if (!senderId || inFlight.has(senderId)) return;
@@ -80,12 +114,12 @@ export function startFlowiseSyncWorker(store, opts = {}) {
 
       if (!wakeStarted) {
         wakeStarted = true;
-        wakeFlowise().finally(() => {
+        wake().finally(() => {
           wakeStarted = false;
         });
       }
 
-      const up = await pingFlowise({ timeoutMs: 8000 });
+      const up = await ping({ timeoutMs: 8000 });
       if (!up) {
         if (age >= maxWait) {
           profile.flowiseSyncPending = false;
@@ -100,16 +134,15 @@ export function startFlowiseSyncWorker(store, opts = {}) {
       }
 
       try {
-        const chatflowId = await createOrUpdateChatflow(profile);
+        const chatflowId = await sync(profile);
         profile.chatflowId = chatflowId;
         profile.flowiseSyncOk = true;
         profile.flowiseSyncPending = false;
         profile.flowiseSyncedAt = new Date().toISOString();
         profile.flowiseSyncRequestedAt = null;
         await store.saveProfile(senderId, profile);
-        const msg = readyMessage(chatflowId);
-        await appendAssistant(senderId, msg);
-        await notify(senderId, msg);
+        const msg = await appendSyncSuccess(senderId);
+        if (msg) await notify(senderId, msg);
         console.log(`flowise sync ok sender=${senderId} chatflow=${chatflowId}`);
       } catch (err) {
         const short = truncateFlowiseErrorBody(err.message, 160);

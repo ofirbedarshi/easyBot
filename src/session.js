@@ -19,6 +19,17 @@ import {
   truncateFlowiseErrorBody,
   isFlowiseUnavailableError,
 } from './flowise.js';
+import {
+  isMenuRequest,
+  menuActive,
+  ownerLanguage,
+  parseMenuChoice,
+  renderMenu,
+  renderReturnToEditing,
+  renderSection,
+  renderSetupContinue,
+  renderSyncSuccess,
+} from './ownerNav.js';
 
 function deps(session) {
   return session.deps || {};
@@ -197,9 +208,10 @@ async function syncApprovedProfile(session, profile) {
     profile.flowiseSyncPending = false;
     profile.flowiseSyncedAt = new Date().toISOString();
     profile.flowiseSyncRequestedAt = null;
+    console.log(`Flowise sync ok chatflow=${chatflowId}`);
     return {
       event: 'approved_synced',
-      syncNote: `\n\n[Bot updated in Flowise — chatflow ${chatflowId}. Type /test to try it.]`,
+      syncNote: `\n\n${renderSyncSuccess(ownerLanguage(session.buildHistory))}`,
       sourceSuffix: '+real-flowise-sync',
     };
   } catch (err) {
@@ -252,7 +264,41 @@ export async function handleMessage(session, text, options = {}) {
   if (session.mode === 'TEST') {
     return handleTest(session, trimmed, options.flowiseSessionId);
   }
+  const nav = await handleNavigation(session, trimmed);
+  if (nav) return nav;
   return handleBuild(session, trimmed);
+}
+
+/**
+ * Editing-menu navigation for an approved bot (BUILD only). Read-only: never
+ * saves the profile, so the draft and review state stay as they were.
+ * Numbers count as menu choices only right after a menu was shown.
+ * @returns {Promise<object|null>} null → not navigation, continue to the Builder
+ */
+async function handleNavigation(session, text) {
+  const wantsMenu = isMenuRequest(text);
+  const choice = menuActive(session.buildHistory) ? parseMenuChoice(text) : null;
+  if (!wantsMenu && choice == null) return null;
+  const profile = await loadAsync(session);
+  if (!profile.approvedAt) return null;
+
+  if (choice === 6) return enterTest(session);
+
+  const lang = ownerLanguage(session.buildHistory);
+  const reply = wantsMenu ? renderMenu(lang) : renderSection(choice, profile, lang);
+  session.buildHistory.push({ role: 'user', content: text });
+  session.buildHistory.push({
+    role: 'assistant',
+    content: reply,
+    nav: wantsMenu ? 'menu' : `section:${choice}`,
+  });
+  return {
+    ok: true,
+    reply,
+    source: 'app',
+    event: wantsMenu ? 'menu' : 'menu_section',
+    ...(await getStateAsync(session)),
+  };
 }
 
 async function enterTest(session) {
@@ -296,8 +342,20 @@ async function enterTest(session) {
 
 async function enterBuild(session) {
   session.mode = 'BUILD';
-  const reply =
-    'Back in BUILD mode. Tell me any updates (e.g. a price change), or type /test when ready.';
+  const lang = ownerLanguage(session.buildHistory);
+  const profile = await loadAsync(session);
+  if (profile.approvedAt) {
+    const reply = renderReturnToEditing(lang);
+    session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+    return {
+      ok: true,
+      reply,
+      source: 'app',
+      event: 'enter_build',
+      ...(await getStateAsync(session)),
+    };
+  }
+  const reply = renderSetupContinue(lang);
   return {
     ok: true,
     reply,
@@ -452,7 +510,11 @@ async function handleBuild(session, userMessage) {
 
   await saveAsync(session, profile);
   const reply = result.message + syncNote;
-  session.buildHistory.push({ role: 'assistant', content: reply });
+  session.buildHistory.push(
+    event === 'approved_synced'
+      ? { role: 'assistant', content: reply, nav: 'menu' }
+      : { role: 'assistant', content: reply }
+  );
 
   return {
     ok: true,
