@@ -10,3 +10,6 @@ data/test-results/*.json
 .local/
 .env.render
 supabase/.temp/
+
+# graphify knowledge graph output (rebuild with: graphify update .)
+graphify-out/
