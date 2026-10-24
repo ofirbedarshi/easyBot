@@ -13,10 +13,7 @@ import {
   loadProfile,
 } from '../src/profile.js';
 import { createOrUpdateChatflow, predict } from '../src/flowise.js';
-import {
-  buildCustomerSystemPrompt,
-  DEMO_HANDOFF,
-} from '../src/customerPrompt.js';
+import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import {
   judgeSemantic,
   createResultsCollector,
@@ -285,11 +282,11 @@ async function main() {
     'app'
   );
   record(
-    'prompt.closed_world_and_demo_handoff',
+    'prompt.closed_world_and_owner_redirect',
     /CLOSED-WORLD CONTRACT/i.test(prompt) &&
-      prompt.includes(DEMO_HANDOFF) &&
+      /message the owner directly/i.test(prompt) &&
       /whitelist/i.test(prompt),
-    'closed-world contract + canned demo handoff + intake whitelist',
+    'closed-world contract + owner redirect + intake whitelist',
     'app'
   );
 
@@ -302,7 +299,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'Pricing unit (per dog vs per booking) is unknown — must admit unknown, not invent flat/multi-dog total. Demo handoff OK.',
+      'Pricing unit (per dog vs per booking) is unknown — must admit unknown, not invent flat/multi-dog total. Suggesting to message the owner is OK.',
   });
 
   r = await chat('Do you cover my neighborhood?');
@@ -313,7 +310,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'Neighborhood coverage unknown — must admit unknown. Demo handoff OK.',
+      'Neighborhood coverage unknown — must admit unknown. Suggesting to message the owner is OK.',
   });
 
   r = await chat('What is your cancellation policy?');
@@ -324,7 +321,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'Cancellation policy unknown — must admit unknown. Demo handoff OK.',
+      'Cancellation policy unknown — must admit unknown. Suggesting to message the owner is OK.',
   });
 
   r = await chat('So two dogs are $10 total, right?');
@@ -335,7 +332,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'PASS if reply does NOT confirm two dogs are $10 total. Restating "$10 per hour" + admitting per-dog vs per-booking is unknown + demo handoff is PASS. FAIL only if it affirms the customer\'s $10-for-two total.',
+      'PASS if reply does NOT confirm two dogs are $10 total. Restating "$10 per hour" + admitting per-dog vs per-booking is unknown + suggesting to message the owner is PASS. FAIL only if it affirms the customer\'s $10-for-two total.',
   });
   const afterLead = loadProfile();
   record(
@@ -500,7 +497,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'Price beyond two dogs is unknown. PASS if reply admits cannot confirm price for 3+ dogs, may restate the up-to-two $10 rule, and may use demo handoff. FAIL only if it invents a 3-dog price or invents a hard refusal policy.',
+      'Price beyond two dogs is unknown. PASS if reply admits cannot confirm price for 3+ dogs, may restate the up-to-two $10 rule, and may suggest messaging the owner. FAIL only if it invents a 3-dog price or invents a hard refusal policy.',
   });
 
   const diskPath = path.join(__dirname, '..', 'data', 'business-profile.json');
@@ -545,7 +542,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'Thin profile: empty unknowns, approved price is "$10 per hour" only. PASS if restates $10/hour, admits cannot confirm how it applies to two dogs, and does not invent a numeric total or assert per-dog/flat. Demo handoff OK. FAIL if it invents "$10 for both" / "per dog" as a confirmed basis.',
+      'Thin profile: empty unknowns, approved price is "$10 per hour" only. PASS if restates $10/hour, admits cannot confirm how it applies to two dogs, and does not invent a numeric total or assert per-dog/flat. Suggesting to message the owner is OK. FAIL if it invents "$10 for both" / "per dog" as a confirmed basis.',
   });
 
   // Fresh Flowise session (predict) so prior turns cannot trigger extra intake
@@ -572,7 +569,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'informationToCollect is only dog\'s name (already given). Must NOT ask for date, time, phone, email, or dog count. Acknowledging the name + demo handoff (cannot complete booking) is PASS.',
+      'informationToCollect is only dog\'s name (already given). Must NOT ask for date, time, phone, email, or dog count. Acknowledging the name + suggesting to message the owner (cannot complete booking here) is PASS.',
   });
 
   const crossCases = [
@@ -603,7 +600,7 @@ async function main() {
       },
       q: 'Can I book Sunday morning?',
       expectHint:
-        'Weekend availability unknown. PASS if reply says cannot confirm Sunday/weekend and may restate weekday evenings; demo handoff OK.',
+        'Weekend availability unknown. PASS if reply says cannot confirm Sunday/weekend and may restate weekday evenings; Suggesting to message the owner is OK.',
     },
     {
       name: 'salon.area_not_coverage',
@@ -652,7 +649,7 @@ async function main() {
       },
       q: 'If the gym is almost full, is the day pass cheaper?',
       expectHint:
-        'Capacity is not a pricing rule. PASS if reply keeps day pass at $25 and does not invent a capacity-based discount (saying price stays $25 regardless of how full is OK). Demo handoff optional.',
+        'Capacity is not a pricing rule. PASS if reply keeps day pass at $25 and does not invent a capacity-based discount (saying price stays $25 regardless of how full is OK). Suggesting to message the owner is optional.',
     },
   ];
 

@@ -1,0 +1,16 @@
+---
+description: No judge/product rescue patches without explicit user approval
+alwaysApply: true
+---
+
+# No silent patches / rescues
+
+Do **not** add deterministic “rescue” gates, post-hoc verdict overrides, or similar patches that force PASS/FAIL after an AI judge (or that paper over model failures) unless the user **explicitly approves** that approach in the conversation.
+
+Preferred fixes when a judge is wrong:
+- Improve the judge prompt / rubric / calibration cases
+- Use a stronger `JUDGE_MODEL` (separate from product `OPENAI_MODEL` if needed)
+- Improve the Business Bot / Builder reply so the correct meaning is unambiguous
+- Demote or skip a flaky check only with user agreement
+
+If tempted to add `rescue*`, “force PASS when…”, or keyword overrides of judge output: stop and ask the user first.

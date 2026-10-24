@@ -4,14 +4,13 @@
  * Pass only at score 4 or 5. Does not judge whether facts are true.
  */
 import OpenAI from 'openai';
-import { DEMO_HANDOFF } from './customerPrompt.js';
 import { resolveJudgeMode, judgeModelName } from './judge.js';
 
-export const UX_JUDGE_VERSION = '1.0.0';
+export const UX_JUDGE_VERSION = '1.1.0';
 
 const SHARED_DIMS = ['ease', 'simplicity', 'warmth', 'feel'];
 const BUILDER_DIMS = [...SHARED_DIMS, 'arrangement'];
-const BOT_DIMS = [...SHARED_DIMS, 'answer_first', 'shop_voice'];
+const BOT_DIMS = [...SHARED_DIMS, 'answer_first', 'shop_voice', 'next_step'];
 
 const JARGON_RE =
   /\b(json|flowise|draft\.|as an ai|approved business facts|chatflow|system prompt|informationtocollect|readyforreview)\b/i;
@@ -24,6 +23,7 @@ export function uxDimensionKeys(channel) {
 }
 
 function clampScore(n) {
+  if (n == null || n === '') return null;
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   return Math.max(1, Math.min(5, Math.round(x)));
@@ -61,18 +61,25 @@ function countQuestions(text) {
   return Math.max(marks, numbered);
 }
 
+/** Strip app-appended Flowise sync chrome so UX scores visible chat, not system notes. */
+function stripAppChrome(text) {
+  return String(text || '')
+    .replace(/\n*\[Bot updated in Flowise[^\]]*\]\s*/gi, '')
+    .trim();
+}
+
 function wrapUxResult(partial, mode, model, channel) {
-  const dimensions = {
-    ...emptyUxDimensions(channel),
-    ...(partial.dimensions || {}),
-  };
-  for (const key of uxDimensionKeys(channel)) {
-    const d = dimensions[key] || { score: null, note: '' };
+  const allowed = new Set(uxDimensionKeys(channel));
+  const incoming = partial.dimensions || {};
+  const dimensions = emptyUxDimensions(channel);
+  for (const key of allowed) {
+    const d = incoming[key] || { score: null, note: '' };
     dimensions[key] = {
       score: clampScore(d.score),
       note: d.note != null ? String(d.note) : '',
     };
   }
+  // Drop dims that do not belong to this channel (e.g. arrangement on business_bot).
   let score = applyUxSoftCap(partial.score, dimensions);
   if (score == null) score = 3;
 
@@ -110,6 +117,12 @@ function stubUxJudge(args) {
     /(should the (customer )?bot collect|approved business facts|as an ai)/i.test(
       lower
     );
+  const deadEnd =
+    channel === 'business_bot' &&
+    /i can't complete bookings in this chat\.?\s*$/i.test(text.trim());
+  const boilerplateTail =
+    channel === 'business_bot' &&
+    /if you need this clarified, leave a message for the owner/i.test(lower);
 
   let score = 4;
   let rationale =
@@ -120,6 +133,11 @@ function stubUxJudge(args) {
     rationale = jargon
       ? 'stub: jargon / process talk'
       : 'stub: setup-wizard voice to customer';
+  } else if (deadEnd || boilerplateTail) {
+    score = 2;
+    rationale = deadEnd
+      ? 'stub: dead-end refusal with no next step'
+      : 'stub: boilerplate closing line';
   } else if (scope === 'reply' && channel === 'builder' && questions > 2) {
     score = 2;
     rationale = 'stub: more than two questions in one Builder turn';
@@ -130,11 +148,11 @@ function stubUxJudge(args) {
     score = 3;
     rationale = 'stub: empty or near-empty';
   } else if (
-    text.includes(DEMO_HANDOFF) ||
-    /cannot confirm|don't know|not sure/i.test(lower)
+    /message the owner/i.test(lower) ||
+    /cannot confirm|don't know|not sure|don't have details/i.test(lower)
   ) {
     score = 4;
-    rationale = 'stub: plain gap or demo handoff OK';
+    rationale = 'stub: plain gap or owner redirect OK';
   }
 
   const dims = emptyUxDimensions(channel, score);
@@ -165,7 +183,7 @@ Channels:
 
 Scopes:
 - reply: judge one visible assistant message (plus the user line it answers when given).
-- overall: judge the ordered conversation for that channel. Repeated questions after they were answered hurt arrangement/ease.
+- overall: judge the ordered conversation for that channel. For business_bot overall: a customer repeating a question is the Tester probing — do NOT blame the Business Bot for customer repeats. Judge only how the Business Bot's own replies feel.
 
 Score integers 1–5:
 5 — easy to follow, warm, plain, well arranged
@@ -184,20 +202,34 @@ Builder also scores:
 - arrangement — acknowledges what was just said, then one or two questions; does not repeat; summary easy to scan
 
 Business Bot also scores (stricter):
-- answer_first — the answer (or the plain gap) comes before extra talk
+- answer_first — the answer (or the plain gap) comes before extra talk; a plainly admitted gap counts as answering first
 - shop_voice — sounds like the business, not a setup wizard
+- next_step — when the customer shows intent or hits a gap, they know what to do next (ask a follow-up, share intake details, or message the owner). Suggesting the customer message the owner directly IS a clear next step — score next_step 4 or 5 when that redirect is present. A pure information answer (e.g. a clear price) does not need a next step — score next_step high in that case too.
 
 Do NOT lower the score only because:
-- the reply uses the required demo handoff inviting the customer to leave a message for the owner
-- it admits a gap in plain words
+- it admits a gap in plain words (that is good answer_first, not coldness by itself)
+- it suggests messaging the owner directly when there is a real gap (that is a good next_step)
+- a short warm gap reply like "I don't have details on X yet — best to message the owner directly about that" — score 4 or 5
 - it is short
 - it mentions approve, /test, /end, or /reset once in plain language
+- an app sync footnote about Flowise/chatflow was stripped before you see the text — ignore any leftover sync chrome
+- (overall / business_bot) the customer asked the same question more than once
+- (overall / business_bot) a price or fact changes mid-transcript after the owner edited and re-approved — that is expected test flow, not Bot confusion; do not lower for "$70 then later $80"
+- (overall / business_bot) if individual replies were mostly warm and clear (greeting, prices, gap+owner redirect, override restatement), overall should be 4 or 5. Admitting a cancellation gap is correct, not a failure. Do not dock for missing policies that were never in the facts.
+- (builder) a review or post-approve summary lists several business facts — denser than a chat turn is OK; score 4+ when it confirms the change in plain words and invites /test. Do not fail only for length or for restating prices/hours; a short "updated, type /test" confirmation after approve should usually be 4+
+- (business_bot) restating the real price after a customer tried to override it, then offering further help — e.g. "Private lessons are $70 for 60 minutes — I can't change that here. Want help with anything else?" or the same pattern with any service name/price — MUST score 4 or 5. Do not call that cold or dismissive; acknowledging their wrong number is optional
+- (business_bot) an honest gap plus "message the owner" on a leading/uncertain price question — MUST score 4 or 5; uncertainty is not coldness
 
 DO lower the score when:
 - more than two questions in one Builder turn
 - jargon or process talk (JSON, draft, Flowise, "approved business facts", "as an AI", asking the customer whether the bot should collect something)
+- internal customer-facing wording: "approved", "undecided", "available information", "according to" (system/records talk)
+- a full correct answer followed by the canned boilerplate "If you need this clarified, leave a message for the owner…" — that is NOT a useful next step; score overall 3 or below (and next_step low)
+- the same boilerplate closing line on every reply
+- promising the owner will get back / call the customer (cold and false)
+- a dead-end refusal with no next step (e.g. only "I can't complete bookings in this chat") — score overall 3 or below
 - a wall of text or a spec-like list
-- the same question comes back after it was answered (overall)
+- (builder overall) the same question comes back after it was answered
 - the customer has to dig for the point
 
 If ANY dimension is 1 or 2, overall score MUST be 3 or below (soft average cannot hide one bad part).
@@ -211,10 +243,16 @@ Return JSON only:
     "ease": {"score":1-5,"note":"..."},
     "simplicity": {"score":1-5,"note":"..."},
     "warmth": {"score":1-5,"note":"..."},
-    "feel": {"score":1-5,"note":"..."}
+    "feel": {"score":1-5,"note":"..."},
+    "arrangement": {"score":1-5,"note":"..."},
+    "answer_first": {"score":1-5,"note":"..."},
+    "shop_voice": {"score":1-5,"note":"..."},
+    "next_step": {"score":1-5,"note":"..."}
   }
 }
-Include arrangement for builder. Include answer_first and shop_voice for business_bot.`;
+For builder: include arrangement; omit answer_first, shop_voice, and next_step.
+For business_bot: include answer_first, shop_voice, and next_step; omit arrangement.
+Every included dimension MUST have a score.`;
 
 function formatTranscript(turns) {
   if (!Array.isArray(turns) || !turns.length) return '';
@@ -240,7 +278,7 @@ async function realUxJudge(args) {
     outputUnderTest: args.outputText || null,
     transcript: args.transcript || null,
     note:
-      'Judge feel and arrangement only. Facts being wrong or right is out of scope. Demo handoff sentence is allowed.',
+      'Judge feel and arrangement only. Facts being wrong or right is out of scope. Honest gap + message the owner is fine. Plain admitted gap counts as answer_first.',
   };
 
   const completion = await client.chat.completions.create({
@@ -306,12 +344,21 @@ export async function judgeUx(args) {
   if (scope === 'overall' && (outputText == null || outputText === '')) {
     outputText = formatTranscript(args.transcript);
   }
+  outputText = stripAppChrome(outputText);
+  const transcript = Array.isArray(args.transcript)
+    ? args.transcript.map((t) =>
+        t && typeof t === 'object'
+          ? { ...t, text: stripAppChrome(t.text) }
+          : t
+      )
+    : args.transcript;
 
   const payload = {
     ...args,
     channel,
     scope,
     outputText,
+    transcript,
   };
 
   const mode = resolveJudgeMode();

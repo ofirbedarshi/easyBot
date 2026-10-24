@@ -70,6 +70,10 @@ See [.env.example](.env.example) for the full name list.
 - Flowise should use Supabase Postgres (`DATABASE_*` in Flowise service) — free Render has no persistent disk.
 - Production hides `/api/test-results*` and `results.html` unless `ALLOW_TEST_RESULTS=1`.
 
+## CTO agent workflow
+
+Milestone handoffs live in [`cto-workflow/`](cto-workflow/). Start/resume paste text: [`cto-workflow/README.md`](cto-workflow/README.md). Progress UI: http://localhost:3080/progress.html
+
 ## Scripts
 
 ```bash

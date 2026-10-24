@@ -6,36 +6,72 @@ import {
   emptyProfile,
   defaultProfilePath,
 } from './profile.js';
-import { runBuilderTurn, openingMessage } from './builder.js';
 import {
-  createOrUpdateChatflow,
-  predict,
-  pingFlowise,
-  wakeFlowise,
+  runBuilderTurn as defaultRunBuilderTurn,
+  openingMessage,
+} from './builder.js';
+import {
+  createOrUpdateChatflow as defaultCreateOrUpdateChatflow,
+  predict as defaultPredict,
+  pingFlowise as defaultPingFlowise,
+  wakeFlowise as defaultWakeFlowise,
   truncateFlowiseErrorBody,
   isFlowiseUnavailableError,
 } from './flowise.js';
 
+function deps(session) {
+  return session.deps || {};
+}
+
+function runBuilderTurnFn(session) {
+  return deps(session).runBuilderTurn || defaultRunBuilderTurn;
+}
+
+function createOrUpdateChatflowFn(session) {
+  return deps(session).createOrUpdateChatflow || defaultCreateOrUpdateChatflow;
+}
+
+function pingFlowiseFn(session) {
+  return deps(session).pingFlowise || defaultPingFlowise;
+}
+
+function wakeFlowiseFn(session) {
+  return deps(session).wakeFlowise || defaultWakeFlowise;
+}
+
+function predictFn(session) {
+  return deps(session).predict || defaultPredict;
+}
+
 /**
  * In-memory session. Profile persists on disk at session.profilePath
  * (default: data/business-profile.json) unless session.store + senderId set.
+ *
+ * @param {string|{ profilePath?: string, deps?: object }|null} [profilePathOrOpts]
  */
-export function createSession(profilePath) {
+export function createSession(profilePathOrOpts) {
+  const opts =
+    profilePathOrOpts != null &&
+    typeof profilePathOrOpts === 'object' &&
+    !Array.isArray(profilePathOrOpts)
+      ? profilePathOrOpts
+      : { profilePath: profilePathOrOpts };
   return {
     mode: 'BUILD', // BUILD | TEST
     buildHistory: [],
     testHistory: [],
     testSessionId: `test-${Date.now()}`,
-    profilePath: profilePath || defaultProfilePath(),
+    profilePath: opts.profilePath || defaultProfilePath(),
     store: null,
     senderId: null,
+    deps: opts.deps || null,
   };
 }
 
 /**
  * Load WhatsApp / store-backed session for one sender (isolated).
  */
-export async function createSenderSession(store, senderId) {
+export async function createSenderSession(store, senderId, options = {}) {
   const saved = await store.loadSession(senderId);
   return {
     mode: saved.mode || 'BUILD',
@@ -45,6 +81,7 @@ export async function createSenderSession(store, senderId) {
     profilePath: null,
     store,
     senderId,
+    deps: options.deps || null,
   };
 }
 
@@ -111,7 +148,7 @@ function stateFrom(session, profile) {
     profile: {
       ...profile,
     },
-    summary: formatSummary(mergeDraft(profile, profile.draft || {})),
+    summary: formatSummary(profile),
     hasChatflow: !!profile.chatflowId,
     approvedAt: profile.approvedAt,
     flowiseSyncOk: !!profile.flowiseSyncOk,
@@ -122,12 +159,12 @@ function stateFrom(session, profile) {
   };
 }
 
-function markFlowiseSyncPending(profile) {
+function markFlowiseSyncPending(session, profile) {
   profile.flowiseSyncOk = false;
   profile.flowiseSyncPending = true;
   profile.flowiseSyncRequestedAt = new Date().toISOString();
   // Kick cold start without blocking the chat turn
-  wakeFlowise().catch(() => {});
+  wakeFlowiseFn(session)().catch(() => {});
 }
 
 const SYNC_PENDING_NOTE =
@@ -137,15 +174,15 @@ const SYNC_PENDING_NOTE =
  * Sync chatflow now, or mark pending + wake if Flowise is down / errors.
  * @returns {Promise<{ event: string, syncNote: string, sourceSuffix?: string }>}
  */
-async function syncApprovedProfile(profile) {
+async function syncApprovedProfile(session, profile) {
   // Start cold-start early; do not block Approve on full wake.
-  wakeFlowise().catch(() => {});
+  wakeFlowiseFn(session)().catch(() => {});
 
-  const reachable = await pingFlowise({
+  const reachable = await pingFlowiseFn(session)({
     timeoutMs: Number(process.env.FLOWISE_PING_TIMEOUT_MS) || 5000,
   });
   if (!reachable) {
-    markFlowiseSyncPending(profile);
+    markFlowiseSyncPending(session, profile);
     return {
       event: 'approved_sync_pending',
       syncNote: SYNC_PENDING_NOTE,
@@ -153,7 +190,7 @@ async function syncApprovedProfile(profile) {
   }
 
   try {
-    const chatflowId = await createOrUpdateChatflow(profile);
+    const chatflowId = await createOrUpdateChatflowFn(session)(profile);
     profile.chatflowId = chatflowId;
     profile.flowiseSyncOk = true;
     profile.flowiseSyncPending = false;
@@ -168,7 +205,7 @@ async function syncApprovedProfile(profile) {
     // Stay pending; background worker retries. Keep note short (no HTML dump).
     const short = truncateFlowiseErrorBody(err.message, 100);
     console.warn('Flowise sync deferred (pending):', short);
-    markFlowiseSyncPending(profile);
+    markFlowiseSyncPending(session, profile);
     return {
       event: 'approved_sync_pending',
       syncNote: SYNC_PENDING_NOTE,
@@ -227,7 +264,7 @@ async function enterTest(session) {
     } else if (profile.flowiseSyncPending) {
       reply =
         'Still syncing to Flowise (it may be waking up). Wait for the ready message, then try /test again.';
-      wakeFlowise().catch(() => {});
+      wakeFlowiseFn(session)().catch(() => {});
     } else if (!profile.flowiseSyncOk) {
       reply =
         'Approved facts are not synced to Flowise yet. Say **approve** again to retry sync, then /test.';
@@ -282,7 +319,7 @@ async function handleTest(session, question, flowiseSessionId) {
   let reply;
   let source = 'real-flowise';
   try {
-    reply = await predict(profile.chatflowId, question, sid);
+    reply = await predictFn(session)(profile.chatflowId, question, sid);
   } catch (err) {
     const missing =
       /not found/i.test(err.message) || /getChatflowById/i.test(err.message);
@@ -295,16 +332,16 @@ async function handleTest(session, question, flowiseSessionId) {
         );
         profile.chatflowId = null;
         profile.flowiseSyncOk = false;
-        const newId = await createOrUpdateChatflow(profile);
+        const newId = await createOrUpdateChatflowFn(session)(profile);
         profile.chatflowId = newId;
         profile.flowiseSyncOk = true;
         profile.flowiseSyncedAt = new Date().toISOString();
         await saveAsync(session, profile);
-        reply = await predict(newId, question, sid);
+        reply = await predictFn(session)(newId, question, sid);
         source = 'real-flowise';
       } catch (recoverErr) {
         if (isFlowiseUnavailableError(recoverErr)) {
-          wakeFlowise().catch(() => {});
+          wakeFlowiseFn(session)().catch(() => {});
           reply =
             'Flowise is waking up. Wait about a minute and send your question again.';
         } else {
@@ -313,7 +350,7 @@ async function handleTest(session, question, flowiseSessionId) {
         source = 'error';
       }
     } else if (isFlowiseUnavailableError(err)) {
-      wakeFlowise().catch(() => {});
+      wakeFlowiseFn(session)().catch(() => {});
       reply =
         'Flowise is waking up. Wait about a minute and send your question again.';
       source = 'error';
@@ -356,7 +393,7 @@ async function handleBuild(session, userMessage) {
 
   let result;
   try {
-    result = await runBuilderTurn({
+    result = await runBuilderTurnFn(session)({
       buildHistory: session.buildHistory.slice(0, -1),
       profile,
       userMessage,
@@ -380,6 +417,7 @@ async function handleBuild(session, userMessage) {
     Object.assign(profile, {
       name: merged.name,
       whatWeDo: merged.whatWeDo,
+      ownerGoal: merged.ownerGoal,
       services: merged.services || [],
       hours: merged.hours,
       locationOrArea: merged.locationOrArea,
@@ -397,7 +435,7 @@ async function handleBuild(session, userMessage) {
       flowiseSyncRequestedAt: null,
     });
 
-    const sync = await syncApprovedProfile(profile);
+    const sync = await syncApprovedProfile(session, profile);
     syncNote = sync.syncNote;
     event = sync.event;
     if (sync.sourceSuffix) {

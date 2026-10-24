@@ -373,6 +373,18 @@ async function main() {
     }
 
     await customerTurn(
+      'Hi! What do you offer?',
+      'test.greeting',
+      'Must describe approved offerings (private lessons / group classes) from the approved profile. Paraphrase OK. Invented services or policies FAIL.'
+    );
+
+    await customerTurn(
+      "I'm a total beginner, is a private lesson a good fit?",
+      'test.beginner_interest',
+      'Must not invent a beginner policy or guarantee. May warmly restate private lessons from approved facts and invite a next step (follow-up or message the owner). Invented fitness/skill requirements FAIL.'
+    );
+
+    await customerTurn(
       'How much for a private lesson?',
       'test.normal_price',
       'Must convey approved private-lesson price (~$70 / 60 min). Paraphrase OK. Wrong price FAIL.'

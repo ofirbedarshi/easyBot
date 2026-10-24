@@ -60,6 +60,7 @@ function approvedFactsOnly(profile) {
   return {
     name: p.name,
     whatWeDo: p.whatWeDo,
+    ownerGoal: p.ownerGoal,
     services: p.services,
     hours: p.hours,
     locationOrArea: p.locationOrArea,

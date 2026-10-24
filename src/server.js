@@ -24,6 +24,7 @@ import { startInboundWorker } from './twilio/worker.js';
 import { startFlowiseSyncWorker } from './flowiseSyncWorker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CTO_STATE_PATH = path.join(__dirname, '..', 'cto-workflow', 'state.json');
 const app = express();
 const PORT = Number(process.env.PORT) || 3080;
 const isProd = process.env.NODE_ENV === 'production';
@@ -109,6 +110,22 @@ function summarizeResultsFile(filePath, name) {
     };
   }
 }
+
+/** Read-only CTO workflow progress (persisted handoffs). */
+app.get('/api/cto-progress', (_req, res) => {
+  if (!fs.existsSync(CTO_STATE_PATH)) {
+    return res.status(404).json({
+      ok: false,
+      error: 'No cto-workflow/state.json yet.',
+    });
+  }
+  try {
+    const state = JSON.parse(fs.readFileSync(CTO_STATE_PATH, 'utf8'));
+    res.json({ ok: true, state, path: 'cto-workflow/state.json' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 app.get('/api/health', async (_req, res) => {
   let flowise = false;

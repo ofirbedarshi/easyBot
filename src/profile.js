@@ -7,6 +7,15 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const PROFILE_PATH = path.join(DATA_DIR, 'business-profile.json');
 const TEST_PROFILES_DIR = path.join(DATA_DIR, 'test-profiles');
 
+const TEXT_FACT_KEYS = [
+  'name',
+  'whatWeDo',
+  'ownerGoal',
+  'hours',
+  'locationOrArea',
+  'tone',
+];
+
 export function defaultProfilePath() {
   return PROFILE_PATH;
 }
@@ -48,6 +57,11 @@ export function emptyProfile() {
   return {
     name: null,
     whatWeDo: null,
+    /**
+     * Outcome the owner wants the customer bot to achieve.
+     * null = not clarified yet — never invent a goal in app code.
+     */
+    ownerGoal: null,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -120,13 +134,7 @@ export function mergeDraft(profile, draft) {
   const next = { ...profile };
   if (!draft || typeof draft !== 'object') return next;
 
-  for (const key of [
-    'name',
-    'whatWeDo',
-    'hours',
-    'locationOrArea',
-    'tone',
-  ]) {
+  for (const key of TEXT_FACT_KEYS) {
     if (draft[key] != null && draft[key] !== '') next[key] = draft[key];
   }
   if (Array.isArray(draft.services)) next.services = draft.services;
@@ -140,10 +148,43 @@ export function mergeDraft(profile, draft) {
   return next;
 }
 
-export function formatSummary(profile) {
+function stableJson(value) {
+  return JSON.stringify(value ?? null);
+}
+
+/** True when draft would change live approved facts after merge. */
+export function draftDiffersFromLive(profile, draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  const merged = mergeDraft(profile, draft);
+  for (const key of TEXT_FACT_KEYS) {
+    if ((merged[key] || null) !== (profile[key] || null)) return true;
+  }
+  if (stableJson(merged.services || []) !== stableJson(profile.services || [])) {
+    return true;
+  }
+  if (
+    stableJson(normalizeCommonQuestions(merged.commonQuestions)) !==
+    stableJson(normalizeCommonQuestions(profile.commonQuestions))
+  ) {
+    return true;
+  }
+  if (
+    stableJson(merged.informationToCollect ?? null) !==
+    stableJson(profile.informationToCollect ?? null)
+  ) {
+    return true;
+  }
+  if (stableJson(merged.unknowns || []) !== stableJson(profile.unknowns || [])) {
+    return true;
+  }
+  return false;
+}
+
+function formatFactsBlock(profile) {
   const lines = [];
   lines.push(`Business: ${profile.name || '(not set)'}`);
   lines.push(`What they do: ${profile.whatWeDo || '(not set)'}`);
+  lines.push(`Owner goal: ${profile.ownerGoal || '(not set)'}`);
   if (profile.services?.length) {
     lines.push('Services:');
     for (const s of profile.services) {
@@ -185,6 +226,30 @@ export function formatSummary(profile) {
     for (const u of profile.unknowns) lines.push(`  • ${u}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Owner-facing summary. When already approved and draft differs from live,
+ * shows Live vs Pending so unapproved edits are not mistaken for the active bot.
+ */
+export function formatSummary(profile) {
+  const draft = profile?.draft;
+  if (
+    profile?.approvedAt &&
+    draft &&
+    draftDiffersFromLive(profile, draft)
+  ) {
+    const pending = mergeDraft(profile, draft);
+    return [
+      'Live approved (active customer bot):',
+      formatFactsBlock(profile),
+      '',
+      'Pending (not live until you approve):',
+      formatFactsBlock(pending),
+    ].join('\n');
+  }
+  const view = draft ? mergeDraft(profile, draft) : profile;
+  return formatFactsBlock(view || emptyProfile());
 }
 
 export function hasEnoughForFirstBot(profile) {

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>easyBot — CTO progress</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #1a2f28;
+      --bg1: #243d34;
+      --ink: #f3f0e7;
+      --muted: #b8c4bc;
+      --accent: #e8a87c;
+      --ok: #7ec8a3;
+      --bad: #e07a7a;
+      --warn: #e8c87c;
+      --line: rgba(243, 240, 231, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #2f5548 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #3d2e22 0%, transparent 50%),
+        linear-gradient(160deg, var(--bg0), var(--bg1));
+    }
+    .wrap {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2.5rem;
+    }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: "Fraunces", serif;
+      font-size: 1.65rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .meta { color: var(--muted); font-size: 0.85rem; margin: 0 0 1.25rem; }
+    a { color: var(--accent); }
+    section {
+      border-top: 1px solid var(--line);
+      padding: 1rem 0 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.65rem;
+    }
+    h3 { font-size: 1.05rem; margin: 0 0 0.35rem; font-weight: 600; }
+    p { margin: 0 0 0.5rem; line-height: 1.45; }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--line);
+      margin-right: 0.35rem;
+    }
+    .pill.ok { color: var(--ok); }
+    .pill.bad { color: var(--bad); }
+    .pill.warn { color: var(--warn); }
+    .pill.idle { color: var(--muted); }
+    .pill.working { color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .agent {
+      padding: 0.65rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .agent:last-child { border-bottom: none; }
+    ul { margin: 0.25rem 0 0.75rem; padding-left: 1.1rem; }
+    li { margin: 0.25rem 0; line-height: 1.4; }
+    .activity li { font-size: 0.9rem; }
+    .activity .when { color: var(--muted); font-size: 0.75rem; }
+    .banner {
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .err {
+      border: 1px solid var(--bad);
+      color: var(--bad);
+      padding: 0.75rem;
+    }
+    .split {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      align-items: baseline;
+      margin-bottom: 0.35rem;
+    }
+    .label { color: var(--muted); font-size: 0.8rem; }
+    code { font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>CTO progress</h1>
+      <a href="/">Chat</a>
+    </header>
+    <p class="meta" id="lastUpdate">Loading…</p>
+    <div id="banner"></div>
+    <div id="root"></div>
+  </div>
+  <script>
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function pill(text, cls) {
+      return `<span class="pill ${cls || ''}">${esc(text)}</span>`;
+    }
+    function statusClass(s) {
+      const u = String(s || '').toLowerCase();
+      if (u === 'verified' || u === 'pass' || u === 'completed' || u === 'ok') return 'ok';
+      if (u === 'failed' || u === 'fail' || u === 'blocked') return 'bad';
+      if (u === 'implemented' || u === 'in_progress' || u === 'needs_decision' || u === 'active') return 'warn';
+      if (u === 'working' || u === 'waiting') return 'working';
+      return 'idle';
+    }
+    function fmtWhen(iso) {
+      if (!iso) return '—';
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      } catch {
+        return iso;
+      }
+    }
+    function ageLabel(iso) {
+      if (!iso) return '';
+      const ms = Date.now() - new Date(iso).getTime();
+      if (Number.isNaN(ms)) return '';
+      const m = Math.floor(ms / 60000);
+      if (m < 1) return 'just now';
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 48) return `${h}h ago`;
+      return `${Math.floor(h / 24)}d ago`;
+    }
+
+    function render(data) {
+      const goal = data.goal || {};
+      const milestones = data.milestones || [];
+      const current = milestones.find((m) => m.id === data.currentMilestoneId) || null;
+      const agents = data.agents || {};
+      const verified = milestones.filter((m) => m.status === 'verified');
+      const implementedOnly = milestones.filter(
+        (m) => m.status === 'implemented' || (m.implementation?.complete && m.status !== 'verified')
+      );
+      const failed = milestones.filter(
+        (m) => m.status === 'failed' || m.verification?.verdict === 'fail'
+      );
+      const remaining = milestones.filter(
+        (m) => !['verified', 'failed'].includes(m.status)
+      );
+
+      const banner = document.getElementById('banner');
+      banner.innerHTML = '';
+      if (data.stale?.interrupted) {
+        banner.innerHTML = `<div class="banner"><strong>Interrupted / stale.</strong> ${esc(data.stale.reason || 'Work stopped mid-handoff. Resume from state.json.')}</div>`;
+      }
+
+      document.getElementById('lastUpdate').textContent =
+        `Last update: ${fmtWhen(data.updatedAt)} (${ageLabel(data.updatedAt)}) · state v${data.version ?? '?'}`;
+
+      const root = document.getElementById('root');
+      root.innerHTML = `
+        <section>
+          <h2>Goal</h2>
+          <div class="split">
+            <h3>${esc(goal.title || '(no goal)')}</h3>
+            ${pill(goal.status || '—', statusClass(goal.status))}
+          </div>
+          <p>${esc(goal.description || '')}</p>
+          <p class="muted"><span class="label">Scope</span> ${esc(goal.agreedScope || '—')}</p>
+          ${(goal.outOfScope || []).length ? `<p class="muted"><span class="label">Out of scope</span> ${esc((goal.outOfScope || []).join('; '))}</p>` : ''}
+        </section>
+
+        <section>
+          <h2>Current milestone</h2>
+          ${current ? `
+            <div class="split">
+              <h3>${esc(current.title)}</h3>
+              ${pill(current.status, statusClass(current.status))}
+              ${pill(current.implementation?.complete ? 'impl done' : 'impl open', current.implementation?.complete ? 'ok' : 'idle')}
+              ${pill(current.verification?.independent && current.verification?.verdict === 'pass' ? 'verified' : 'not verified', current.status === 'verified' ? 'ok' : 'warn')}
+            </div>
+            <p class="muted">Fix attempts ${esc(current.fixAttempts)} / ${esc(current.maxFixAttempts)}</p>
+            <p class="label">Acceptance criteria</p>
+            <ul>${(current.acceptanceCriteria || []).map((c) => `<li>${esc(c)}</li>`).join('') || '<li class="muted">None</li>'}</ul>
+            ${current.verification?.failedChecks?.length ? `
+              <p class="label">Failed checks</p>
+              <ul>${current.verification.failedChecks.map((c) => `<li>${esc(typeof c === 'string' ? c : JSON.stringify(c))}</li>`).join('')}</ul>
+            ` : ''}
+          ` : `<p class="muted">No current milestone.</p>`}
+        </section>
+
+        <section>
+          <h2>Agents now</h2>
+          <div class="grid">
+            ${['cto', 'developer', 'verifier'].map((name) => {
+              const a = agents[name] || {};
+              return `<div class="agent">
+                <div class="split">${pill(name, 'idle')} ${pill(a.status || '—', statusClass(a.status))}</div>
+                <p>${esc(a.activity || '—')}</p>
+              </div>`;
+            }).join('')}
+          </div>
+        </section>
+
+        <section>
+          <h2>Completed &amp; verified</h2>
+          ${verified.length ? `<ul>${verified.map((m) => `<li>${pill('verified', 'ok')} <strong>${esc(m.title)}</strong> <span class="muted">${esc(fmtWhen(m.verification?.verifiedAt))}</span></li>`).join('')}</ul>` : `<p class="muted">None yet.</p>`}
+          ${implementedOnly.length ? `
+            <p class="label">Implementation complete — not independently verified</p>
+            <ul>${implementedOnly.map((m) => `<li>${pill('implemented only', 'warn')} ${esc(m.title)}</li>`).join('')}</ul>
+          ` : ''}
+        </section>
+
+        <section>
+          <h2>Failed checks &amp; remaining</h2>
+          ${failed.length ? `<ul>${failed.map((m) => `<li>${pill('failed', 'bad')} ${esc(m.title)} — ${esc(m.verification?.notes || '')}</li>`).join('')}</ul>` : `<p class="muted">No failed milestones.</p>`}
+          ${remaining.length ? `<ul>${remaining.map((m) => `<li>${pill(m.status, statusClass(m.status))} ${esc(m.title)}</li>`).join('')}</ul>` : `<p class="muted">No remaining milestones.</p>`}
+        </section>
+
+        <section>
+          <h2>Blockers &amp; decisions (your input)</h2>
+          ${(data.blockers || []).length ? `<ul>${data.blockers.map((b) => `<li>${pill('blocker', 'bad')} ${esc(b.message)} <span class="muted">${esc(fmtWhen(b.at))}</span></li>`).join('')}</ul>` : `<p class="muted">No blockers.</p>`}
+          ${(data.decisionsNeeded || []).length ? `<ul>${data.decisionsNeeded.map((d) => `<li>${pill('decision', 'warn')} ${esc(d.question)} <span class="muted">${esc(fmtWhen(d.at))}</span></li>`).join('')}</ul>` : `<p class="muted">No open decisions.</p>`}
+        </section>
+
+        <section>
+          <h2>Activity history</h2>
+          <ul class="activity">
+            ${[...(data.activity || [])].slice().reverse().map((ev) => `
+              <li>
+                ${pill(ev.actor, 'idle')} ${esc(ev.message)}
+                <div class="when">${esc(fmtWhen(ev.at))} · ${esc(ev.type)}${ev.milestoneId ? ` · ${esc(ev.milestoneId)}` : ''}</div>
+              </li>
+            `).join('') || '<li class="muted">Empty</li>'}
+          </ul>
+        </section>
+      `;
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('/api/cto-progress');
+        const data = await res.json();
+        if (!res.ok || data.ok === false) {
+          document.getElementById('root').innerHTML =
+            `<div class="err">${esc(data.error || res.statusText || 'Failed to load')}</div>`;
+          document.getElementById('lastUpdate').textContent = 'Unavailable';
+          return;
+        }
+        render(data.state || data);
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          `<div class="err">${esc(err.message)}</div>`;
+      }
+    }
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>
