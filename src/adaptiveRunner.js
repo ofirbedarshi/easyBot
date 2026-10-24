@@ -12,6 +12,7 @@ import {
 } from './fixtures.js';
 import { nextOwnerMessage, applyDisclosures } from './adaptiveOwner.js';
 import { judgeSemantic } from './judge.js';
+import { judgeUx, uxJudgeFields } from './judgeUx.js';
 
 const BASE = () => `http://localhost:${process.env.PORT || 3080}`;
 
@@ -156,8 +157,61 @@ function skippedJudge(detail) {
  * @param {boolean} opts.judgeUnreliable
  * @param {(name, pass, detail, source, extra?) => void} opts.record
  */
+async function recordUxCheck(record, opts) {
+  const {
+    name,
+    channel,
+    scope,
+    userMessage,
+    outputText,
+    transcript,
+    turnRefs,
+    businessId,
+    forceUnreliable,
+  } = opts;
+  const ux = await judgeUx({
+    channel,
+    scope,
+    userMessage,
+    outputText,
+    transcript,
+    forceUnreliable,
+  });
+  const source =
+    ux.mode === 'stub' ? 'stub-ux-judge' : 'real-llm-ux-judge';
+  record(
+    name,
+    !!ux.pass,
+    `ux=${ux.score}/5 ${ux.rationale}`,
+    source,
+    {
+      stage: 'ux',
+      businessId,
+      question: userMessage,
+      outputText: scope === 'reply' ? outputText : undefined,
+      turnRefs,
+      judge: uxJudgeFields(ux),
+      score: ux.score,
+      rationale: ux.rationale,
+      quotes: ux.quotes,
+      dimensions: ux.dimensions,
+      verdict: ux.pass ? 'PASS' : 'FAIL',
+      mode: ux.mode,
+      model: ux.model,
+      unreliable: ux.unreliable,
+    }
+  );
+  return ux;
+}
+
 export async function runAdaptiveBusiness(opts) {
-  const { fixture, collector, judgeUnreliable, record } = opts;
+  const {
+    fixture,
+    collector,
+    judgeUnreliable,
+    uxJudgeUnreliable = false,
+    record,
+  } = opts;
   const biz = fixture.id;
   const sessionKey = biz;
   const profilePath = profilePathFor(biz);
@@ -176,6 +230,11 @@ export async function runAdaptiveBusiness(opts) {
 
   const t = (turn) =>
     collector.addTranscript({ ...turn, businessId: biz, text: redactSecrets(turn.text || '') });
+
+  const channelTranscript = (channel) =>
+    (collector.transcript() || []).filter(
+      (row) => row.businessId === biz && row.channel === channel
+    );
 
   // Reset for isolated interview (clears this fixture's test-profiles file)
   let r = await chat('/reset', sessionKey);
@@ -266,6 +325,17 @@ export async function runAdaptiveBusiness(opts) {
         turnRefs: [ownerRef, builderRef],
       }
     );
+
+    await recordUxCheck(record, {
+      name: `${biz}.ux.builder.turn_${turns}`,
+      channel: 'builder',
+      scope: 'reply',
+      userMessage: owner.message,
+      outputText: lastBuilder,
+      turnRefs: [ownerRef, builderRef],
+      businessId: biz,
+      forceUnreliable: uxJudgeUnreliable,
+    });
 
     if (r.event === 'approved_synced' || r.approved) {
       // Should only approve after fidelity — if model auto-approved early, still check
@@ -412,7 +482,7 @@ export async function runAdaptiveBusiness(opts) {
         });
         r = await chat(corrMsg, sessionKey);
         lastBuilder = r.reply || '';
-        t({
+        const repairBuilderRef = t({
           channel: 'BUILD',
           role: 'builder',
           event: 'repair',
@@ -435,6 +505,16 @@ export async function runAdaptiveBusiness(opts) {
             turnRefs: [cRef],
           }
         );
+        await recordUxCheck(record, {
+          name: `${biz}.ux.builder.repair_${repairs}`,
+          channel: 'builder',
+          scope: 'reply',
+          userMessage: corrMsg,
+          outputText: lastBuilder,
+          turnRefs: [cRef, repairBuilderRef],
+          businessId: biz,
+          forceUnreliable: uxJudgeUnreliable,
+        });
         continue;
       }
 
@@ -448,7 +528,7 @@ export async function runAdaptiveBusiness(opts) {
       });
       r = await chat(approveMsg, sessionKey);
       lastBuilder = r.reply || '';
-      t({
+      const approveBuilderRef = t({
         channel: 'BUILD',
         role: 'builder',
         event: r.event || 'approve',
@@ -461,22 +541,43 @@ export async function runAdaptiveBusiness(opts) {
         r.source || 'app',
         { stage: 'deterministic', businessId: biz, turnRefs: [aRef] }
       );
+      await recordUxCheck(record, {
+        name: `${biz}.ux.builder.approve`,
+        channel: 'builder',
+        scope: 'reply',
+        userMessage: approveMsg,
+        outputText: lastBuilder,
+        turnRefs: [aRef, approveBuilderRef],
+        businessId: biz,
+        forceUnreliable: uxJudgeUnreliable,
+      });
       approved =
         r.event === 'approved_synced' || !!loadProfile(profilePath).approvedAt;
       if (!approved && !r.approved) {
         // try once more
-        r = await chat('Looks good, please approve.', sessionKey);
-        t({
+        const retryMsg = 'Looks good, please approve.';
+        r = await chat(retryMsg, sessionKey);
+        const retryOwnerRef = t({
           channel: 'BUILD',
           role: 'owner',
           event: 'approve',
-          text: 'Looks good, please approve.',
+          text: retryMsg,
         });
-        t({
+        const retryBuilderRef = t({
           channel: 'BUILD',
           role: 'builder',
           event: r.event,
           text: r.reply || '',
+        });
+        await recordUxCheck(record, {
+          name: `${biz}.ux.builder.approve_retry`,
+          channel: 'builder',
+          scope: 'reply',
+          userMessage: retryMsg,
+          outputText: r.reply || '',
+          turnRefs: [retryOwnerRef, retryBuilderRef],
+          businessId: biz,
+          forceUnreliable: uxJudgeUnreliable,
         });
         approved =
           r.event === 'approved_synced' ||
@@ -579,22 +680,31 @@ export async function runAdaptiveBusiness(opts) {
       const replyRes = await chat(intent.question, sessionKey, {
         flowiseSessionId,
       });
-      const j = await judgeSemantic({
-        stage: 'business_bot_answer',
-        question: intent.question,
-        outputText: replyRes.reply,
-        approvedConfig: approvedCfgShared,
-        unknowns: approvedCfgShared.unknowns || [],
-        expectHint: intent.expectHint,
-        expectVerdict: 'PASS',
-        forceUnreliable: judgeUnreliable,
-      });
-      return { intent, r: replyRes, j };
+      const [j, ux] = await Promise.all([
+        judgeSemantic({
+          stage: 'business_bot_answer',
+          question: intent.question,
+          outputText: replyRes.reply,
+          approvedConfig: approvedCfgShared,
+          unknowns: approvedCfgShared.unknowns || [],
+          expectHint: intent.expectHint,
+          expectVerdict: 'PASS',
+          forceUnreliable: judgeUnreliable,
+        }),
+        judgeUx({
+          channel: 'business_bot',
+          scope: 'reply',
+          userMessage: intent.question,
+          outputText: replyRes.reply,
+          forceUnreliable: uxJudgeUnreliable,
+        }),
+      ]);
+      return { intent, r: replyRes, j, ux };
     })
   );
 
   // Record in fixture order so the results viewer stays stable
-  for (const { intent, r: replyRes, j } of probeResults) {
+  for (const { intent, r: replyRes, j, ux } of probeResults) {
     const qRef = t({
       channel: 'TEST',
       role: 'customer',
@@ -632,6 +742,29 @@ export async function runAdaptiveBusiness(opts) {
           model: j.model,
           unreliable: j.unreliable,
         },
+      }
+    );
+
+    record(
+      `${biz}.ux.bot.${intent.id}`,
+      !!ux.pass,
+      `ux=${ux.score}/5 ${ux.rationale}`,
+      ux.mode === 'stub' ? 'stub-ux-judge' : 'real-llm-ux-judge',
+      {
+        stage: 'ux',
+        businessId: biz,
+        question: intent.question,
+        outputText: replyRes.reply,
+        turnRefs: [qRef, aRef],
+        judge: uxJudgeFields(ux),
+        score: ux.score,
+        rationale: ux.rationale,
+        quotes: ux.quotes,
+        dimensions: ux.dimensions,
+        verdict: ux.pass ? 'PASS' : 'FAIL',
+        mode: ux.mode,
+        model: ux.model,
+        unreliable: ux.unreliable,
       }
     );
 
@@ -674,9 +807,13 @@ export async function runAdaptiveBusiness(opts) {
   });
 
   const pending = fixture.editLoop.pendingMessage;
-  t({ channel: 'BUILD', role: 'owner', text: pending });
+  const pendingOwnerRef = t({ channel: 'BUILD', role: 'owner', text: pending });
   r = await chat(pending, sessionKey);
-  t({ channel: 'BUILD', role: 'builder', text: r.reply || '' });
+  const pendingBuilderRef = t({
+    channel: 'BUILD',
+    role: 'builder',
+    text: r.reply || '',
+  });
 
   record(
     `${biz}.edit.pending_not_auto_approved`,
@@ -685,6 +822,17 @@ export async function runAdaptiveBusiness(opts) {
     'app',
     { stage: 'deterministic', businessId: biz }
   );
+
+  await recordUxCheck(record, {
+    name: `${biz}.ux.builder.edit_pending`,
+    channel: 'builder',
+    scope: 'reply',
+    userMessage: pending,
+    outputText: r.reply || '',
+    turnRefs: [pendingOwnerRef, pendingBuilderRef],
+    businessId: biz,
+    forceUnreliable: uxJudgeUnreliable,
+  });
 
   // Pending must not be live
   await chat('/test', sessionKey);
@@ -696,9 +844,13 @@ export async function runAdaptiveBusiness(opts) {
   });
   const probeQ =
     fixture.editLoop.pendingProbeQuestion || 'What is the current price?';
-  t({ channel: 'TEST', role: 'customer', text: probeQ });
+  const pendingQRef = t({ channel: 'TEST', role: 'customer', text: probeQ });
   r = await chat(probeQ, sessionKey);
-  t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
+  const pendingARef = t({
+    channel: 'TEST',
+    role: 'business_bot',
+    text: r.reply || '',
+  });
 
   {
     const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
@@ -712,18 +864,27 @@ export async function runAdaptiveBusiness(opts) {
       !/(not (yet )?approved|not confirmed|haven't|have not|still|cannot confirm|don't know|undecided|unknown|not sure|draft)/i.test(
         reply
       );
-    const j = await judgeSemantic({
-      stage: 'business_bot_answer',
-      question: probeQ,
-      outputText: r.reply,
-      approvedConfig: approvedCfg,
-      unknowns: approvedCfg.unknowns || [],
-      expectHint:
-        fixture.editLoop.pendingMustNotLiveHint +
-        ' Judge ONLY approvedConfig (live). Ignore pending draft fields. Prefer PASS when bot refuses to confirm an unapproved change.',
-      expectVerdict: 'PASS',
-      forceUnreliable: judgeUnreliable,
-    });
+    const [j, ux] = await Promise.all([
+      judgeSemantic({
+        stage: 'business_bot_answer',
+        question: probeQ,
+        outputText: r.reply,
+        approvedConfig: approvedCfg,
+        unknowns: approvedCfg.unknowns || [],
+        expectHint:
+          fixture.editLoop.pendingMustNotLiveHint +
+          ' Judge ONLY approvedConfig (live). Ignore pending draft fields. Prefer PASS when bot refuses to confirm an unapproved change.',
+        expectVerdict: 'PASS',
+        forceUnreliable: judgeUnreliable,
+      }),
+      judgeUx({
+        channel: 'business_bot',
+        scope: 'reply',
+        userMessage: probeQ,
+        outputText: r.reply,
+        forceUnreliable: uxJudgeUnreliable,
+      }),
+    ]);
     // Primary gate is deterministic: unapproved pending wording must not be adopted.
     // Judge rationale kept as evidence; when det is clean, do not fail on judge wording nits.
     const finalPass =
@@ -739,6 +900,7 @@ export async function runAdaptiveBusiness(opts) {
         businessId: biz,
         question: probeQ,
         outputText: r.reply,
+        turnRefs: [pendingQRef, pendingARef],
         expected: fixture.editLoop.pendingMustNotLiveHint,
         judge: {
           verdict: j.verdict,
@@ -750,36 +912,78 @@ export async function runAdaptiveBusiness(opts) {
         },
       }
     );
+    record(
+      `${biz}.ux.bot.pending_probe`,
+      !!ux.pass,
+      `ux=${ux.score}/5 ${ux.rationale}`,
+      ux.mode === 'stub' ? 'stub-ux-judge' : 'real-llm-ux-judge',
+      {
+        stage: 'ux',
+        businessId: biz,
+        question: probeQ,
+        outputText: r.reply,
+        turnRefs: [pendingQRef, pendingARef],
+        judge: uxJudgeFields(ux),
+        score: ux.score,
+        rationale: ux.rationale,
+        quotes: ux.quotes,
+        dimensions: ux.dimensions,
+        verdict: ux.pass ? 'PASS' : 'FAIL',
+        mode: ux.mode,
+        model: ux.model,
+        unreliable: ux.unreliable,
+      }
+    );
   }
 
   await chat('/end', sessionKey);
   const approveEdit = fixture.editLoop.approveMessage;
-  t({
+  const editApproveOwnerRef = t({
     channel: 'BUILD',
     role: 'owner',
     event: 'approve',
     text: approveEdit,
   });
   r = await chat(approveEdit, sessionKey);
-  t({
+  const editApproveBuilderRef = t({
     channel: 'BUILD',
     role: 'builder',
     event: r.event,
     text: r.reply || '',
   });
+  await recordUxCheck(record, {
+    name: `${biz}.ux.builder.edit_approve`,
+    channel: 'builder',
+    scope: 'reply',
+    userMessage: approveEdit,
+    outputText: r.reply || '',
+    turnRefs: [editApproveOwnerRef, editApproveBuilderRef],
+    businessId: biz,
+    forceUnreliable: uxJudgeUnreliable,
+  });
   if (!r.approved && r.event !== 'approved_synced') {
     r = await chat('approve', sessionKey);
-    t({
+    const editRetryOwnerRef = t({
       channel: 'BUILD',
       role: 'owner',
       event: 'approve',
       text: 'approve',
     });
-    t({
+    const editRetryBuilderRef = t({
       channel: 'BUILD',
       role: 'builder',
       event: r.event,
       text: r.reply || '',
+    });
+    await recordUxCheck(record, {
+      name: `${biz}.ux.builder.edit_approve_retry`,
+      channel: 'builder',
+      scope: 'reply',
+      userMessage: 'approve',
+      outputText: r.reply || '',
+      turnRefs: [editRetryOwnerRef, editRetryBuilderRef],
+      businessId: biz,
+      forceUnreliable: uxJudgeUnreliable,
     });
   }
 
@@ -802,22 +1006,35 @@ export async function runAdaptiveBusiness(opts) {
   });
   const afterQ =
     fixture.editLoop.afterApproveQuestion || probeQ;
-  t({ channel: 'TEST', role: 'customer', text: afterQ });
+  const afterQRef = t({ channel: 'TEST', role: 'customer', text: afterQ });
   r = await chat(afterQ, sessionKey);
-  t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
+  const afterARef = t({
+    channel: 'TEST',
+    role: 'business_bot',
+    text: r.reply || '',
+  });
 
   {
     const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
-    const j = await judgeSemantic({
-      stage: 'business_bot_answer',
-      question: afterQ,
-      outputText: r.reply,
-      approvedConfig: approvedCfg,
-      unknowns: approvedCfg.unknowns || [],
-      expectHint: fixture.editLoop.afterApproveHint,
-      expectVerdict: 'PASS',
-      forceUnreliable: judgeUnreliable,
-    });
+    const [j, ux] = await Promise.all([
+      judgeSemantic({
+        stage: 'business_bot_answer',
+        question: afterQ,
+        outputText: r.reply,
+        approvedConfig: approvedCfg,
+        unknowns: approvedCfg.unknowns || [],
+        expectHint: fixture.editLoop.afterApproveHint,
+        expectVerdict: 'PASS',
+        forceUnreliable: judgeUnreliable,
+      }),
+      judgeUx({
+        channel: 'business_bot',
+        scope: 'reply',
+        userMessage: afterQ,
+        outputText: r.reply,
+        forceUnreliable: uxJudgeUnreliable,
+      }),
+    ]);
     record(
       `${biz}.edit.retest`,
       !!j.pass,
@@ -828,6 +1045,7 @@ export async function runAdaptiveBusiness(opts) {
         businessId: biz,
         question: afterQ,
         outputText: r.reply,
+        turnRefs: [afterQRef, afterARef],
         expected: fixture.editLoop.afterApproveHint,
         judge: {
           verdict: j.verdict,
@@ -837,6 +1055,28 @@ export async function runAdaptiveBusiness(opts) {
           model: j.model,
           unreliable: j.unreliable,
         },
+      }
+    );
+    record(
+      `${biz}.ux.bot.edit_retest`,
+      !!ux.pass,
+      `ux=${ux.score}/5 ${ux.rationale}`,
+      ux.mode === 'stub' ? 'stub-ux-judge' : 'real-llm-ux-judge',
+      {
+        stage: 'ux',
+        businessId: biz,
+        question: afterQ,
+        outputText: r.reply,
+        turnRefs: [afterQRef, afterARef],
+        judge: uxJudgeFields(ux),
+        score: ux.score,
+        rationale: ux.rationale,
+        quotes: ux.quotes,
+        dimensions: ux.dimensions,
+        verdict: ux.pass ? 'PASS' : 'FAIL',
+        mode: ux.mode,
+        model: ux.model,
+        unreliable: ux.unreliable,
       }
     );
   }
@@ -856,22 +1096,35 @@ export async function runAdaptiveBusiness(opts) {
     event: 'enter_test',
     text: 'persistence retest',
   });
-  t({ channel: 'TEST', role: 'customer', text: afterQ });
+  const persistQRef = t({ channel: 'TEST', role: 'customer', text: afterQ });
   r = await chat(afterQ, sessionKey);
-  t({ channel: 'TEST', role: 'business_bot', text: r.reply || '' });
+  const persistARef = t({
+    channel: 'TEST',
+    role: 'business_bot',
+    text: r.reply || '',
+  });
 
   {
     const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
-    const j = await judgeSemantic({
-      stage: 'business_bot_answer',
-      question: afterQ,
-      outputText: r.reply,
-      approvedConfig: approvedCfg,
-      unknowns: approvedCfg.unknowns || [],
-      expectHint: fixture.editLoop.afterApproveHint + ' (persistence / fresh TEST session)',
-      expectVerdict: 'PASS',
-      forceUnreliable: judgeUnreliable,
-    });
+    const [j, ux] = await Promise.all([
+      judgeSemantic({
+        stage: 'business_bot_answer',
+        question: afterQ,
+        outputText: r.reply,
+        approvedConfig: approvedCfg,
+        unknowns: approvedCfg.unknowns || [],
+        expectHint: fixture.editLoop.afterApproveHint + ' (persistence / fresh TEST session)',
+        expectVerdict: 'PASS',
+        forceUnreliable: judgeUnreliable,
+      }),
+      judgeUx({
+        channel: 'business_bot',
+        scope: 'reply',
+        userMessage: afterQ,
+        outputText: r.reply,
+        forceUnreliable: uxJudgeUnreliable,
+      }),
+    ]);
     record(
       `${biz}.persist.retest`,
       !!j.pass &&
@@ -883,6 +1136,7 @@ export async function runAdaptiveBusiness(opts) {
         businessId: biz,
         question: afterQ,
         outputText: r.reply,
+        turnRefs: [persistQRef, persistARef],
         judge: {
           verdict: j.verdict,
           rationale: j.rationale,
@@ -892,7 +1146,46 @@ export async function runAdaptiveBusiness(opts) {
         },
       }
     );
+    record(
+      `${biz}.ux.bot.persist_retest`,
+      !!ux.pass,
+      `ux=${ux.score}/5 ${ux.rationale}`,
+      ux.mode === 'stub' ? 'stub-ux-judge' : 'real-llm-ux-judge',
+      {
+        stage: 'ux',
+        businessId: biz,
+        question: afterQ,
+        outputText: r.reply,
+        turnRefs: [persistQRef, persistARef],
+        judge: uxJudgeFields(ux),
+        score: ux.score,
+        rationale: ux.rationale,
+        quotes: ux.quotes,
+        dimensions: ux.dimensions,
+        verdict: ux.pass ? 'PASS' : 'FAIL',
+        mode: ux.mode,
+        model: ux.model,
+        unreliable: ux.unreliable,
+      }
+    );
   }
+
+  await recordUxCheck(record, {
+    name: `${biz}.ux.builder.overall`,
+    channel: 'builder',
+    scope: 'overall',
+    transcript: channelTranscript('BUILD'),
+    businessId: biz,
+    forceUnreliable: uxJudgeUnreliable,
+  });
+  await recordUxCheck(record, {
+    name: `${biz}.ux.bot.overall`,
+    channel: 'business_bot',
+    scope: 'overall',
+    transcript: channelTranscript('TEST'),
+    businessId: biz,
+    forceUnreliable: uxJudgeUnreliable,
+  });
 
   businessMeta.status = 'passed';
   void buildHistoryBefore;

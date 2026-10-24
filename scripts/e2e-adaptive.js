@@ -21,6 +21,8 @@ import {
 } from '../src/judge.js';
 import { runCalibration } from '../src/judgeCalibration.js';
 import { judgeSemantic } from '../src/judge.js';
+import { judgeUx, UX_JUDGE_VERSION } from '../src/judgeUx.js';
+import { runUxCalibration } from '../src/judgeUxCalibration.js';
 import { loadAllFixtures, redactSecrets } from '../src/fixtures.js';
 import {
   runAdaptiveBusiness,
@@ -44,6 +46,7 @@ const collector = createResultsCollector('e2e-adaptive', {
   },
 });
 let judgeUnreliable = false;
+let uxJudgeUnreliable = false;
 
 function adaptiveConcurrency(fixtureCount) {
   const n = Number(process.env.ADAPTIVE_CONCURRENCY || 2);
@@ -205,6 +208,8 @@ async function main() {
   cleanTestProfiles(fixtures.map((f) => f.id));
 
   try {
+    collector.setUxJudgeVersion(UX_JUDGE_VERSION);
+
     const cal = await runCalibration(judgeSemantic);
     collector.setCalibration({
       ok: cal.ok,
@@ -220,6 +225,24 @@ async function main() {
       );
     } else {
       console.log('Calibration OK.');
+    }
+
+    const uxCal = await runUxCalibration(judgeUx);
+    collector.setUxCalibration({
+      ok: uxCal.ok,
+      failures: uxCal.failures,
+      judgeMode: uxCal.judgeMode,
+      judgeModel: uxCal.judgeModel,
+      uxJudgeVersion: uxCal.uxJudgeVersion,
+    });
+    if (!uxCal.ok) {
+      uxJudgeUnreliable = true;
+      console.warn(
+        'UX CALIBRATION FAILED — UX judge results marked unreliable (will not fail run):',
+        uxCal.failures.map((f) => f.id).join(', ')
+      );
+    } else {
+      console.log('UX calibration OK.');
     }
 
     const h = await health();
@@ -238,6 +261,7 @@ async function main() {
           fixture,
           collector,
           judgeUnreliable,
+          uxJudgeUnreliable,
           record,
         });
         return finalizeBusinessMeta(fixture, meta);
@@ -270,6 +294,9 @@ async function main() {
     }
     if (judgeUnreliable) {
       console.log('Note: judge calibration failed — semantic checks unreliable/REVIEW.');
+    }
+    if (uxJudgeUnreliable) {
+      console.log('Note: UX judge calibration failed — UX checks unreliable (not failing run).');
     }
     for (const f of allFails) console.log(' -', f.name, f.detail);
     if (unresolvedBiz.length) process.exitCode = 1;

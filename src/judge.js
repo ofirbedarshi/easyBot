@@ -496,7 +496,9 @@ export function createResultsCollector(runName, options = {}) {
     judgeVersion: JUDGE_VERSION,
     judgeMode: resolveJudgeMode(),
     judgeModel: judgeModelName(),
+    uxJudgeVersion: options.uxJudgeVersion || null,
     calibration: null,
+    uxCalibration: null,
     pathLabels: options.pathLabels || null,
     businesses: options.businesses || null,
     synthetic: options.synthetic === true ? true : undefined,
@@ -507,6 +509,12 @@ export function createResultsCollector(runName, options = {}) {
     lastStamp: null,
     setCalibration(cal) {
       meta.calibration = cal;
+    },
+    setUxCalibration(cal) {
+      meta.uxCalibration = cal;
+    },
+    setUxJudgeVersion(v) {
+      meta.uxJudgeVersion = v;
     },
     setPathLabels(labels) {
       meta.pathLabels = labels;

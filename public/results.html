@@ -91,7 +91,16 @@
     .badge.customer { color: #e8c89e; }
     .badge.business_bot { color: #9ee8c5; }
     .badge.system { color: var(--muted); }
+    .badge.ux { color: #e8b87c; }
     .rationale { margin: 0.4rem 0 0; font-size: 0.9rem; line-height: 1.4; }
+    .dims {
+      margin: 0.45rem 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: grid;
+      gap: 0.25rem;
+    }
+    .dims .dim-row { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; }
     .evidence {
       margin: 0.5rem 0 0;
       padding: 0.55rem 0.7rem;
@@ -251,17 +260,30 @@
         row.appendChild(name);
         const verdict = e.verdict || (e.pass ? 'PASS' : 'FAIL');
         row.appendChild(badge(verdict, verdict));
+        const isUx = e.stage === 'ux' || (typeof e.score === 'number' && e.name && /\.ux\.|^ux\./.test(e.name));
+        if (isUx && e.score != null) {
+          row.appendChild(badge('UX ' + e.score + '/5', 'ux'));
+        }
         if (e.mode) {
           row.appendChild(
             badge(
-              e.mode === 'stub' ? 'stub judge' : e.mode === 'real' ? 'real judge' : e.mode,
+              e.mode === 'stub'
+                ? isUx
+                  ? 'stub ux'
+                  : 'stub judge'
+                : e.mode === 'real'
+                  ? isUx
+                    ? 'real ux'
+                    : 'real judge'
+                  : e.mode,
               e.mode
             )
           );
         }
         if (e.model) row.appendChild(badge(e.model));
         if (e.unreliable) row.appendChild(badge('unreliable', 'REVIEW'));
-        if (e.stage) row.appendChild(badge(e.stage, 'deterministic'));
+        if (e.skippedUnreliable) row.appendChild(badge('ux skipped', 'REVIEW'));
+        if (e.stage) row.appendChild(badge(e.stage, e.stage === 'ux' ? 'ux' : 'deterministic'));
         if (e.repairOf) row.appendChild(badge('repair→' + e.repairOf, 'event'));
         if (e.businessId) row.appendChild(badge(e.businessId, 'deterministic'));
         div.appendChild(row);
@@ -271,6 +293,22 @@
           p.className = 'rationale';
           p.textContent = e.rationale || e.detail || '';
           div.appendChild(p);
+        }
+        if (e.dimensions && typeof e.dimensions === 'object') {
+          const dims = document.createElement('div');
+          dims.className = 'dims';
+          const keys = Object.keys(e.dimensions);
+          for (const key of keys) {
+            const d = e.dimensions[key] || {};
+            const rowD = document.createElement('div');
+            rowD.className = 'dim-row';
+            const scorePart =
+              d.score != null ? key + ' ' + d.score + '/5' : key;
+            rowD.textContent =
+              scorePart + (d.note ? ' — ' + d.note : d.status ? ' — ' + d.status : '');
+            dims.appendChild(rowD);
+          }
+          if (keys.length) div.appendChild(dims);
         }
         if (e.expected || e.actual) {
           const ea = document.createElement('div');
@@ -333,29 +371,44 @@
       );
       metaEl.textContent =
         `Run: ${data.runName || '—'} (${selectedId || 'latest'}) · judge ${data.judgeVersion || '—'} · ` +
+        (data.uxJudgeVersion ? `ux ${data.uxJudgeVersion} · ` : '') +
         `mode ${data.judgeMode || '—'} · model ${data.judgeModel || '—'} · ` +
         `finished ${data.finishedAt || '—'} · fails ${fails}` +
         (data.synthetic ? ' · SYNTHETIC FIXTURE' : '') +
         (data.pathLabels ? ' · paths ' + JSON.stringify(data.pathLabels) : '');
 
+      const uxCal = data.uxCalibration;
+      const parts = [];
       if (data.synthetic) {
-        banner.hidden = false;
-        banner.className = 'banner warn';
-        banner.textContent =
-          'SYNTHETIC viewer fixture — not a real product run. Labelled for UI inspection only.';
-      } else if (cal && cal.ok === false) {
-        banner.hidden = false;
-        banner.className = 'banner warn';
-        banner.textContent =
-          'Calibration failed — semantic evaluations unreliable/REVIEW. Failures: ' +
-          (cal.failures || []).map((f) => f.id).join(', ');
-      } else if (incomplete || fails) {
-        banner.hidden = false;
-        banner.className = 'banner fail';
-        banner.textContent =
+        parts.push(
+          'SYNTHETIC viewer fixture — not a real product run. Labelled for UI inspection only.'
+        );
+      }
+      if (cal && cal.ok === false) {
+        parts.push(
+          'Factual calibration failed — semantic evaluations unreliable/REVIEW. Failures: ' +
+            (cal.failures || []).map((f) => f.id).join(', ')
+        );
+      }
+      if (uxCal && uxCal.ok === false) {
+        parts.push(
+          'UX calibration failed — UX scores shown but do not fail the run. Failures: ' +
+            (uxCal.failures || []).map((f) => f.id).join(', ')
+        );
+      }
+      if (incomplete || fails) {
+        parts.push(
           (incomplete ? 'Run has incomplete/blocked stages. ' : '') +
-          fails +
-          ' failed check(s). Original failures preserved (including linked repairs).';
+            fails +
+            ' failed check(s). Original failures preserved (including linked repairs).'
+        );
+      }
+      if (parts.length) {
+        banner.hidden = false;
+        // Product fails win red; otherwise warn (synthetic / calib issues).
+        banner.className =
+          fails || incomplete ? 'banner fail' : 'banner warn';
+        banner.textContent = parts.join(' ');
       } else if (cal && cal.ok) {
         banner.hidden = false;
         banner.className = 'banner';
