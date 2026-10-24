@@ -11,12 +11,14 @@ import { fileURLToPath } from 'url';
 import { emptyProfile, saveProfile, loadProfile } from '../src/profile.js';
 import {
   judgeSemantic,
+  approvedEvidence,
   createResultsCollector,
   resolveJudgeMode,
 } from '../src/judge.js';
 import { runCalibration } from '../src/judgeCalibration.js';
 import { judgeUx, uxJudgeFields, UX_JUDGE_VERSION } from '../src/judgeUx.js';
 import { runUxCalibration } from '../src/judgeUxCalibration.js';
+import { finishSuiteRun } from './_finalizeRun.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = `http://localhost:${process.env.PORT || 3080}`;
@@ -124,15 +126,20 @@ async function recordUxReply(name, { channel, userMessage, outputText, turnRefs 
 }
 
 async function judgeBot(name, { question, reply, profile, expectHint, turnRefs }) {
+  const evidence = approvedEvidence(profile);
+  const prior = channelTranscript('TEST')
+    .filter((row) => row.role === 'customer' || row.role === 'business_bot')
+    .map((row) => ({ role: row.role, text: row.text }));
+  // Exclude the current turn pair if already appended
+  const priorConversation = prior.length >= 2 ? prior.slice(0, -2) : [];
   const [j, ux] = await Promise.all([
     judgeSemantic({
       stage: 'business_bot_answer',
       question,
       outputText: reply,
-      approvedConfig: profile,
-      unknowns: profile?.unknowns || [],
-      expectHint,
-      expectVerdict: 'PASS',
+      evidence,
+      priorConversation: priorConversation.length ? priorConversation : null,
+      expected: { verdict: 'PASS', reason: expectHint },
       forceUnreliable: judgeUnreliable,
     }),
     judgeUx({
@@ -140,6 +147,8 @@ async function judgeBot(name, { question, reply, profile, expectHint, turnRefs }
       scope: 'reply',
       userMessage: question,
       outputText: reply,
+      priorConversation: priorConversation.length ? priorConversation : null,
+      behaviorSettings: evidence.behaviorSettings,
       forceUnreliable: uxJudgeUnreliable,
     }),
   ]);
@@ -222,7 +231,7 @@ async function main() {
   if (!uxCal.ok) {
     uxJudgeUnreliable = true;
     console.warn(
-      'UX CALIBRATION FAILED — UX judge results marked unreliable (will not fail run):',
+      'UX CALIBRATION FAILED — UX evaluator EVALUATION_UNRELIABLE (blocks green):',
       uxCal.failures.map((f) => f.id).join(', ')
     );
   } else {
@@ -481,23 +490,13 @@ async function main() {
     }
   );
 
-  const out = collector.write();
-  console.log(`\nResults viewer data → ${out} (open /results.html)`);
-
-  console.log('\n=== SUMMARY ===');
-  const failed = results.filter((x) => !x.pass);
-  console.log(`Total ${results.length}, failed ${failed.length}`);
-  if (judgeUnreliable) {
-    console.log('Note: judge calibration failed — semantic checks unreliable/REVIEW.');
-  }
-  if (uxJudgeUnreliable) {
-    console.log('Note: UX judge calibration failed — UX checks unreliable (not failing run).');
-  }
-  if (failed.length) {
-    for (const f of failed) console.log(' -', f.name, f.detail);
-    process.exit(1);
-  }
-  console.log('All checks passed.');
+  finishSuiteRun({
+    results,
+    collector,
+    judgeUnreliable,
+    uxJudgeUnreliable,
+    record,
+  });
 }
 
 main().catch((err) => {

@@ -12,9 +12,11 @@
     "e2e:closed-world": "node scripts/e2e-closed-world.js",
     "e2e:adaptive": "node scripts/e2e-adaptive.js",
     "e2e:builder": "node scripts/e2e-builder-experience.js",
+    "e2e:behavior": "node scripts/e2e-behavior-settings.js",
     "judge:calib": "node scripts/judge-calibration.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
+    "test:judge-inputs": "node scripts/test-judge-inputs.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3"
   },

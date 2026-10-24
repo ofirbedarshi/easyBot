@@ -281,26 +281,38 @@ async function main() {
     if (collector.lastStamp) console.log(`Stamp → ${collector.lastStamp}`);
     console.log('Viewer → http://localhost:3080/results.html');
 
+    const { finalizeEvaluationRun, EVALUATION_UNRELIABLE } = await import(
+      '../src/judge.js'
+    );
+    const fin = finalizeEvaluationRun({
+      entries: results,
+      judgeUnreliable,
+      uxJudgeUnreliable,
+    });
+    collector.meta.runStatus = fin.runStatus;
+    collector.meta.incomplete = fin.incomplete;
+    collector.meta.evaluationUnreliable =
+      fin.runStatus === EVALUATION_UNRELIABLE;
+
     console.log('\n=== SUMMARY ===');
+    for (const line of fin.summaryLines) console.log(line);
     const unresolvedBiz = businessSummaries.filter(
       (b) => b.status === 'failed' || b.status === 'incomplete'
     );
-    const allFails = results.filter((x) => !x.pass);
     console.log(
-      `Total ${results.length}, recordedFails=${allFails.length} (includes preserved pre-repair), unresolvedBusinesses=${unresolvedBiz.length}`
+      `Total ${results.length}, productFailures=${fin.productFailures.length}, unreliable=${fin.unreliableChecks.length}, unresolvedBusinesses=${unresolvedBiz.length}`
     );
     for (const b of businessSummaries) {
       console.log(` - ${b.id}: ${b.status} (turns=${b.turnsUsed}, repairs=${b.repairs})`);
     }
-    if (judgeUnreliable) {
-      console.log('Note: judge calibration failed — semantic checks unreliable/REVIEW.');
+    for (const f of fin.productFailures) {
+      console.log(' - PRODUCT FAIL', f.name, f.detail);
     }
-    if (uxJudgeUnreliable) {
-      console.log('Note: UX judge calibration failed — UX checks unreliable (not failing run).');
+    if (fin.exitCode !== 0 || unresolvedBiz.length) {
+      process.exitCode = 1;
+    } else {
+      console.log('All adaptive businesses resolved (preserved pre-repair fails OK).');
     }
-    for (const f of allFails) console.log(' -', f.name, f.detail);
-    if (unresolvedBiz.length) process.exitCode = 1;
-    else console.log('All adaptive businesses resolved (preserved pre-repair fails OK).');
   } finally {
     cleanTestProfiles(fixtures.map((f) => f.id));
     restoreManualProfile();

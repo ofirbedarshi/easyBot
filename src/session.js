@@ -427,6 +427,8 @@ async function handleBuild(session, userMessage) {
         : [],
       unknowns: merged.unknowns || [],
       tone: merged.tone,
+      responseLength: merged.responseLength ?? null,
+      priceDisclosure: merged.priceDisclosure ?? null,
       draft: result.draft,
       approvedAt: new Date().toISOString(),
       // Until Flowise sync succeeds, /test stays blocked

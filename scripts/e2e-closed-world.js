@@ -12,12 +12,14 @@ import {
 import { createOrUpdateChatflow, predict } from '../src/flowise.js';
 import {
   judgeSemantic,
+  approvedEvidence,
   createResultsCollector,
   resolveJudgeMode,
 } from '../src/judge.js';
 import { runCalibration } from '../src/judgeCalibration.js';
 import { judgeUx, uxJudgeFields, UX_JUDGE_VERSION } from '../src/judgeUx.js';
 import { runUxCalibration } from '../src/judgeUxCalibration.js';
+import { finishSuiteRun } from './_finalizeRun.js';
 
 const BASE = `http://localhost:${process.env.PORT || 3080}`;
 const results = [];
@@ -118,15 +120,14 @@ async function judgeCase(
   name,
   { question, reply, profile, expectHint, transcript, expectVerdict = 'PASS' }
 ) {
+  const evidence = approvedEvidence(profile);
   const [j, ux] = await Promise.all([
     judgeSemantic({
       stage: 'business_bot_answer',
       question,
       outputText: reply,
-      approvedConfig: profile,
-      unknowns: profile?.unknowns || [],
-      expectHint,
-      expectVerdict,
+      evidence,
+      expected: { verdict: expectVerdict, reason: expectHint },
       forceUnreliable: judgeUnreliable,
     }),
     transcript
@@ -134,6 +135,7 @@ async function judgeCase(
           channel: 'business_bot',
           scope: 'overall',
           transcript,
+          behaviorSettings: evidence.behaviorSettings,
           forceUnreliable: uxJudgeUnreliable,
         })
       : judgeUx({
@@ -141,6 +143,7 @@ async function judgeCase(
           scope: 'reply',
           userMessage: question,
           outputText: reply,
+          behaviorSettings: evidence.behaviorSettings,
           forceUnreliable: uxJudgeUnreliable,
         }),
   ]);
@@ -660,14 +663,13 @@ async function main() {
     );
   }
 
-  const failed = results.filter((x) => !x.pass);
-  console.log(`\n=== SUMMARY ===`);
-  console.log(`Total checks ${results.length}, failed ${failed.length}`);
-  if (judgeUnreliable) console.log('Note: semantic calibration failed — unreliable.');
-  if (uxJudgeUnreliable) console.log('Note: UX calibration failed — unreliable.');
-  for (const f of failed) console.log(' -', f.name, f.detail);
-  if (failed.length) process.exit(1);
-  console.log('All closed-world regressions passed.');
+  finishSuiteRun({
+    results,
+    collector,
+    judgeUnreliable,
+    uxJudgeUnreliable,
+    record,
+  });
 }
 
 main().catch((err) => {

@@ -50,12 +50,15 @@ Gather all of the following. Stop and say what is missing if a piece cannot be f
 | Evidence | Where to get it |
 |---|---|
 | Customer message + relevant history | Results entry `question` / `turnRefs`; `transcript` in `data/test-results/*.json`; suite console log |
-| Exact approved business facts for that run | Judge payload used `approvedConfig` / profile at judge time — recover from the check’s seed in `scripts/e2e-*.js` / `src/adaptiveRunner.js` / fixture, or profile path used by that suite. Do **not** use a later edit of `data/business-profile.json` unless it is proven to be the same snapshot |
-| Generated system prompt | `buildCustomerSystemPrompt(profile)` in `src/customerPrompt.js` (Flowise injects this via `src/flowise.js`). Ambiguity suite may already log a prompt; otherwise rebuild from the **same** approved facts |
+| Exact approved evidence for that run | `approvedEvidence(profile)` snapshot at reply time (`src/judgeEvidence.js`): `businessFacts`, `unknowns`, `objective`, `intakeWhitelist`, `behaviorSettings`. Saved on the entry as `judge.input.user` when present. Do **not** use a later edit of `data/business-profile.json` unless proven to be the same snapshot. Draft / Flowise / `approvedAt` never enter model input |
+| Approved behavior settings | Inside evidence as `behaviorSettings` (`tone`, `responseLength`, `priceDisclosure` via `effectiveBehavior`). Semantic scores `behavior_policy`; UX scores `style_match` only. Defaults: tone `friendly, clear, and professional`; length `standard`; price disclosure `relevant` |
+| Prior conversation | `priorConversation` on multi-turn checks (ordered customer/business_bot turns). Prior bot claims are context only — not authoritative facts |
+| Generated system prompt | `buildCustomerSystemPrompt(profile)` in `src/customerPrompt.js` (Flowise injects this via `src/flowise.js`). Ambiguity suite may already log a prompt; otherwise rebuild from the **same** approved facts + effective conversation settings |
 | Bot response | Results entry `outputText` / console `reply=` |
-| Test expectation | Check name → `expectHint` (and any deterministic asserts) in the suite script |
-| Judge instructions | Semantic: `SYSTEM_JUDGE` + payload note in `src/judge.js`. UX: `SYSTEM_UX` in `src/judgeUx.js`. Note `JUDGE_MODEL` vs `OPENAI_MODEL` |
-| Failure explanation | Entry `judge.rationale`, dimension notes, `criticalFailure`, UX `score` / dim notes |
+| Test expectation | Metadata only: `expected.verdict` / `expected.reason` (legacy suite field name may still be `expectHint` in the script). Compared AFTER judging — never sent to the model |
+| Judge instructions | Semantic: `SYSTEM_JUDGE` in `src/judge.js` (no per-call `note`/`expectHint`). UX: `SYSTEM_UX` in `src/judgeUx.js`. Note `JUDGE_MODEL` vs `OPENAI_MODEL`. Versions `2.0.1` |
+| Failure explanation | Entry `judge.rationale`, dimension notes, `criticalFailure`, UX `score` / dim notes; reproducibility via `judge.input` + `judge.rawOutput` |
+| Calibration / reliability | Failed calib → run status `EVALUATION_UNRELIABLE` / `incomplete` (blocks green). Checks get `unreliable` + `pass: false` — **not** product FAIL and **not** force `pass: true`. Distinguish from product failures in the summary |
 
 Separate **factual** failures (`judgeSemantic`, stage `business_bot_answer`) from **UX**
 failures (`judgeUx`, channel `business_bot`). Same reply can fail both for different reasons.

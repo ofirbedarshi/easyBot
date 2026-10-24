@@ -3,7 +3,11 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { emptyProfile, normalizeCommonQuestions } from '../profile.js';
+import {
+  emptyProfile,
+  normalizeBehaviorSettings,
+  normalizeCommonQuestions,
+} from '../profile.js';
 
 export function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -73,7 +77,10 @@ export function createSupabaseStore() {
         .single();
       if (error) throw new Error(`loadProfile: ${error.message}`);
       const parsed = data.profile || {};
-      const profile = { ...emptyProfile(), ...parsed };
+      const profile = normalizeBehaviorSettings({
+        ...emptyProfile(),
+        ...parsed,
+      });
       profile.commonQuestions = normalizeCommonQuestions(
         profile.commonQuestions
       );

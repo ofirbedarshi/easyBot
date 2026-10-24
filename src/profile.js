@@ -7,14 +7,30 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const PROFILE_PATH = path.join(DATA_DIR, 'business-profile.json');
 const TEST_PROFILES_DIR = path.join(DATA_DIR, 'test-profiles');
 
+/** Business-fact text fields (not conversation settings). */
 const TEXT_FACT_KEYS = [
   'name',
   'whatWeDo',
   'ownerGoal',
   'hours',
   'locationOrArea',
-  'tone',
 ];
+
+/** Conversation settings — expression / disclosure, not business facts. */
+export const BEHAVIOR_KEYS = ['tone', 'responseLength', 'priceDisclosure'];
+
+export const RESPONSE_LENGTH_VALUES = ['short', 'standard'];
+export const PRICE_DISCLOSURE_VALUES = ['relevant', 'on_request'];
+
+/**
+ * Effective defaults when a field is null / missing (legacy-safe).
+ * Stored values stay null until the owner sets them.
+ */
+export const DEFAULT_BEHAVIOR = {
+  tone: 'friendly, clear, and professional',
+  responseLength: 'standard',
+  priceDisclosure: 'relevant',
+};
 
 export function defaultProfilePath() {
   return PROFILE_PATH;
@@ -53,6 +69,121 @@ export function normalizeCommonQuestions(list) {
   return list.map(normalizeFaqItem).filter(Boolean);
 }
 
+/** Normalize free-form / enum spelling into a stored responseLength value. */
+export function normalizeResponseLength(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (s === 'short' || s === 'brief' || s === 'concise') return 'short';
+  if (s === 'standard' || s === 'normal' || s === 'default') return 'standard';
+  if (RESPONSE_LENGTH_VALUES.includes(s)) return s;
+  return null;
+}
+
+/** Normalize free-form / enum spelling into a stored priceDisclosure value. */
+export function normalizePriceDisclosure(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (
+    s === 'on_request' ||
+    s === 'onrequest' ||
+    s === 'only_when_asked' ||
+    s === 'when_asked' ||
+    s === 'ask_only'
+  ) {
+    return 'on_request';
+  }
+  if (
+    s === 'relevant' ||
+    s === 'when_relevant' ||
+    s === 'as_relevant' ||
+    s === 'useful'
+  ) {
+    return 'relevant';
+  }
+  if (PRICE_DISCLOSURE_VALUES.includes(s)) return s;
+  return null;
+}
+
+/**
+ * Drop invalid enum values to null on live profile and draft.
+ * Does not invent defaults into stored fields.
+ */
+export function normalizeBehaviorSettings(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  if (profile.tone != null && typeof profile.tone === 'string') {
+    const t = profile.tone.trim();
+    profile.tone = t || null;
+  } else if (profile.tone !== undefined && profile.tone !== null) {
+    profile.tone = String(profile.tone).trim() || null;
+  }
+  if ('responseLength' in profile || profile.responseLength !== undefined) {
+    profile.responseLength = normalizeResponseLength(profile.responseLength);
+  }
+  if ('priceDisclosure' in profile || profile.priceDisclosure !== undefined) {
+    profile.priceDisclosure = normalizePriceDisclosure(profile.priceDisclosure);
+  }
+  if (profile.draft && typeof profile.draft === 'object') {
+    if (profile.draft.tone != null && typeof profile.draft.tone === 'string') {
+      const t = profile.draft.tone.trim();
+      profile.draft.tone = t || null;
+    }
+    if ('responseLength' in profile.draft) {
+      profile.draft.responseLength = normalizeResponseLength(
+        profile.draft.responseLength
+      );
+    }
+    if ('priceDisclosure' in profile.draft) {
+      profile.draft.priceDisclosure = normalizePriceDisclosure(
+        profile.draft.priceDisclosure
+      );
+    }
+  }
+  return profile;
+}
+
+/**
+ * Effective conversation settings for prompts / judges / summaries.
+ * Null stored values resolve to DEFAULT_BEHAVIOR.
+ */
+export function effectiveBehavior(profile) {
+  const p = profile || {};
+  const tone =
+    typeof p.tone === 'string' && p.tone.trim()
+      ? p.tone.trim()
+      : DEFAULT_BEHAVIOR.tone;
+  const responseLength =
+    normalizeResponseLength(p.responseLength) || DEFAULT_BEHAVIOR.responseLength;
+  const priceDisclosure =
+    normalizePriceDisclosure(p.priceDisclosure) ||
+    DEFAULT_BEHAVIOR.priceDisclosure;
+  return { tone, responseLength, priceDisclosure };
+}
+
+/** Approved business facts only — no conversation settings. */
+export function businessFactsView(profile) {
+  const p = profile || {};
+  return {
+    name: p.name ?? null,
+    whatWeDo: p.whatWeDo ?? null,
+    ownerGoal: p.ownerGoal ?? null,
+    services: Array.isArray(p.services) ? p.services : [],
+    hours: p.hours ?? null,
+    locationOrArea: p.locationOrArea ?? null,
+    commonQuestions: normalizeCommonQuestions(p.commonQuestions),
+    informationToCollect: Array.isArray(p.informationToCollect)
+      ? p.informationToCollect
+      : p.informationToCollect === null
+        ? null
+        : [],
+    unknowns: Array.isArray(p.unknowns) ? p.unknowns : [],
+  };
+}
+
+/** Conversation settings view (effective values) for judges / prompts. */
+export function behaviorSettingsView(profile) {
+  return effectiveBehavior(profile);
+}
+
 export function emptyProfile() {
   return {
     name: null,
@@ -74,7 +205,18 @@ export function emptyProfile() {
     informationToCollect: null,
     /** Explicit gaps the owner left undecided or unclarified (must stay unknown until approved). */
     unknowns: [],
+    /** Free-text how the bot should sound. null = use DEFAULT_BEHAVIOR.tone. */
     tone: null,
+    /**
+     * Reply length setting: 'short' | 'standard' | null.
+     * null = use DEFAULT_BEHAVIOR.responseLength ('standard').
+     */
+    responseLength: null,
+    /**
+     * Price disclosure: 'relevant' | 'on_request' | null.
+     * null = use DEFAULT_BEHAVIOR.priceDisclosure ('relevant').
+     */
+    priceDisclosure: null,
     approvedAt: null,
     chatflowId: null,
     /** Set only after Flowise create/update succeeds for the current approval. */
@@ -111,7 +253,9 @@ export function loadProfile(profilePath = PROFILE_PATH) {
   }
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = JSON.parse(raw);
-  const profile = normalizeProfileFaq({ ...emptyProfile(), ...parsed });
+  const profile = normalizeBehaviorSettings(
+    normalizeProfileFaq({ ...emptyProfile(), ...parsed })
+  );
   // Pre-flag profiles that already have a chatflow were syncable; allow /test
   if (
     parsed.flowiseSyncOk === undefined &&
@@ -137,6 +281,17 @@ export function mergeDraft(profile, draft) {
   for (const key of TEXT_FACT_KEYS) {
     if (draft[key] != null && draft[key] !== '') next[key] = draft[key];
   }
+  for (const key of BEHAVIOR_KEYS) {
+    if (key === 'tone') {
+      if (draft.tone != null && draft.tone !== '') next.tone = draft.tone;
+    } else if (key === 'responseLength') {
+      const n = normalizeResponseLength(draft.responseLength);
+      if (n != null) next.responseLength = n;
+    } else if (key === 'priceDisclosure') {
+      const n = normalizePriceDisclosure(draft.priceDisclosure);
+      if (n != null) next.priceDisclosure = n;
+    }
+  }
   if (Array.isArray(draft.services)) next.services = draft.services;
   if (Array.isArray(draft.commonQuestions)) {
     next.commonQuestions = normalizeCommonQuestions(draft.commonQuestions);
@@ -152,13 +307,18 @@ function stableJson(value) {
   return JSON.stringify(value ?? null);
 }
 
-/** True when draft would change live approved facts after merge. */
+/** True when draft would change live approved facts or behavior after merge. */
 export function draftDiffersFromLive(profile, draft) {
   if (!draft || typeof draft !== 'object') return false;
   const merged = mergeDraft(profile, draft);
   for (const key of TEXT_FACT_KEYS) {
     if ((merged[key] || null) !== (profile[key] || null)) return true;
   }
+  const liveB = effectiveBehavior(profile);
+  const mergedB = effectiveBehavior(merged);
+  if (liveB.tone !== mergedB.tone) return true;
+  if (liveB.responseLength !== mergedB.responseLength) return true;
+  if (liveB.priceDisclosure !== mergedB.priceDisclosure) return true;
   if (stableJson(merged.services || []) !== stableJson(profile.services || [])) {
     return true;
   }
@@ -180,6 +340,21 @@ export function draftDiffersFromLive(profile, draft) {
   return false;
 }
 
+function formatResponseLengthLabel(value, isDefault) {
+  const v = value || DEFAULT_BEHAVIOR.responseLength;
+  const label = v === 'short' ? 'short' : 'standard';
+  return isDefault ? `${label} (default)` : label;
+}
+
+function formatPriceDisclosureLabel(value, isDefault) {
+  const v = value || DEFAULT_BEHAVIOR.priceDisclosure;
+  const label =
+    v === 'on_request'
+      ? 'only when the customer asks about pricing'
+      : 'when useful and relevant';
+  return isDefault ? `${label} (default)` : label;
+}
+
 function formatFactsBlock(profile) {
   const lines = [];
   lines.push(`Business: ${profile.name || '(not set)'}`);
@@ -197,7 +372,6 @@ function formatFactsBlock(profile) {
   }
   lines.push(`Hours: ${profile.hours || '(not set)'}`);
   lines.push(`Location / area: ${profile.locationOrArea || '(not set)'}`);
-  lines.push(`Tone: ${profile.tone || '(not set)'}`);
   if (profile.commonQuestions?.length) {
     lines.push('Common questions (FAQ — answers the customer bot may use):');
     for (const q of profile.commonQuestions) {
@@ -225,6 +399,21 @@ function formatFactsBlock(profile) {
     lines.push('Explicitly unknown / undecided (bot must not invent these):');
     for (const u of profile.unknowns) lines.push(`  • ${u}`);
   }
+
+  const storedTone = profile.tone;
+  const storedLen = normalizeResponseLength(profile.responseLength);
+  const storedPrice = normalizePriceDisclosure(profile.priceDisclosure);
+  const eff = effectiveBehavior(profile);
+  lines.push('Conversation settings:');
+  lines.push(
+    `  Tone: ${storedTone ? storedTone : `${eff.tone} (default)`}`
+  );
+  lines.push(
+    `  Reply length: ${formatResponseLengthLabel(eff.responseLength, !storedLen)}`
+  );
+  lines.push(
+    `  Prices: ${formatPriceDisclosureLabel(eff.priceDisclosure, !storedPrice)}`
+  );
   return lines.join('\n');
 }
 

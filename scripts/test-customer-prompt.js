@@ -4,6 +4,10 @@
  */
 import assert from 'assert';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
+import {
+  DEFAULT_BEHAVIOR,
+  effectiveBehavior,
+} from '../src/profile.js';
 
 function sectionBetween(prompt, startMarker, endMarker) {
   const start = prompt.indexOf(startMarker);
@@ -37,7 +41,7 @@ function testOwnerGoalSeparatedFromFacts() {
   const objective = sectionBetween(
     prompt,
     '=== BOT OBJECTIVE ===',
-    '=== BEHAVIOR RULES ==='
+    '=== CONVERSATION SETTINGS ==='
   );
 
   assert.ok(facts.includes('Maya Yoga'), 'business name in facts');
@@ -103,7 +107,7 @@ function testEmptyIntakeAndNullOwnerGoal() {
   const objective = sectionBetween(
     prompt,
     '=== BOT OBJECTIVE ===',
-    '=== BEHAVIOR RULES ==='
+    '=== CONVERSATION SETTINGS ==='
   );
   assert.ok(/none set/i.test(objective), 'null ownerGoal stated as unset');
 }
@@ -136,11 +140,117 @@ function testNoForcedEnglishOrForcedBookingProcess() {
   );
 }
 
+function testConversationSettingsSectionSeparated() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Quiet Mat Yoga',
+    whatWeDo: 'In-person private yoga',
+    services: [
+      { name: 'Private lesson', price: '200 ILS for 60 minutes', notes: null },
+    ],
+    informationToCollect: [],
+    unknowns: [],
+    tone: 'professional and concise',
+    responseLength: 'short',
+    priceDisclosure: 'on_request',
+  });
+
+  const facts = sectionBetween(
+    prompt,
+    '=== APPROVED BUSINESS FACTS ===',
+    '=== BOT OBJECTIVE ==='
+  );
+  const settings = sectionBetween(
+    prompt,
+    '=== CONVERSATION SETTINGS ===',
+    '=== BEHAVIOR RULES ==='
+  );
+
+  assert.ok(facts.includes('200 ILS'), 'price remains in facts');
+  assert.ok(
+    !/Tone:/i.test(facts),
+    'facts must not contain Tone line'
+  );
+  assert.ok(
+    !/on request/i.test(facts),
+    'facts must not contain price disclosure policy'
+  );
+  assert.ok(/Tone: professional and concise/i.test(settings));
+  assert.ok(/Reply length: short/i.test(settings));
+  assert.ok(/Price disclosure: on request only/i.test(settings));
+  assert.ok(
+    /must NOT establish facts/i.test(settings),
+    'settings must carry priority statement'
+  );
+  assert.ok(
+    /CLOSED-WORLD CONTRACT/i.test(settings) ||
+      /capability limits/i.test(settings),
+    'settings must defer to closed-world / whitelist'
+  );
+}
+
+function testOnRequestPolicyOnlyWhenSet() {
+  const onReq = buildCustomerSystemPrompt({
+    name: 'A',
+    whatWeDo: 'B',
+    services: [{ name: 'S', price: '10', notes: null }],
+    informationToCollect: [],
+    priceDisclosure: 'on_request',
+  });
+  const relevant = buildCustomerSystemPrompt({
+    name: 'A',
+    whatWeDo: 'B',
+    services: [{ name: 'S', price: '10', notes: null }],
+    informationToCollect: [],
+    priceDisclosure: 'relevant',
+  });
+
+  assert.ok(/on request only/i.test(onReq));
+  assert.ok(
+    /even if a price was stated earlier|Do NOT mention prices for|I'd like to book/i.test(
+      onReq
+    ),
+    'on_request must clarify non-pricing turns and prior prices do not unlock disclosure'
+  );
+  assert.ok(!/on request only/i.test(relevant));
+  assert.ok(/Price disclosure: relevant/i.test(relevant));
+}
+
+function testLegacyDefaultsInPrompt() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Legacy Biz',
+    whatWeDo: 'Stuff',
+    services: [{ name: 'S', price: '1', notes: null }],
+    informationToCollect: [],
+    unknowns: [],
+    tone: 'warm and calm',
+    // no responseLength / priceDisclosure
+  });
+  const settings = sectionBetween(
+    prompt,
+    '=== CONVERSATION SETTINGS ===',
+    '=== BEHAVIOR RULES ==='
+  );
+  const eff = effectiveBehavior({
+    tone: 'warm and calm',
+    responseLength: null,
+    priceDisclosure: null,
+  });
+  assert.equal(eff.responseLength, DEFAULT_BEHAVIOR.responseLength);
+  assert.equal(eff.priceDisclosure, DEFAULT_BEHAVIOR.priceDisclosure);
+  assert.ok(settings.includes('warm and calm'));
+  assert.ok(/Reply length: standard/i.test(settings));
+  assert.ok(/Price disclosure: relevant/i.test(settings));
+  assert.ok(!/^Tone:/m.test(prompt.split('===')[0]), 'no top-level Tone line');
+}
+
 function main() {
   testOwnerGoalSeparatedFromFacts();
   testFactsFaqUnknownsIntakeRendered();
   testEmptyIntakeAndNullOwnerGoal();
   testNoForcedEnglishOrForcedBookingProcess();
+  testConversationSettingsSectionSeparated();
+  testOnRequestPolicyOnlyWhenSet();
+  testLegacyDefaultsInPrompt();
   console.log('test-customer-prompt: all passed');
 }
 

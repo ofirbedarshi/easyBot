@@ -2,24 +2,43 @@
  * UX judge: scores Builder and Business Bot text the way a non-technical
  * business owner would feel them. Separate from the factual judge.
  * Pass only at score 4 or 5. Does not judge whether facts are true.
+ * Whether a known answer was withheld belongs to the semantic judge.
  */
 import OpenAI from 'openai';
-import { resolveJudgeMode, judgeModelName } from './judge.js';
+import {
+  resolveJudgeMode,
+  judgeModelName,
+  EVALUATION_UNRELIABLE,
+} from './judge.js';
+import { buildUxPayload, sha256Text } from './judgeEvidence.js';
 
-export const UX_JUDGE_VERSION = '1.1.0';
+export const UX_JUDGE_VERSION = '2.0.1';
 
-const SHARED_DIMS = ['ease', 'simplicity', 'warmth', 'feel'];
-const BUILDER_DIMS = [...SHARED_DIMS, 'arrangement'];
-const BOT_DIMS = [...SHARED_DIMS, 'answer_first', 'shop_voice', 'next_step'];
+const SHARED_DIMS = ['clarity', 'warmth', 'feel'];
+const BUILDER_DIMS = [...SHARED_DIMS, 'ease', 'simplicity', 'arrangement'];
+const BOT_DIMS = [
+  'clarity',
+  'relevance',
+  'brevity',
+  'repetition',
+  'warmth',
+  'feel',
+  'shop_voice',
+  'next_step',
+];
+const STYLE_MATCH_DIM = 'style_match';
 
 const JARGON_RE =
   /\b(json|flowise|draft\.|as an ai|approved business facts|chatflow|system prompt|informationtocollect|readyforreview)\b/i;
 
 /**
  * @param {'builder'|'business_bot'} channel
+ * @param {{ includeStyleMatch?: boolean }} [opts]
  */
-export function uxDimensionKeys(channel) {
-  return channel === 'builder' ? BUILDER_DIMS : BOT_DIMS;
+export function uxDimensionKeys(channel, opts = {}) {
+  const base = channel === 'builder' ? BUILDER_DIMS : BOT_DIMS;
+  if (opts.includeStyleMatch) return [...base, STYLE_MATCH_DIM];
+  return base;
 }
 
 function clampScore(n) {
@@ -29,9 +48,9 @@ function clampScore(n) {
   return Math.max(1, Math.min(5, Math.round(x)));
 }
 
-function emptyUxDimensions(channel, score = null) {
+function emptyUxDimensions(channel, score = null, opts = {}) {
   const dims = {};
-  for (const key of uxDimensionKeys(channel)) {
+  for (const key of uxDimensionKeys(channel, opts)) {
     dims[key] = { score, note: '' };
   }
   return dims;
@@ -68,10 +87,11 @@ function stripAppChrome(text) {
     .trim();
 }
 
-function wrapUxResult(partial, mode, model, channel) {
-  const allowed = new Set(uxDimensionKeys(channel));
+function wrapUxResult(partial, mode, model, channel, opts = {}) {
+  const includeStyleMatch = !!opts.includeStyleMatch;
+  const allowed = new Set(uxDimensionKeys(channel, { includeStyleMatch }));
   const incoming = partial.dimensions || {};
-  const dimensions = emptyUxDimensions(channel);
+  const dimensions = emptyUxDimensions(channel, null, { includeStyleMatch });
   for (const key of allowed) {
     const d = incoming[key] || { score: null, note: '' };
     dimensions[key] = {
@@ -79,7 +99,6 @@ function wrapUxResult(partial, mode, model, channel) {
       note: d.note != null ? String(d.note) : '',
     };
   }
-  // Drop dims that do not belong to this channel (e.g. arrangement on business_bot).
   let score = applyUxSoftCap(partial.score, dimensions);
   if (score == null) score = 3;
 
@@ -101,10 +120,7 @@ function wrapUxResult(partial, mode, model, channel) {
   };
 }
 
-/**
- * Stub UX judge: labelled heuristic for offline dry-runs. Not a real feel judgment.
- */
-function stubUxJudge(args) {
+function stubUxJudge(args, modelPayload) {
   const text = String(args.outputText || '');
   const lower = text.toLowerCase();
   const channel = args.channel;
@@ -123,6 +139,13 @@ function stubUxJudge(args) {
   const boilerplateTail =
     channel === 'business_bot' &&
     /if you need this clarified, leave a message for the owner/i.test(lower);
+  const evasiveRedirect =
+    channel === 'business_bot' &&
+    /message the owner/i.test(lower) &&
+    text.trim().length < 80 &&
+    !/(don't have|do not have|can't confirm|cannot confirm|not sure)/i.test(
+      lower
+    );
 
   let score = 4;
   let rationale =
@@ -133,11 +156,13 @@ function stubUxJudge(args) {
     rationale = jargon
       ? 'stub: jargon / process talk'
       : 'stub: setup-wizard voice to customer';
-  } else if (deadEnd || boilerplateTail) {
+  } else if (deadEnd || boilerplateTail || evasiveRedirect) {
     score = 2;
     rationale = deadEnd
       ? 'stub: dead-end refusal with no next step'
-      : 'stub: boilerplate closing line';
+      : evasiveRedirect
+        ? 'stub: evasive generic redirect'
+        : 'stub: boilerplate closing line';
   } else if (scope === 'reply' && channel === 'builder' && questions > 2) {
     score = 2;
     rationale = 'stub: more than two questions in one Builder turn';
@@ -147,16 +172,24 @@ function stubUxJudge(args) {
   } else if (text.length < 8) {
     score = 3;
     rationale = 'stub: empty or near-empty';
-  } else if (
-    /message the owner/i.test(lower) ||
-    /cannot confirm|don't know|not sure|don't have details/i.test(lower)
-  ) {
-    score = 4;
-    rationale = 'stub: plain gap or owner redirect OK';
   }
 
-  const dims = emptyUxDimensions(channel, score);
-  dims.ease.note = rationale;
+  const includeStyleMatch = !!modelPayload.includeStyleMatch;
+  const dims = emptyUxDimensions(channel, score, { includeStyleMatch });
+  if (dims.clarity) dims.clarity.note = rationale;
+  if (includeStyleMatch && dims.style_match) {
+    const len = args.behaviorSettings?.responseLength;
+    if (len === 'short' && text.length > 420) {
+      dims.style_match = {
+        score: 2,
+        note: 'stub: long reply vs short setting',
+      };
+      score = applyUxSoftCap(score, dims) ?? 3;
+      rationale = 'stub: reply too long for short style';
+    } else {
+      dims.style_match = { score, note: 'stub: style present' };
+    }
+  }
   return wrapUxResult(
     {
       score,
@@ -168,21 +201,23 @@ function stubUxJudge(args) {
     },
     'stub',
     'stub',
-    channel
+    channel,
+    { includeStyleMatch }
   );
 }
 
-const SYSTEM_UX = `You are a non-technical business owner using easyBot for the first time.
+export const SYSTEM_UX = `You are a non-technical business owner using easyBot for the first time.
 You are NOT a designer, NOT a tester, and NOT a factual fact-checker.
-Score ONLY how the words feel to use: ease, simplicity, warmth, overall feel.
+Score ONLY how the words feel to use: clarity, relevance, warmth, brevity, repetition, and style.
 Do NOT score whether prices, policies, or facts are correct.
+Do NOT decide whether a known business fact was withheld — that is the semantic judge's job. You have no business-facts evidence.
 
 Channels:
 - builder: you are the owner being interviewed to set up a customer chatbot. Replies should acknowledge what you said, ask one or two questions, and keep summaries easy to scan.
 - business_bot: you are a customer talking to the shop's bot. Hold this channel to a higher bar: answer first (or plainly admit a gap), sound like the shop, never like a setup wizard.
 
 Scopes:
-- reply: judge one visible assistant message (plus the user line it answers when given).
+- reply: judge one visible assistant message (plus the user line it answers when given), with optional priorConversation for repetition/context.
 - overall: judge the ordered conversation for that channel. For business_bot overall: a customer repeating a question is the Tester probing — do NOT blame the Business Bot for customer repeats. Judge only how the Business Bot's own replies feel.
 
 Score integers 1–5:
@@ -192,45 +227,55 @@ Score integers 1–5:
 2 — hard: confusing, cold, or too much at once
 1 — would quit
 
-Shared dimensions (each 1–5 with a short note):
-- ease — one obvious next step, no hunting
-- simplicity — short, everyday words
+Shared / Builder dimensions (each 1–5 with a short note):
+- clarity — easy to understand; point is obvious
 - warmth — friendly, not cold, not scolding
 - feel — would keep going
+- ease — one obvious next step, no hunting (builder)
+- simplicity — short, everyday words (builder)
+- arrangement — acknowledges what was just said, then one or two questions; does not repeat; summary easy to scan (builder)
 
-Builder also scores:
-- arrangement — acknowledges what was just said, then one or two questions; does not repeat; summary easy to scan
+Business Bot dimensions (each 1–5):
+- clarity — plain, scannable wording
+- relevance — addresses the customer's latest question; a gap admission or owner redirect is fine when it names the specific gap; a generic redirect that dodges the asked question scores low
+- brevity — proportionate length; not a wall of text
+- repetition — does not re-ask for details already given in priorConversation; does not recycle the same boilerplate closing on every reply
+- warmth — friendly, not cold
+- feel — would keep chatting with this shop
+- shop_voice — sounds like the business, not a setup wizard or admin tool
+- next_step — when intent or a named gap appears, the customer knows what to do next (follow-up, intake, or message the owner). A clear pure information answer may score next_step high without an extra CTA
 
-Business Bot also scores (stricter):
-- answer_first — the answer (or the plain gap) comes before extra talk; a plainly admitted gap counts as answering first
-- shop_voice — sounds like the business, not a setup wizard
-- next_step — when the customer shows intent or hits a gap, they know what to do next (ask a follow-up, share intake details, or message the owner). Suggesting the customer message the owner directly IS a clear next step — score next_step 4 or 5 when that redirect is present. A pure information answer (e.g. a clear price) does not need a next step — score next_step high in that case too.
+When behaviorSettings are provided, ALSO score:
+- style_match — reply matches the owner's tone and reply-length settings. Do NOT dock a professional/concise tone for being less effusive. Do NOT require volunteering prices.
+- Under responseLength "short": prefer brief replies. A *substantial* violation of short style (long padded expansion, many elaborating sentences, chatty wall beyond a compact shop answer) MUST materially lower both brevity and style_match (typically into the 1–2 range so soft-cap can apply). Mild length overshoot alone is not enough.
+- Do NOT equate multiple paragraphs with excessive length by itself — short can still use line breaks. Judge substance and padding, not paragraph count.
+- Do NOT apply a blanket overall-score cap merely because any dimension scored 3. Soft-cap (overall ≤3) applies only when a dimension is 1 or 2.
 
-Do NOT lower the score only because:
-- it admits a gap in plain words (that is good answer_first, not coldness by itself)
-- it suggests messaging the owner directly when there is a real gap (that is a good next_step)
-- a short warm gap reply like "I don't have details on X yet — best to message the owner directly about that" — score 4 or 5
-- it is short
-- it mentions approve, /test, /end, or /reset once in plain language
-- an app sync footnote about Flowise/chatflow was stripped before you see the text — ignore any leftover sync chrome
-- (overall / business_bot) the customer asked the same question more than once
-- (overall / business_bot) a price or fact changes mid-transcript after the owner edited and re-approved — that is expected test flow, not Bot confusion; do not lower for "$70 then later $80"
-- (overall / business_bot) if individual replies were mostly warm and clear (greeting, prices, gap+owner redirect, override restatement), overall should be 4 or 5. Admitting a cancellation gap is correct, not a failure. Do not dock for missing policies that were never in the facts.
-- (builder) a review or post-approve summary lists several business facts — denser than a chat turn is OK; score 4+ when it confirms the change in plain words and invites /test. Do not fail only for length or for restating prices/hours; a short "updated, type /test" confirmation after approve should usually be 4+
-- (business_bot) restating the real price after a customer tried to override it, then offering further help — e.g. "Private lessons are $70 for 60 minutes — I can't change that here. Want help with anything else?" or the same pattern with any service name/price — MUST score 4 or 5. Do not call that cold or dismissive; acknowledging their wrong number is optional
-- (business_bot) an honest gap plus "message the owner" on a leading/uncertain price question — MUST score 4 or 5; uncertainty is not coldness
+Contextual criteria (no automatic high or low scores):
+- A gap admission or "message the owner" alone neither guarantees a high score nor forces a penalty. Score on whether the gap is named, the reply fits the question, and the wording is clear.
+- Observably evasive: a short generic "message the owner" that never names what is missing and ignores the customer's question → low relevance.
+- Helpful observable gap reply: names the missing detail in plain words and offers a clear next step → can score well on relevance/clarity/next_step.
+- Semantic correctness is out of scope: a factually wrong but clear, warm reply can still score UX high. Semantic FAIL + UX PASS is valid.
 
-DO lower the score when:
+Lower the score when:
 - more than two questions in one Builder turn
 - jargon or process talk (JSON, draft, Flowise, "approved business facts", "as an AI", asking the customer whether the bot should collect something)
 - internal customer-facing wording: "approved", "undecided", "available information", "according to" (system/records talk)
-- a full correct answer followed by the canned boilerplate "If you need this clarified, leave a message for the owner…" — that is NOT a useful next step; score overall 3 or below (and next_step low)
-- the same boilerplate closing line on every reply
-- promising the owner will get back / call the customer (cold and false)
-- a dead-end refusal with no next step (e.g. only "I can't complete bookings in this chat") — score overall 3 or below
+- canned boilerplate closings that add no useful next step (e.g. "If you need this clarified, leave a message for the owner…")
+- promising the owner will get back / call the customer
+- a dead-end refusal with no next step
 - a wall of text or a spec-like list
 - (builder overall) the same question comes back after it was answered
 - the customer has to dig for the point
+- re-asking for intake already answered in priorConversation
+
+Do not lower solely because:
+- the reply is short
+- it mentions approve, /test, /end, or /reset once in plain language
+- leftover Flowise sync chrome (stripped before you see the text)
+- (overall / business_bot) the customer asked the same question more than once
+- (overall / business_bot) a price changes mid-transcript after an owner edit — expected test flow
+- (builder) a denser review summary that confirms changes in plain words
 
 If ANY dimension is 1 or 2, overall score MUST be 3 or below (soft average cannot hide one bad part).
 
@@ -240,18 +285,23 @@ Return JSON only:
   "rationale": "one or two sentences an owner would recognize",
   "quotes": ["exact bits from the text under test"],
   "dimensions": {
-    "ease": {"score":1-5,"note":"..."},
-    "simplicity": {"score":1-5,"note":"..."},
+    "clarity": {"score":1-5,"note":"..."},
+    "relevance": {"score":1-5,"note":"..."},
+    "brevity": {"score":1-5,"note":"..."},
+    "repetition": {"score":1-5,"note":"..."},
     "warmth": {"score":1-5,"note":"..."},
     "feel": {"score":1-5,"note":"..."},
+    "ease": {"score":1-5,"note":"..."},
+    "simplicity": {"score":1-5,"note":"..."},
     "arrangement": {"score":1-5,"note":"..."},
-    "answer_first": {"score":1-5,"note":"..."},
     "shop_voice": {"score":1-5,"note":"..."},
-    "next_step": {"score":1-5,"note":"..."}
+    "next_step": {"score":1-5,"note":"..."},
+    "style_match": {"score":1-5,"note":"..."}
   }
 }
-For builder: include arrangement; omit answer_first, shop_voice, and next_step.
-For business_bot: include answer_first, shop_voice, and next_step; omit arrangement.
+For builder: include clarity, warmth, feel, ease, simplicity, arrangement; omit relevance, brevity, repetition, shop_voice, next_step.
+For business_bot: include clarity, relevance, brevity, repetition, warmth, feel, shop_voice, next_step; omit ease, simplicity, arrangement.
+Include style_match ONLY when behaviorSettings were provided in the payload; otherwise omit it.
 Every included dimension MUST have a score.`;
 
 function formatTranscript(turns) {
@@ -265,64 +315,78 @@ function formatTranscript(turns) {
     .join('\n');
 }
 
-async function realUxJudge(args) {
+async function realUxJudge(args, modelPayload) {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = judgeModelName();
   const channel = args.channel;
   const scope = args.scope || 'reply';
-
-  const payload = {
-    channel,
-    scope,
-    userMessage: args.userMessage || null,
-    outputUnderTest: args.outputText || null,
-    transcript: args.transcript || null,
-    note:
-      'Judge feel and arrangement only. Facts being wrong or right is out of scope. Honest gap + message the owner is fine. Plain admitted gap counts as answer_first.',
-  };
+  const includeStyleMatch = !!modelPayload.includeStyleMatch;
+  const system = SYSTEM_UX;
+  const user = JSON.stringify(modelPayload);
 
   const completion = await client.chat.completions.create({
     model,
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: SYSTEM_UX },
-      { role: 'user', content: JSON.stringify(payload) },
+      { role: 'system', content: system },
+      { role: 'user', content: user },
     ],
   });
 
+  const rawContent = completion.choices[0]?.message?.content || '{}';
   let parsed;
   try {
-    parsed = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    parsed = JSON.parse(rawContent);
   } catch {
-    return wrapUxResult(
+    return {
+      result: wrapUxResult(
+        {
+          score: 3,
+          rationale: 'ux judge parse failed',
+          quotes: [],
+          dimensions: emptyUxDimensions(channel, 3, { includeStyleMatch }),
+          channel,
+          scope,
+        },
+        'real',
+        model,
+        channel,
+        { includeStyleMatch }
+      ),
+      rawOutput: rawContent,
+      judgeInput: {
+        promptVersion: UX_JUDGE_VERSION,
+        systemSha256: sha256Text(system),
+        user: modelPayload,
+      },
+    };
+  }
+
+  return {
+    result: wrapUxResult(
       {
-        score: 3,
-        rationale: 'ux judge parse failed',
-        quotes: [],
-        dimensions: emptyUxDimensions(channel, 3),
+        score: parsed.score,
+        rationale: parsed.rationale || '',
+        quotes: parsed.quotes || [],
+        dimensions:
+          parsed.dimensions ||
+          emptyUxDimensions(channel, null, { includeStyleMatch }),
         channel,
         scope,
       },
       'real',
       model,
-      channel
-    );
-  }
-
-  return wrapUxResult(
-    {
-      score: parsed.score,
-      rationale: parsed.rationale || '',
-      quotes: parsed.quotes || [],
-      dimensions: parsed.dimensions || emptyUxDimensions(channel),
       channel,
-      scope,
+      { includeStyleMatch }
+    ),
+    rawOutput: parsed,
+    judgeInput: {
+      promptVersion: UX_JUDGE_VERSION,
+      systemSha256: sha256Text(system),
+      user: modelPayload,
     },
-    'real',
-    model,
-    channel
-  );
+  };
 }
 
 /**
@@ -331,10 +395,12 @@ async function realUxJudge(args) {
  * @param {object} args
  * @param {'builder'|'business_bot'} args.channel
  * @param {'reply'|'overall'} [args.scope]
- * @param {string} [args.outputText] — visible assistant message (reply scope)
- * @param {string} [args.userMessage] — user line answered (reply scope)
- * @param {Array<{role:string,text?:string}>} [args.transcript] — channel turns (overall scope)
- * @param {boolean} [args.forceUnreliable] — mark unreliable when UX calibration failed
+ * @param {string} [args.outputText]
+ * @param {string} [args.userMessage]
+ * @param {Array<{role:string,text?:string}>} [args.transcript]
+ * @param {Array<{role:string,text?:string}>} [args.priorConversation]
+ * @param {object} [args.behaviorSettings]
+ * @param {boolean} [args.forceUnreliable]
  */
 export async function judgeUx(args) {
   const channel = args.channel === 'builder' ? 'builder' : 'business_bot';
@@ -352,39 +418,82 @@ export async function judgeUx(args) {
           : t
       )
     : args.transcript;
+  const priorConversation = Array.isArray(args.priorConversation)
+    ? args.priorConversation.map((t) =>
+        t && typeof t === 'object'
+          ? { ...t, text: stripAppChrome(t.text) }
+          : t
+      )
+    : args.priorConversation;
 
-  const payload = {
-    ...args,
+  const modelPayload = buildUxPayload({
     channel,
     scope,
+    userMessage: args.userMessage,
     outputText,
+    priorConversation,
     transcript,
-  };
+    behaviorSettings: args.behaviorSettings || null,
+  });
 
   const mode = resolveJudgeMode();
-  let result =
-    mode === 'real' ? await realUxJudge(payload) : stubUxJudge(payload);
+  let result;
+  let rawOutput = null;
+  let judgeInput = {
+    promptVersion: UX_JUDGE_VERSION,
+    systemSha256: sha256Text(SYSTEM_UX),
+    user: modelPayload,
+  };
+
+  if (mode === 'real') {
+    const judged = await realUxJudge(
+      { ...args, channel, scope, outputText, transcript, priorConversation },
+      modelPayload
+    );
+    result = judged.result;
+    rawOutput = judged.rawOutput;
+    judgeInput = judged.judgeInput;
+  } else {
+    result = stubUxJudge(
+      { ...args, channel, scope, outputText, transcript, priorConversation },
+      modelPayload
+    );
+    rawOutput = { score: result.score, rationale: result.rationale, stub: true };
+  }
 
   if (args.forceUnreliable) {
-    // Unreliable UX checks must not fail the product run.
+    // Incomplete evaluation — not product PASS, not product FAIL.
     result = {
       ...result,
       unreliable: true,
-      skippedUnreliable: true,
-      pass: true,
-      rationale: `[ux evaluator unreliable — calibration failed] ${result.rationale || ''}`.trim(),
+      skippedUnreliable: false,
+      pass: false,
+      evaluationStatus: EVALUATION_UNRELIABLE,
+      rationale: `[${EVALUATION_UNRELIABLE} — UX calibration failed] ${result.rationale || ''}`.trim(),
     };
   }
 
-  return result;
+  return {
+    ...result,
+    evaluationStatus: result.unreliable
+      ? EVALUATION_UNRELIABLE
+      : result.evaluationStatus || null,
+    judgeInput,
+    rawOutput,
+  };
 }
 
 /**
  * Helper for runners: record-friendly UX payload.
  */
 export function uxJudgeFields(j) {
+  const unreliable = !!j.unreliable;
   return {
-    verdict: j.pass ? 'PASS' : 'FAIL',
+    verdict: unreliable
+      ? EVALUATION_UNRELIABLE
+      : j.pass
+        ? 'PASS'
+        : 'FAIL',
     score: j.score,
     rationale: j.rationale,
     quotes: j.quotes,
@@ -392,9 +501,12 @@ export function uxJudgeFields(j) {
     mode: j.mode,
     model: j.model,
     judgeVersion: j.judgeVersion,
-    unreliable: j.unreliable,
+    unreliable,
     skippedUnreliable: !!j.skippedUnreliable,
+    evaluationStatus: j.evaluationStatus || (unreliable ? EVALUATION_UNRELIABLE : null),
     channel: j.channel,
     scope: j.scope,
+    judgeInput: j.judgeInput || null,
+    rawOutput: j.rawOutput || null,
   };
 }

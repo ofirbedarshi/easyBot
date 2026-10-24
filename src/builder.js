@@ -1,9 +1,12 @@
 import OpenAI from 'openai';
 import {
+  draftDiffersFromLive,
   formatSummary,
   hasEnoughForFirstBot,
   mergeDraft,
   normalizeCommonQuestions,
+  normalizePriceDisclosure,
+  normalizeResponseLength,
 } from './profile.js';
 
 const INTAKE_GATE_QUESTION =
@@ -22,7 +25,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers)
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers)
-- Preferred communication style / tone
+- Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once approved):
 - Answer questions from approved business facts
@@ -30,6 +33,17 @@ Demo scope (what the customer bot CAN do once approved):
 - Collect listed intake details in chat
 - Prepare the owner to follow up by suggesting the customer message the owner directly
 It cannot: book calendars, take payments, update a CRM, send emails/SMS for the owner, or save/deliver an inquiry record. Never claim those exist.
+
+Conversation settings (behavior — not business facts):
+- tone: free-text how the bot should sound (e.g. "warm", "professional"). Expression only — NEVER put services, benefits, guarantees, capabilities, or intake permissions into tone.
+- responseLength: "short" when the owner wants brief/concise/short replies; "standard" otherwise. Prefer "short" for "warm and short", "professional and concise", "keep it brief".
+- priceDisclosure: only two supported values:
+  - "relevant" — mention approved prices when useful/relevant; do not dump prices into unrelated answers.
+  - "on_request" — mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
+- Map natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
+- If the owner asks for unsupported price behavior (never disclose prices, always lead with prices, hide all prices forever), clearly explain the two supported options and ask which they want. Do NOT invent a third policy and do NOT set priceDisclosure to an unsupported value.
+- Style/settings cannot establish service attributes, benefits, guarantees, capabilities, or extra intake. If a style request also contains a business fact, update the fact fields separately and keep settings as settings.
+- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style or price disclosure, update those draft fields, leave business facts unchanged, set readyForReview=true, show what changed, and ask for approval again (approved=false until they confirm).
 
 Interview rules:
 - Start by understanding the business and the owner's desired outcome — not by listing features to enable.
@@ -61,11 +75,11 @@ Interview rules:
   - Leave null if they have not clarified a goal. Do not invent or guess a goal.
   - When they later clarify or change the goal, update ownerGoal and ask for approval again if already reviewed.
 - Before readyForReview / approve, you MUST have asked (once) whether the bot should collect any information from the customer, and set informationToCollect to an array (possibly empty) based on their answer.
-- When the owner later clarifies an unknown or changes a fact, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
-- When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts, ownerGoal when set, AND explicit unknowns, asking them to approve, correct, or say "approve". ownerGoal is helpful but NOT required for readyForReview.
+- When the owner later clarifies an unknown or changes a fact OR conversation setting, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
+- When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts, ownerGoal when set, conversation settings when set, AND explicit unknowns, asking them to approve, correct, or say "approve". ownerGoal and conversation settings are helpful but NOT required for readyForReview.
 - If they correct facts, update the draft and confirm.
 - If they say approve / looks good / yes after a summary (or after a clarification summary), set approved=true.
-- If they change something later (e.g. a new price or goal), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved.
+- If they change something later (e.g. a new price, goal, or style), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved.
 
 You MUST respond with a single JSON object only (no markdown fences):
 {
@@ -80,7 +94,9 @@ You MUST respond with a single JSON object only (no markdown fences):
     "commonQuestions": [{"question": string, "answer": string}],
     "informationToCollect": [string]|null,
     "unknowns": [string],
-    "tone": string|null
+    "tone": string|null,
+    "responseLength": "short"|"standard"|null,
+    "priceDisclosure": "relevant"|"on_request"|null
   },
   "readyForReview": boolean,
   "approved": boolean
@@ -91,7 +107,9 @@ Use null for unknown text fields. services/commonQuestions/unknowns should be ar
 commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
 informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
 ownerGoal must stay null until the owner clarifies their desired outcome; never invent it.
-unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.`;
+unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.
+responseLength and priceDisclosure must be one of the allowed enum values or null — never invent other policies.
+When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).`;
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -112,6 +130,83 @@ export function hasAnsweredInformationToCollect(draftOrProfile) {
   return Array.isArray(draftOrProfile?.informationToCollect);
 }
 
+/**
+ * Narrow owner-approve phrasing (exact short messages only).
+ * Broader "yes, but change X" stays model-driven.
+ */
+export function isOwnerApproveMessage(text) {
+  const t = String(text || '').trim();
+  return /^(approve|looks good|lgtm|yes\.?|ok\.?|okay\.?)$/i.test(t);
+}
+
+/**
+ * Preserve settled fields and normalize behavior enums after a Builder model turn.
+ * Exported for deterministic tests (style-only edits must not wipe priceDisclosure).
+ */
+export function reconcileDraft(draft, currentDraft) {
+  const next = { ...(draft || {}) };
+  const prev = currentDraft || {};
+
+  if (Array.isArray(next.commonQuestions)) {
+    next.commonQuestions = normalizeCommonQuestions(next.commonQuestions);
+  }
+
+  // Preserve prior informationToCollect when model omits it or sends null after settled
+  if (
+    !Array.isArray(next.informationToCollect) &&
+    Array.isArray(prev.informationToCollect)
+  ) {
+    next.informationToCollect = prev.informationToCollect;
+  } else if (
+    next.informationToCollect === undefined &&
+    prev.informationToCollect === null
+  ) {
+    next.informationToCollect = null;
+  }
+
+  // Preserve prior ownerGoal when model omits/nulls after it was set (null must not invent)
+  if ((next.ownerGoal == null || next.ownerGoal === '') && prev.ownerGoal) {
+    next.ownerGoal = prev.ownerGoal;
+  } else if (next.ownerGoal === undefined) {
+    next.ownerGoal = prev.ownerGoal ?? null;
+  }
+
+  // Tone: preserve when omitted / blanked after set
+  if ((next.tone == null || next.tone === '') && prev.tone) {
+    next.tone = prev.tone;
+  } else if (next.tone === undefined) {
+    next.tone = prev.tone ?? null;
+  } else if (typeof next.tone === 'string') {
+    next.tone = next.tone.trim() || prev.tone || null;
+  }
+
+  // responseLength: normalize; invalid/null/omit → keep previous
+  {
+    const n = normalizeResponseLength(next.responseLength);
+    if (n != null) {
+      next.responseLength = n;
+    } else if (prev.responseLength != null) {
+      next.responseLength = normalizeResponseLength(prev.responseLength);
+    } else {
+      next.responseLength = null;
+    }
+  }
+
+  // priceDisclosure: normalize; invalid/null/omit → keep previous (protects style-only edits)
+  {
+    const n = normalizePriceDisclosure(next.priceDisclosure);
+    if (n != null) {
+      next.priceDisclosure = n;
+    } else if (prev.priceDisclosure != null) {
+      next.priceDisclosure = normalizePriceDisclosure(prev.priceDisclosure);
+    } else {
+      next.priceDisclosure = null;
+    }
+  }
+
+  return next;
+}
+
 export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const client = getClient();
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -130,6 +225,8 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
         : profile.informationToCollect,
     unknowns: profile.unknowns || [],
     tone: profile.tone,
+    responseLength: profile.responseLength ?? null,
+    priceDisclosure: profile.priceDisclosure ?? null,
   };
 
   const intakeSettled = hasAnsweredInformationToCollect(currentDraft);
@@ -173,31 +270,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     };
   }
 
-  const draft = parsed.draft || currentDraft;
-  if (Array.isArray(draft.commonQuestions)) {
-    draft.commonQuestions = normalizeCommonQuestions(draft.commonQuestions);
-  }
-  // Preserve prior informationToCollect when model omits it or sends null after settled
-  if (
-    !Array.isArray(draft.informationToCollect) &&
-    Array.isArray(currentDraft.informationToCollect)
-  ) {
-    draft.informationToCollect = currentDraft.informationToCollect;
-  } else if (
-    draft.informationToCollect === undefined &&
-    currentDraft.informationToCollect === null
-  ) {
-    draft.informationToCollect = null;
-  }
-  // Preserve prior ownerGoal when model omits/nulls after it was set (null must not invent)
-  if (
-    (draft.ownerGoal == null || draft.ownerGoal === '') &&
-    currentDraft.ownerGoal
-  ) {
-    draft.ownerGoal = currentDraft.ownerGoal;
-  } else if (draft.ownerGoal === undefined) {
-    draft.ownerGoal = currentDraft.ownerGoal ?? null;
-  }
+  const draft = reconcileDraft(parsed.draft || currentDraft, currentDraft);
 
   const mergedPreview = mergeDraft(profile, draft);
 
@@ -218,6 +291,18 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     if (!message.includes(INTAKE_GATE_QUESTION)) {
       message = `${message.trim()}\n\n${INTAKE_GATE_QUESTION}`;
     }
+  } else if (
+    // Enforce short approve phrases when draft is reviewable — model often forgets approved=true
+    !approved &&
+    intakeAnswered &&
+    hasEnoughForFirstBot(mergedPreview) &&
+    isOwnerApproveMessage(userMessage) &&
+    (readyForReview ||
+      draftDiffersFromLive(profile, draft) ||
+      !profile.approvedAt)
+  ) {
+    approved = true;
+    readyForReview = true;
   } else if (readyForReview && !approved && !/approve/i.test(message)) {
     // Pass draft on the profile so Live vs Pending labeling works after first approve
     message +=

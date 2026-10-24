@@ -127,8 +127,7 @@ async function recordSemantic(name, args) {
     outputText: args.outputText,
     disclosureLedger: args.disclosureLedger,
     extractedDraft: args.extractedDraft,
-    expectHint: args.expectHint,
-    expectVerdict: 'PASS',
+    expected: { verdict: 'PASS', reason: args.expectHint },
     forceUnreliable: judgeUnreliable,
   });
   record(
@@ -406,17 +405,14 @@ async function main() {
   await scenarioUnsupported();
   await scenarioChangeDirection();
 
-  const failed = results.filter((x) => !x.pass);
-  const out = collector.write();
-  console.log(`\n${results.length} checks, ${failed.length} failed`);
-  console.log('Results written:', out);
-  if (failed.length) {
-    console.error(
-      'Failed:',
-      failed.map((f) => f.name).join(', ')
-    );
-    process.exit(1);
-  }
+  const { finishSuiteRun } = await import('./_finalizeRun.js');
+  finishSuiteRun({
+    results,
+    collector,
+    judgeUnreliable,
+    uxJudgeUnreliable,
+    record,
+  });
 }
 
 main().catch((err) => {

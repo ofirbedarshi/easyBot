@@ -16,10 +16,12 @@ import { createOrUpdateChatflow, predict } from '../src/flowise.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import {
   judgeSemantic,
+  approvedEvidence,
   createResultsCollector,
   resolveJudgeMode,
 } from '../src/judge.js';
 import { runCalibration } from '../src/judgeCalibration.js';
+import { finishSuiteRun } from './_finalizeRun.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = `http://localhost:${process.env.PORT || 3080}`;
@@ -176,14 +178,17 @@ const dogWalkerThin = {
 };
 
 async function judgePass(name, args) {
+  const evidence = approvedEvidence({
+    ...(args.approvedFacts || {}),
+    unknowns: args.unknowns ?? args.approvedFacts?.unknowns,
+  });
   const j = await judgeSemantic({
     stage: 'business_bot_answer',
     question: args.question,
     outputText: args.reply,
-    approvedConfig: args.approvedFacts,
-    unknowns: args.unknowns,
-    expectHint: args.expectHint,
-    expectVerdict: 'PASS',
+    evidence,
+    priorConversation: args.priorConversation || null,
+    expected: { verdict: 'PASS', reason: args.expectHint },
     forceUnreliable: judgeUnreliable,
   });
   record(
@@ -219,8 +224,7 @@ async function judgeBuilder(name, { disclosureLedger, extractedDraft, outputText
     outputText,
     disclosureLedger,
     extractedDraft,
-    expectHint,
-    expectVerdict: 'PASS',
+    expected: { verdict: 'PASS', reason: expectHint },
     forceUnreliable: judgeUnreliable,
   });
   record(
@@ -809,18 +813,13 @@ async function main() {
       'Owner said cancellation policy is undecided — extraction must keep that as unknown, not invent a policy.',
   });
 
-  const out = collector.write();
-  console.log(`\nResults viewer data → ${out} (open /results.html)`);
-
-  console.log('\n=== SUMMARY ===');
-  const failed = results.filter((x) => !x.pass);
-  console.log(`Total ${results.length}, failed ${failed.length}`);
-  if (judgeUnreliable) {
-    console.log('Note: judge calibration failed — semantic checks unreliable/REVIEW.');
-  }
-  for (const f of failed) console.log(' -', f.name, f.detail);
-  if (failed.length) process.exit(1);
-  console.log('All ambiguity regressions passed (real Flowise + real LLM).');
+  finishSuiteRun({
+    results,
+    collector,
+    judgeUnreliable,
+    uxJudgeUnreliable: false,
+    record,
+  });
 }
 
 main().catch((err) => {

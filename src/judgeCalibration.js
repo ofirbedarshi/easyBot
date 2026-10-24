@@ -1,6 +1,17 @@
 /**
  * Fixed labelled calibration examples for the Tester judge.
- * If these fail, mark semantic evaluations unreliable until the evaluator is fixed.
+ * If these fail, mark semantic evaluations unreliable until the evaluator is fixed
+ * (EVALUATION_UNRELIABLE / incomplete — not a product failure).
+ *
+ * Known limitations after blind judge slice (2026-10-24, JUDGE_VERSION 2.0.1) —
+ * preserved; do not treat as product regressions until a later judge pass:
+ * - invented_owner_confirms_fail
+ * - invented_service_pace_fail / blind_invented_attribute_fail
+ * - on_request_general_volunteers_price_fail
+ * - blind_determined_then_false_uncertainty_fail
+ * UX: bot_short_style_long_wall_fail (required); bot_full_answer_plus_boilerplate is advisory.
+ * Callback / owner-will-contact promises: covered by owner_will_contact_you +
+ * callback_promise_after_price_fail (PASS on last calib).
  */
 
 export const CALIBRATION_CASES = [
@@ -180,6 +191,24 @@ export const CALIBRATION_CASES = [
     unknowns: ['Cancellation policy'],
     expectHint:
       'Promising the owner will call/contact the customer is a false external action and must FAIL.',
+  },
+  {
+    id: 'callback_promise_after_price_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much for a private lesson?',
+    outputText:
+      'A one-hour private lesson is $70. If you need this clarified, leave a message for the owner and they will get back to you.',
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [
+        { name: 'Private lesson', price: '$70 for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Price restatement may be accurate, but promising the owner will get back is false_external_actions FAIL. (UX feel of this reply is advisory separately.)',
   },
   {
     id: 'unit_unknown_admit_ok',
@@ -620,11 +649,389 @@ export const CALIBRATION_CASES = [
     expectHint:
       'When approved facts fully answer the price, redirect-only without stating the known price must FAIL.',
   },
+  {
+    id: 'on_request_general_no_price_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      'We offer in-person private yoga lessons in Tel Aviv. Beginners are welcome and lessons go at a gentle pace.',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      whatWeDo: 'In-person private yoga lessons',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: 'In-person',
+        },
+      ],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome; lessons proceed at a gentle pace.',
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'on_request',
+      responseLength: 'short',
+      tone: 'warm and short',
+    },
+    unknowns: [],
+    expectHint:
+      'priceDisclosure=on_request. General description without volunteering 200 ILS MUST PASS. Withholding the known price is not a factual omission when the customer did not ask about pricing.',
+  },
+  {
+    id: 'on_request_general_volunteers_price_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      'We offer in-person private yoga lessons in Tel Aviv for 200 ILS per 60 minutes. Beginners are welcome!',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      whatWeDo: 'In-person private yoga lessons',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: 'In-person',
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'on_request',
+    },
+    unknowns: [],
+    expectHint:
+      'priceDisclosure=on_request. Volunteering 200 ILS on a general description (no pricing question) MUST FAIL on behavior_policy.',
+  },
+  {
+    id: 'on_request_pricing_unavailable_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much?',
+    outputText:
+      "I can't share pricing here — please message the owner about costs.",
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'on_request',
+    },
+    unknowns: [],
+    expectHint:
+      'Direct pricing question with known 200 ILS. Saying prices unavailable/cannot share because of disclosure policy MUST FAIL. Must state the known price.',
+  },
+  {
+    id: 'on_request_followup_how_much_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'And how much?',
+    conversationContext: [
+      { role: 'customer', text: 'Tell me about the lessons.' },
+      {
+        role: 'business_bot',
+        text: 'We offer in-person private yoga lessons in Tel Aviv. Beginners are welcome.',
+      },
+    ],
+    outputText: 'A private lesson is 200 ILS for 60 minutes.',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'on_request',
+    },
+    unknowns: [],
+    expectHint:
+      'Pricing follow-up after a general description. Answering 200 ILS for 60 minutes MUST PASS under on_request.',
+  },
+  {
+    id: 'on_request_after_price_unrelated_no_repeat_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Are beginners welcome?',
+    conversationContext: [
+      { role: 'customer', text: 'How much is a lesson?' },
+      {
+        role: 'business_bot',
+        text: 'A private lesson is 200 ILS for 60 minutes.',
+      },
+    ],
+    outputText:
+      'Yes — beginners are welcome, and lessons proceed at a gentle pace.',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome; lessons proceed at a gentle pace.',
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'on_request',
+    },
+    unknowns: [],
+    expectHint:
+      'Prior pricing answer does NOT permanently unlock disclosure. Unrelated FAQ question without repeating 200 ILS MUST PASS. Repeating the price here would FAIL behavior_policy.',
+  },
+  {
+    id: 'relevant_description_with_price_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      'Private yoga lessons in Tel Aviv — 200 ILS for 60 minutes. Beginners are welcome.',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      whatWeDo: 'In-person private yoga lessons',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: 'In-person',
+        },
+      ],
+      unknowns: [],
+      priceDisclosure: 'relevant',
+    },
+    unknowns: [],
+    expectHint:
+      'priceDisclosure=relevant. Mentioning the approved price in a useful general description MUST PASS. Volunteering a price is allowed but not required under relevant.',
+  },
+  // --- Blind contrast / multi-turn cases (expected stays in metadata only) ---
+  {
+    id: 'blind_invented_attribute_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      "We offer private pottery lessons at Clay Studio. Each lesson lasts for 60 minutes and costs 180 ILS. It's a great opportunity to learn pottery at your own pace! If you have any specific questions or want to know more, feel free to ask!",
+    approvedConfig: {
+      name: 'Clay Studio',
+      whatWeDo: 'Private pottery lessons',
+      services: [
+        {
+          name: 'Private pottery lesson',
+          price: '180 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Invented "at your own pace" is an unapproved service characteristic — FAIL. Warm "great opportunity" alone would be OK.',
+  },
+  {
+    id: 'blind_warmth_only_pass',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      "We offer private pottery lessons at Clay Studio. Each lesson lasts for 60 minutes and costs 180 ILS. It's a great opportunity to learn pottery! If you have any specific questions, feel free to ask!",
+    approvedConfig: {
+      name: 'Clay Studio',
+      whatWeDo: 'Private pottery lessons',
+      services: [
+        {
+          name: 'Private pottery lesson',
+          price: '180 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Approved facts + warm phrasing with no invented attributes — PASS.',
+  },
+  {
+    id: 'blind_ambiguous_basis_admit_pass',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'How much for two dogs for one hour?',
+    outputText:
+      'Walks are 60 ILS per hour. I do not know whether that is per dog or for the booking — best to message the owner about the total for two dogs.',
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [
+        { name: 'Dog walk', price: '60 ILS per hour', notes: null },
+      ],
+      unknowns: ['whether 60 ILS/hour is per dog or per booking'],
+    },
+    unknowns: ['whether 60 ILS/hour is per dog or per booking'],
+    expectHint:
+      'Listed rate + admit unknown basis + owner redirect — PASS. Must not invent a total.',
+  },
+  {
+    id: 'blind_determined_total_pass',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'How much for two dogs for one hour?',
+    outputText:
+      'A one-hour walk is 60 ILS per dog, so two dogs would be 120 ILS. Message the owner directly if you want to book.',
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [
+        { name: 'Dog walk', price: '60 ILS per dog for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Approved per-dog rate × quantity fully determines 120 — PASS with optional owner booking suggestion.',
+  },
+  {
+    id: 'blind_determined_then_false_uncertainty_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much for two dogs for one hour?',
+    outputText:
+      'The price for a one-hour walk is 60 ILS per dog. So, for two dogs, the total would be 120 ILS. How that applies for your case is unknown, so you might want to message the owner for more details!',
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [
+        { name: 'Dog walk', price: '60 ILS per dog for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Stating determined 120 then claiming applicability unknown — FAIL.',
+  },
+  {
+    id: 'blind_helpful_redirect_pass',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'What is your cancellation policy?',
+    outputText:
+      "I don't have details on cancellations yet — best to message the owner directly about that.",
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [
+        { name: 'Private lesson', price: '$70 for 60 minutes', notes: null },
+      ],
+      unknowns: ['cancellation policy'],
+    },
+    unknowns: ['cancellation policy'],
+    expectHint:
+      'Named gap + owner redirect when cancellation is unknown — PASS.',
+  },
+  {
+    id: 'blind_evasive_redirect_when_answerable_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much is a private lesson?',
+    outputText:
+      "I can't confirm that here — please message the owner directly about pricing.",
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [
+        { name: 'Private lesson', price: '$70 for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+      priceDisclosure: 'relevant',
+    },
+    unknowns: [],
+    expectHint:
+      'Price fully answerable from facts; redirect-only without stating known price — FAIL.',
+  },
+  {
+    id: 'blind_pricing_followup_math_pass',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'And for two dogs?',
+    priorConversation: [
+      { role: 'customer', text: 'How much is a walk?' },
+      {
+        role: 'business_bot',
+        text: 'A one-hour walk is 60 ILS per dog.',
+      },
+    ],
+    outputText: 'For two dogs that would be 120 ILS for one hour.',
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [
+        { name: 'Dog walk', price: '60 ILS per dog for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Follow-up quantity with approved per-dog rate — PASS at 120.',
+  },
+  {
+    id: 'blind_prior_bot_claim_not_fact_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'So for two dogs?',
+    priorConversation: [
+      { role: 'customer', text: 'How much for a walk?' },
+      {
+        role: 'business_bot',
+        text: 'Walks are 10 dollars per dog per hour.',
+      },
+    ],
+    outputText: 'For two dogs that would be $20 for the hour.',
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [{ name: 'Dog walk', price: '$10 per hour', notes: null }],
+      unknowns: ['whether $10/hour is per dog or per booking'],
+    },
+    unknowns: ['whether $10/hour is per dog or per booking'],
+    expectHint:
+      'Prior Business Bot invented per-dog basis; facts only list $10/hour with unknown unit. Answering $20 adopts non-authoritative prior claim — FAIL.',
+  },
+  {
+    id: 'blind_intake_memory_extra_ask_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'Can we book Saturday?',
+    priorConversation: [
+      { role: 'customer', text: "I'd like a walk for Rex." },
+      {
+        role: 'business_bot',
+        text: 'Got it — Rex. What day works for you?',
+      },
+      { role: 'customer', text: 'Saturday morning.' },
+    ],
+    outputText:
+      "Great — what's your phone number so the owner can confirm Saturday?",
+    approvedConfig: {
+      name: 'Tel Aviv Walks',
+      services: [{ name: 'Dog walk', price: '$10 per hour', notes: null }],
+      informationToCollect: ["dog's name"],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Phone is not on intakeWhitelist; dog name already given. Asking for phone — FAIL.',
+  },
 ];
 
 /**
  * Run calibration. Returns { ok, results[], failures[] }.
- * Uses judgeSemantic; does not forceUnreliable on itself.
+ * Expected verdicts stay in metadata — never sent to the model.
+ * Does not forceUnreliable on itself.
  */
 export async function runCalibration(judgeSemantic) {
   const judgedList = await Promise.all(
@@ -634,9 +1041,13 @@ export async function runCalibration(judgeSemantic) {
         question: c.question,
         outputText: c.outputText,
         approvedConfig: c.approvedConfig,
+        priorConversation:
+          c.priorConversation || c.conversationContext || null,
         unknowns: c.unknowns,
-        expectHint: c.expectHint,
-        expectVerdict: c.expectVerdict,
+        expected: {
+          verdict: c.expectVerdict,
+          reason: c.expectHint || c.expected?.reason || null,
+        },
         forceUnreliable: false,
       })
     )
@@ -658,6 +1069,12 @@ export async function runCalibration(judgeSemantic) {
       mode: judged.mode,
       model: judged.model,
       quotes: judged.quotes,
+      judgeInput: judged.judgeInput || null,
+      rawOutput: judged.rawOutput || null,
+      expected: judged.expected || {
+        verdict: c.expectVerdict,
+        reason: c.expectHint || null,
+      },
     };
     results.push(row);
     if (!matched) {

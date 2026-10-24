@@ -11,7 +11,7 @@ import {
   redactSecrets,
 } from './fixtures.js';
 import { nextOwnerMessage, applyDisclosures } from './adaptiveOwner.js';
-import { judgeSemantic } from './judge.js';
+import { judgeSemantic, approvedEvidence } from './judge.js';
 import { judgeUx, uxJudgeFields } from './judgeUx.js';
 
 const BASE = () => `http://localhost:${process.env.PORT || 3080}`;
@@ -54,24 +54,12 @@ function hashHistory(arr) {
   return JSON.stringify(arr || []);
 }
 
-/** Approved facts only — never pass draft (pending edits) to Business Bot judge. */
+/**
+ * Approved evidence only — never pass draft (pending edits) to judges.
+ * Snapshot via approvedEvidence (facts / settings / objective / intake separated).
+ */
 function approvedFactsOnly(profile) {
-  const p = profile || {};
-  return {
-    name: p.name,
-    whatWeDo: p.whatWeDo,
-    ownerGoal: p.ownerGoal,
-    services: p.services,
-    hours: p.hours,
-    locationOrArea: p.locationOrArea,
-    commonQuestions: p.commonQuestions,
-    informationToCollect: Array.isArray(p.informationToCollect)
-      ? p.informationToCollect
-      : [],
-    unknowns: p.unknowns,
-    tone: p.tone,
-    approvedAt: p.approvedAt,
-  };
+  return approvedEvidence(profile);
 }
 
 /**
@@ -359,9 +347,11 @@ export async function runAdaptiveBusiness(opts) {
           outputText: lastBuilder,
           disclosureLedger: ledger,
           extractedDraft: draft,
-          expectHint:
-            'Draft/summary must reflect disclosed facts and explicit unknowns; must not invent; must not require neverDisclosed.',
-          expectVerdict: 'PASS',
+          expected: {
+            verdict: 'PASS',
+            reason:
+              'Draft/summary must reflect disclosed facts and explicit unknowns; must not invent; must not require neverDisclosed.',
+          },
           forceUnreliable: judgeUnreliable,
         });
       }
@@ -419,9 +409,11 @@ export async function runAdaptiveBusiness(opts) {
           outputText: lastBuilder,
           disclosureLedger: ledger,
           extractedDraft: draft,
-          expectHint:
-            'Faithful to disclosures+unknowns; no inventions; hidden secrets not required. Soft omissions of optional detail are OK if core disclosed facts and fixture unknowns are handled.',
-          expectVerdict: 'PASS',
+          expected: {
+            verdict: 'PASS',
+            reason:
+              'Faithful to disclosures+unknowns; no inventions; hidden secrets not required. Soft omissions of optional detail are OK if core disclosed facts and fixture unknowns are handled.',
+          },
           forceUnreliable: judgeUnreliable,
         });
       }
@@ -686,10 +678,8 @@ export async function runAdaptiveBusiness(opts) {
           stage: 'business_bot_answer',
           question: intent.question,
           outputText: replyRes.reply,
-          approvedConfig: approvedCfgShared,
-          unknowns: approvedCfgShared.unknowns || [],
-          expectHint: intent.expectHint,
-          expectVerdict: 'PASS',
+          evidence: approvedCfgShared,
+          expected: { verdict: 'PASS', reason: intent.expectHint },
           forceUnreliable: judgeUnreliable,
         }),
         judgeUx({
@@ -697,6 +687,7 @@ export async function runAdaptiveBusiness(opts) {
           scope: 'reply',
           userMessage: intent.question,
           outputText: replyRes.reply,
+          behaviorSettings: approvedCfgShared.behaviorSettings,
           forceUnreliable: uxJudgeUnreliable,
         }),
       ]);
@@ -870,12 +861,11 @@ export async function runAdaptiveBusiness(opts) {
         stage: 'business_bot_answer',
         question: probeQ,
         outputText: r.reply,
-        approvedConfig: approvedCfg,
-        unknowns: approvedCfg.unknowns || [],
-        expectHint:
-          fixture.editLoop.pendingMustNotLiveHint +
-          ' Judge ONLY approvedConfig (live). Ignore pending draft fields. Prefer PASS when bot refuses to confirm an unapproved change.',
-        expectVerdict: 'PASS',
+        evidence: approvedCfg,
+        expected: {
+          verdict: 'PASS',
+          reason: fixture.editLoop.pendingMustNotLiveHint,
+        },
         forceUnreliable: judgeUnreliable,
       }),
       judgeUx({
@@ -883,18 +873,28 @@ export async function runAdaptiveBusiness(opts) {
         scope: 'reply',
         userMessage: probeQ,
         outputText: r.reply,
+        behaviorSettings: approvedCfg.behaviorSettings,
         forceUnreliable: uxJudgeUnreliable,
       }),
     ]);
-    // Primary gate is deterministic: unapproved pending wording must not be adopted.
-    // Judge rationale kept as evidence; when det is clean, do not fail on judge wording nits.
-    const finalPass =
-      !adoptsPending &&
-      (!!j.pass || !new RegExp(pendingPattern || 'a^', 'i').test(reply));
+    // Deterministic adoption check is recorded separately; judge verdict alone decides this check.
+    record(
+      `${biz}.edit.pending_adopts_det`,
+      !adoptsPending,
+      `det_adoptsPending=${adoptsPending} pattern=${pendingPattern}`,
+      'deterministic',
+      {
+        stage: 'deterministic',
+        businessId: biz,
+        question: probeQ,
+        outputText: r.reply,
+        turnRefs: [pendingQRef, pendingARef],
+      }
+    );
     record(
       `${biz}.edit.pending_not_live`,
-      finalPass,
-      `det_adoptsPending=${adoptsPending} verdict=${j.verdict} ${j.rationale}`,
+      !!j.pass,
+      `verdict=${j.verdict} ${j.rationale}`,
       'real-llm-judge+real-flowise',
       {
         stage: 'business_bot_answer',
@@ -902,7 +902,10 @@ export async function runAdaptiveBusiness(opts) {
         question: probeQ,
         outputText: r.reply,
         turnRefs: [pendingQRef, pendingARef],
-        expected: fixture.editLoop.pendingMustNotLiveHint,
+        expected: {
+          verdict: 'PASS',
+          reason: fixture.editLoop.pendingMustNotLiveHint,
+        },
         judge: {
           verdict: j.verdict,
           rationale: j.rationale,
@@ -910,6 +913,8 @@ export async function runAdaptiveBusiness(opts) {
           mode: j.mode,
           model: j.model,
           unreliable: j.unreliable,
+          input: j.judgeInput,
+          rawOutput: j.rawOutput,
         },
       }
     );
@@ -1022,10 +1027,11 @@ export async function runAdaptiveBusiness(opts) {
         stage: 'business_bot_answer',
         question: afterQ,
         outputText: r.reply,
-        approvedConfig: approvedCfg,
-        unknowns: approvedCfg.unknowns || [],
-        expectHint: fixture.editLoop.afterApproveHint,
-        expectVerdict: 'PASS',
+        evidence: approvedCfg,
+        expected: {
+          verdict: 'PASS',
+          reason: fixture.editLoop.afterApproveHint,
+        },
         forceUnreliable: judgeUnreliable,
       }),
       judgeUx({
@@ -1033,6 +1039,7 @@ export async function runAdaptiveBusiness(opts) {
         scope: 'reply',
         userMessage: afterQ,
         outputText: r.reply,
+        behaviorSettings: approvedCfg.behaviorSettings,
         forceUnreliable: uxJudgeUnreliable,
       }),
     ]);
@@ -1047,7 +1054,10 @@ export async function runAdaptiveBusiness(opts) {
         question: afterQ,
         outputText: r.reply,
         turnRefs: [afterQRef, afterARef],
-        expected: fixture.editLoop.afterApproveHint,
+        expected: {
+          verdict: 'PASS',
+          reason: fixture.editLoop.afterApproveHint,
+        },
         judge: {
           verdict: j.verdict,
           rationale: j.rationale,
@@ -1055,6 +1065,8 @@ export async function runAdaptiveBusiness(opts) {
           mode: j.mode,
           model: j.model,
           unreliable: j.unreliable,
+          input: j.judgeInput,
+          rawOutput: j.rawOutput,
         },
       }
     );
@@ -1107,15 +1119,19 @@ export async function runAdaptiveBusiness(opts) {
 
   {
     const approvedCfg = approvedFactsOnly(loadProfile(profilePath));
+    const servicesJson = JSON.stringify(approvedCfg.businessFacts?.services);
     const [j, ux] = await Promise.all([
       judgeSemantic({
         stage: 'business_bot_answer',
         question: afterQ,
         outputText: r.reply,
-        approvedConfig: approvedCfg,
-        unknowns: approvedCfg.unknowns || [],
-        expectHint: fixture.editLoop.afterApproveHint + ' (persistence / fresh TEST session)',
-        expectVerdict: 'PASS',
+        evidence: approvedCfg,
+        expected: {
+          verdict: 'PASS',
+          reason:
+            fixture.editLoop.afterApproveHint +
+            ' (persistence / fresh TEST session)',
+        },
         forceUnreliable: judgeUnreliable,
       }),
       judgeUx({
@@ -1123,14 +1139,14 @@ export async function runAdaptiveBusiness(opts) {
         scope: 'reply',
         userMessage: afterQ,
         outputText: r.reply,
+        behaviorSettings: approvedCfg.behaviorSettings,
         forceUnreliable: uxJudgeUnreliable,
       }),
     ]);
     record(
       `${biz}.persist.retest`,
-      !!j.pass &&
-        new RegExp(match, 'i').test(JSON.stringify(approvedCfg.services)),
-      `verdict=${j.verdict} services=${JSON.stringify(approvedCfg.services)}`,
+      !!j.pass && new RegExp(match, 'i').test(servicesJson),
+      `verdict=${j.verdict} services=${servicesJson}`,
       'real-llm-judge+real-flowise',
       {
         stage: 'business_bot_answer',
