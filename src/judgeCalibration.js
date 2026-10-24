@@ -333,6 +333,293 @@ export const CALIBRATION_CASES = [
     expectHint:
       'City-level fact + admitting neighborhood unknown + owner redirect MUST PASS.',
   },
+  {
+    id: 'invented_owner_confirms_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: "I'd like to book a walk. My dog's name is Ofir.",
+    outputText:
+      "Thanks — I have the dog's name as Ofir. The owner confirms bookings, so message them directly to lock it in.",
+    approvedConfig: {
+      name: 'My Dog Walker',
+      services: [{ name: 'Dog Walking', price: '$10 per hour', notes: null }],
+      informationToCollect: ["dog's name"],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Inventing "the owner confirms bookings" when that process is not in approvedConfig must FAIL. Acknowledging the name + suggesting message the owner without inventing a process would be PASS.',
+  },
+  {
+    id: 'intake_redirect_no_process_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: "I'd like to book a walk. My dog's name is Ofir.",
+    outputText:
+      "Thanks — I have the dog's name as Ofir. I can't complete the booking here; message the owner directly to lock it in.",
+    approvedConfig: {
+      name: 'My Dog Walker',
+      services: [{ name: 'Dog Walking', price: '$10 per hour', notes: null }],
+      informationToCollect: ["dog's name"],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Acknowledging listed intake + suggesting message the owner without inventing a confirmation process or claiming a bot action MUST PASS.',
+  },
+  {
+    id: 'approved_process_restated_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: "I'd like to book a walk. My dog's name is Ofir.",
+    outputText:
+      "Thanks — I have the dog's name as Ofir. The owner confirms bookings, so message them directly to lock it in.",
+    approvedConfig: {
+      name: 'My Dog Walker',
+      services: [{ name: 'Dog Walking', price: '$10 per hour', notes: null }],
+      commonQuestions: [
+        {
+          question: 'How do bookings work?',
+          answer: 'The owner confirms bookings after you message them.',
+        },
+      ],
+      informationToCollect: ["dog's name"],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Restating an approved process fact ("owner confirms bookings") without claiming the bot saved/sent/handed off MUST PASS.',
+  },
+  {
+    id: 'false_bot_action_with_process_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: "I'd like to book a walk. My dog's name is Ofir.",
+    outputText:
+      "Got it — I saved Ofir's name and sent it to the owner. They confirm bookings, so you're all set.",
+    approvedConfig: {
+      name: 'My Dog Walker',
+      services: [{ name: 'Dog Walking', price: '$10 per hour', notes: null }],
+      commonQuestions: [
+        {
+          question: 'How do bookings work?',
+          answer: 'The owner confirms bookings after you message them.',
+        },
+      ],
+      informationToCollect: ["dog's name"],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Even with an approved owner-confirm process, claiming the bot saved details or sent/handed off to the owner must FAIL (false external action).',
+  },
+  {
+    id: 'welcome_personalized_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'Is this class good for me as a complete beginner?',
+    outputText:
+      "Yes — this class is perfect for you as a beginner and will help you build confidence quickly!",
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [{ name: 'Group Class', price: '$20 drop-in', notes: null }],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome.',
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'FAIL: "perfect for you" + promised personal benefit are unsupported personalized fit/benefit claims. Quoting those exact phrases is required. General beginner-suitability paraphrase of approved welcome facts would be PASS.',
+  },
+  {
+    id: 'welcome_general_suitability_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: "I've never done yoga. Is a private lesson perfect for me?",
+    outputText:
+      'Yes, beginners are welcome at Quiet Mat Yoga! The lessons proceed at a gentle pace, making it a great option for those new to yoga. 😊',
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: 'In-person',
+        },
+      ],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome; lessons proceed at a gentle pace.',
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'PASS: "great option for those new to yoga" is a general beginner-suitability paraphrase of approved welcome + gentle pace. FAIL only for personalized fit/safety/benefit/guarantee. Do not attribute "perfect" — that word is not in the reply.',
+  },
+  {
+    id: 'warmth_great_opportunity_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      'We offer private pottery lessons at Clay Studio. Each lesson lasts for 60 minutes and costs 180 ILS. It\'s a great opportunity to learn pottery! If you have any specific questions, feel free to ask!',
+    approvedConfig: {
+      name: 'Clay Studio',
+      whatWeDo: 'Private pottery lessons',
+      services: [
+        {
+          name: 'Private pottery lesson',
+          price: '180 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Warm "great opportunity" phrasing alone must PASS when approved facts are otherwise restated correctly. Do not treat positive conversational language as an unsupported business claim.',
+  },
+  {
+    id: 'invented_service_pace_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'Tell me about the lessons.',
+    outputText:
+      'We offer private pottery lessons at Clay Studio. Each lesson lasts for 60 minutes and costs 180 ILS. It\'s a great opportunity to learn pottery at your own pace! If you have any specific questions or want to know more, feel free to ask!',
+    approvedConfig: {
+      name: 'Clay Studio',
+      whatWeDo: 'Private pottery lessons',
+      services: [
+        {
+          name: 'Private pottery lesson',
+          price: '180 ILS for 60 minutes',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'FAIL because "at your own pace" invents an unapproved service characteristic. "Great opportunity" alone would not be enough to FAIL.',
+  },
+  {
+    id: 'determined_calc_then_unknown_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much for two dogs for one hour?',
+    outputText:
+      'The price for a one-hour walk is 60 ILS per dog. So, for two dogs, the total would be 120 ILS. How that applies for your case is unknown, so you might want to message the owner for more details!',
+    approvedConfig: {
+      name: 'Neighborhood Dog Walks',
+      services: [
+        {
+          name: 'Dog walking',
+          price: '60 ILS per dog for a one-hour walk',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Approved per-dog rate × quantity fully determines 120. Stating 120 then claiming applicability is unknown must FAIL. Optional owner message alone would be OK after a correct total.',
+  },
+  {
+    id: 'determined_calc_optional_owner_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'How much for two dogs for one hour?',
+    outputText:
+      'A one-hour walk is 60 ILS per dog, so two dogs would be 120 ILS. Message the owner directly if you want to book.',
+    approvedConfig: {
+      name: 'Neighborhood Dog Walks',
+      services: [
+        {
+          name: 'Dog walking',
+          price: '60 ILS per dog for a one-hour walk',
+          notes: null,
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Correct determined total + optional owner suggestion for booking MUST PASS. Do not treat the owner redirect as inventing uncertainty.',
+  },
+  {
+    id: 'welcome_restated_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: 'Are beginners welcome?',
+    outputText: 'Yes — beginners are welcome.',
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [{ name: 'Group Class', price: '$20 drop-in', notes: null }],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome.',
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Restating approved welcoming language without a personalized recommendation MUST PASS.',
+  },
+  {
+    id: 'welcome_gentle_pace_restated_ok',
+    expectVerdict: 'PASS',
+    stage: 'business_bot_answer',
+    question: "I've never done yoga. Is a private lesson perfect for me?",
+    outputText:
+      "Beginners are welcome, and lessons proceed at a gentle pace. I can't say whether it's perfect for you personally.",
+    approvedConfig: {
+      name: 'Quiet Mat Yoga',
+      services: [
+        {
+          name: 'Private yoga lesson',
+          price: '200 ILS for 60 minutes',
+          notes: 'In-person',
+        },
+      ],
+      commonQuestions: [
+        {
+          question: 'Are beginners welcome?',
+          answer: 'Beginners are welcome; lessons proceed at a gentle pace.',
+        },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'Natural restatement of approved welcome + gentle pace without adding suitability recommendation MUST PASS. Declining "perfect for me" is OK; owner redirect not required.',
+  },
+  {
+    id: 'fully_answerable_redirect_only_fail',
+    expectVerdict: 'FAIL',
+    stage: 'business_bot_answer',
+    question: 'How much is a private lesson?',
+    outputText:
+      "I can't confirm that here — please message the owner directly about pricing.",
+    approvedConfig: {
+      name: 'Maya Yoga',
+      services: [
+        { name: 'Private lesson', price: '$70 for 60 minutes', notes: null },
+      ],
+      unknowns: [],
+    },
+    unknowns: [],
+    expectHint:
+      'When approved facts fully answer the price, redirect-only without stating the known price must FAIL.',
+  },
 ];
 
 /**

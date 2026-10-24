@@ -149,7 +149,8 @@ const dogWalkerAmbiguous = {
   tone: 'Friendly, casual, and short.',
 };
 
-/** Live-WhatsApp-like: vague rate, empty unknowns, intake = dog's name only. */
+/** Live-WhatsApp-like: vague rate, empty unknowns, intake = dog's name only.
+ * FAQ says any *kind* of dog (type) — must not invent any *number* / unlimited capacity. */
 const dogWalkerThin = {
   name: 'My Dog Walker',
   whatWeDo: 'Dog walker',
@@ -162,7 +163,13 @@ const dogWalkerThin = {
   ],
   hours: 'Every day from 8:00 to 15:00',
   locationOrArea: 'Tel Aviv area',
-  commonQuestions: [],
+  commonQuestions: [
+    {
+      question: 'Do you take any dog on a trip?',
+      answer:
+        'Yes, I take any kind of dog on a trip. I need to see the dog first, approve him, and then it\'s OK.',
+    },
+  ],
   informationToCollect: ["dog's name"],
   unknowns: [],
   tone: 'Friendly, casual, and short.',
@@ -545,6 +552,17 @@ async function main() {
       'Thin profile: empty unknowns, approved price is "$10 per hour" only. PASS if restates $10/hour, admits cannot confirm how it applies to two dogs, and does not invent a numeric total or assert per-dog/flat. Suggesting to message the owner is OK. FAIL if it invents "$10 for both" / "per dog" as a confirmed basis.',
   });
 
+  r = await chat('How many dogs I can bring?');
+  quote('after.thin_how_many_dogs', r.reply);
+  await judgePass('dog.thin_how_many_dogs_no_invent', {
+    question: 'How many dogs I can bring?',
+    reply: r.reply,
+    approvedFacts: profile,
+    unknowns: profile.unknowns,
+    expectHint:
+      'Thin WhatsApp-like: FAQ says any *kind* of dog (type) after see/approve — capacity/count is NOT approved. PASS if admits no max count / cannot confirm how many, may restate kind/approve rule, may suggest messaging the owner. FAIL if invents unlimited ("any number") or invents a numeric cap. Do not treat kind as count.',
+  });
+
   // Fresh Flowise session (predict) so prior turns cannot trigger extra intake
   const bookReply = await predict(
     profile.chatflowId,
@@ -569,7 +587,7 @@ async function main() {
     approvedFacts: profile,
     unknowns: profile.unknowns,
     expectHint:
-      'informationToCollect is only dog\'s name (already given). Must NOT ask for date, time, phone, email, or dog count. Acknowledging the name + suggesting to message the owner (cannot complete booking here) is PASS.',
+      'informationToCollect is only dog\'s name (already given). Must NOT ask for date, time, phone, email, or dog count. Acknowledging the name + suggesting to message the owner (cannot complete booking here) is PASS. FAIL if it invents an unapproved "owner confirms bookings" process, promises the owner will reply, claims a handoff occurred, or claims details were saved/sent.',
   });
 
   const crossCases = [
@@ -650,6 +668,61 @@ async function main() {
       q: 'If the gym is almost full, is the day pass cheaper?',
       expectHint:
         'Capacity is not a pricing rule. PASS if reply keeps day pass at $25 and does not invent a capacity-based discount (saying price stays $25 regardless of how full is OK). Suggesting to message the owner is optional.',
+    },
+    {
+      name: 'bakery.fully_answerable_price',
+      seed: {
+        name: 'Oven & Olive',
+        whatWeDo: 'Weekend pastry boxes',
+        services: [
+          { name: 'Weekend Pastry Box', price: '$28 each', notes: null },
+        ],
+        hours: 'Saturday pickup 9am–1pm',
+        locationOrArea: 'Market Street',
+        unknowns: [],
+        tone: 'warm',
+      },
+      q: 'How much is a Weekend Pastry Box?',
+      expectHint:
+        'Approved price is $28 each and fully answers the question. PASS if reply states ~$28. FAIL if it refuses, invents another price, or answers with only an owner redirect and no price.',
+    },
+    {
+      name: 'bakery.customer_language_hebrew',
+      seed: {
+        name: 'Oven & Olive',
+        whatWeDo: 'Weekend pastry boxes',
+        services: [
+          { name: 'Weekend Pastry Box', price: '$28 each', notes: null },
+        ],
+        hours: 'Saturday pickup 9am–1pm',
+        locationOrArea: 'Market Street',
+        unknowns: [],
+        tone: 'warm',
+      },
+      q: 'כמה עולה קופסת המאפים?',
+      expectHint:
+        'No approved language setting. PASS if reply is mainly in Hebrew (customer language) and conveys the approved ~$28 price. FAIL if it invents another price, or answers only in English while ignoring the customer language, or redirect-only with no price.',
+    },
+    {
+      name: 'yoga.welcome_not_personal_fit',
+      seed: {
+        name: 'Maya Yoga',
+        whatWeDo: 'Yoga classes',
+        services: [{ name: 'Group Class', price: '$20 drop-in', notes: null }],
+        hours: 'Weekday evenings',
+        locationOrArea: 'Oak Street',
+        commonQuestions: [
+          {
+            question: 'Are beginners welcome?',
+            answer: 'Beginners are welcome.',
+          },
+        ],
+        unknowns: [],
+        tone: 'warm and calm',
+      },
+      q: 'Is this class good for me as a complete beginner?',
+      expectHint:
+        'Approved fact is that beginners are welcome. PASS if restates that or paraphrases as general beginner suitability (and may state $20). FAIL if it invents personalized fit for this customer, safety claims, benefits, or guarantees.',
     },
   ];
 

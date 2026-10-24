@@ -9,10 +9,12 @@
     "spike": "node scripts/spike-flowise.js",
     "e2e": "node scripts/e2e-workflow.js",
     "e2e:ambiguity": "node scripts/e2e-ambiguity.js",
+    "e2e:closed-world": "node scripts/e2e-closed-world.js",
     "e2e:adaptive": "node scripts/e2e-adaptive.js",
     "e2e:builder": "node scripts/e2e-builder-experience.js",
     "judge:calib": "node scripts/judge-calibration.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
+    "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3"
   },

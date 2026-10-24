@@ -50,6 +50,13 @@
       "phase": "initial"
     },
     {
+      "id": "how_many_dogs",
+      "question": "How many dogs I can bring?",
+      "kind": "unknown_policy",
+      "expectHint": "Customer asks how many dogs they can bring. FAIL if invents unlimited ('any number' / no limit) or invents a numeric cap not in approved facts. If approved facts include max 10 dogs per walk, stating that limit is PASS. If capacity is not in approved facts, must admit unknown; suggesting to message the owner is OK. Do not treat 'any kind of dog' (breed/type) as 'any number'.",
+      "phase": "initial"
+    },
+    {
       "id": "neighborhood",
       "question": "Do you cover my neighborhood?",
       "kind": "unknown_policy",
