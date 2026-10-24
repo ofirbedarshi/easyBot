@@ -1,0 +1,125 @@
+# Trigger Render deploys via Deploy Hooks on push to main.
+# Path filters: app-only → easybot-app; Flowise-only → easybot-flowise; render.yaml → both.
+# Secrets (repo Settings → Actions): RENDER_DEPLOY_HOOK_APP, RENDER_DEPLOY_HOOK_FLOWISE
+# Docs: DEPLOY.md § GitHub Actions → Render deploy
+
+name: Deploy Render
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-render-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: Detect path changes
+    runs-on: ubuntu-latest
+    outputs:
+      # Manual dispatch redeploys both; push uses path filters only.
+      app: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.app }}
+      flowise: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.flowise }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'public/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'Dockerfile'
+              - 'templates/**'
+              - 'render.yaml'
+            flowise:
+              - 'Dockerfile.flowise'
+              - 'render.yaml'
+
+  deploy-app:
+    name: Deploy easybot-app
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook (easybot-app)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_APP }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOOK:-}" ]; then
+            echo "Missing secret RENDER_DEPLOY_HOOK_APP" >&2
+            exit 1
+          fi
+
+          RESP=$(curl -sS -w "\n%{http_code}" -X POST "${HOOK}&ref=${GITHUB_SHA}")
+          HTTP=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+
+          echo "HTTP $HTTP"
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "202" ]; then
+            echo "Deploy hook failed (non-2xx). Body omitted if it might leak the hook." >&2
+            exit 1
+          fi
+
+          if [ "$HTTP" = "202" ]; then
+            echo "Queued after in-progress deploy (HTTP 202; no deploy id)."
+          else
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.deploy.id // empty')
+            if [ -z "$DEPLOY_ID" ]; then
+              echo "Could not parse deploy.id from hook response" >&2
+              exit 1
+            fi
+            echo "deploy_id=$DEPLOY_ID"
+            echo "Dashboard: https://dashboard.render.com/web/srv-dbdlnqu7bikc73e2fuk0/deploys/${DEPLOY_ID}"
+          fi
+          echo "Service dashboard: https://dashboard.render.com/web/srv-dbdlnqu7bikc73e2fuk0"
+
+  deploy-flowise:
+    name: Deploy easybot-flowise
+    needs: changes
+    if: needs.changes.outputs.flowise == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook (easybot-flowise)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FLOWISE }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOOK:-}" ]; then
+            echo "Missing secret RENDER_DEPLOY_HOOK_FLOWISE" >&2
+            exit 1
+          fi
+
+          RESP=$(curl -sS -w "\n%{http_code}" -X POST "${HOOK}&ref=${GITHUB_SHA}")
+          HTTP=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+
+          echo "HTTP $HTTP"
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "202" ]; then
+            echo "Deploy hook failed (non-2xx). Body omitted if it might leak the hook." >&2
+            exit 1
+          fi
+
+          if [ "$HTTP" = "202" ]; then
+            echo "Queued after in-progress deploy (HTTP 202; no deploy id)."
+          else
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.deploy.id // empty')
+            if [ -z "$DEPLOY_ID" ]; then
+              echo "Could not parse deploy.id from hook response" >&2
+              exit 1
+            fi
+            echo "deploy_id=$DEPLOY_ID"
+            echo "Dashboard: https://dashboard.render.com/web/srv-dbdlj6g473hc73cpnfb0/deploys/${DEPLOY_ID}"
+          fi
+          echo "Service dashboard: https://dashboard.render.com/web/srv-dbdlj6g473hc73cpnfb0"

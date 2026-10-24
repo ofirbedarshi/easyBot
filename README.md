@@ -65,6 +65,7 @@ See [.env.example](.env.example) for the full name list.
 ### Deploy (Render, no Vercel)
 
 - Blueprint: [render.yaml](render.yaml) — free web services `easybot-app` + `easybot-flowise`.
+- Push to `main` triggers deploys via GitHub Actions + Render Deploy Hooks (path-filtered). Setup: [DEPLOY.md](DEPLOY.md) § **GitHub Actions → Render deploy**.
 - Free tier spins down after ~15 minutes idle; cold start ~1 minute. Hit `/api/health` before Sandbox tests.
 - Flowise should use Supabase Postgres (`DATABASE_*` in Flowise service) — free Render has no persistent disk.
 - Production hides `/api/test-results*` and `results.html` unless `ALLOW_TEST_RESULTS=1`.
