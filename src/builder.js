@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import {
+  BEHAVIOR_KEYS,
+  CONFIG_CAPABILITIES,
+  DEMO_SCOPE,
   draftChangesOnlySettings,
   draftReviewKey,
   formatSummary,
@@ -11,10 +14,31 @@ import {
   normalizeIdentityText,
   normalizePriceDisclosure,
   normalizeResponseLength,
+  PRICE_DISCLOSURE_LABELS,
+  PRICE_DISCLOSURE_VALUES,
+  RESPONSE_LENGTH_LABELS,
+  RESPONSE_LENGTH_VALUES,
 } from './profile.js';
 
 const INTAKE_GATE_QUESTION =
   'Before we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.';
+
+const RESPONSE_LENGTH_ENUM = RESPONSE_LENGTH_VALUES.map((v) => `"${v}"`).join('|');
+const PRICE_DISCLOSURE_ENUM = PRICE_DISCLOSURE_VALUES.map((v) => `"${v}"`).join('|');
+
+const RESPONSE_LENGTH_LINES = RESPONSE_LENGTH_VALUES.map(
+  (v) => `  - "${v}" — ${RESPONSE_LENGTH_LABELS[v]}`
+).join('\n');
+
+const PRICE_DISCLOSURE_LINES = PRICE_DISCLOSURE_VALUES.map(
+  (v) => `  - "${v}" — ${PRICE_DISCLOSURE_LABELS[v]}`
+).join('\n');
+
+const DEMO_SCOPE_CAN = DEMO_SCOPE.can.map((s) => `- ${s}`).join('\n');
+const DEMO_SCOPE_CANNOT = DEMO_SCOPE.cannot.map((s) => `- ${s}`).join('\n');
+const CAPABILITY_LINES = CONFIG_CAPABILITIES.map(
+  (c) => `- ${c.field}: ${c.represents}\n  Cannot represent: ${c.cannotRepresent}`
+).join('\n');
 
 const SYSTEM = `You are a capable new employee learning how this business handles customer inquiries. You help a non-technical owner set up a customer-facing chatbot by chatting — not by running a feature checklist.
 
@@ -32,20 +56,34 @@ Discover when relevant (partial info is OK — do not force every category):
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once approved):
-- Answer questions from approved business facts
-- Clarify what the customer needs
-- Collect listed intake details in chat
-- Prepare the owner to follow up by suggesting the customer message the owner directly
-It cannot: book calendars, take payments, update a CRM, send emails/SMS for the owner, or save/deliver an inquiry record. Never claim those exist.
+${DEMO_SCOPE_CAN}
+It cannot:
+${DEMO_SCOPE_CANNOT}
+Never claim those exist.
+
+WHAT THE PRODUCT CAN CONFIGURE (the only things you can promise):
+${CAPABILITY_LINES}
+
+CONFIGURATION REQUESTS — check every one, whatever the topic:
+Whenever the owner asks the bot to behave a certain way or do something (style, wording, formatting, emoji, language, timing, actions, prices, intake, anything), classify the request against the list above BEFORE writing the draft:
+- "supported": one field above represents it exactly as asked. Update that field. Describe it as a proposed change that goes live only after approval.
+- "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
+- "unsupported": no field represents it exactly, or it is outside demo scope. Say plainly that it is not supported, offer the closest supported alternative by name, and ask whether to use it. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
+- Never say you "added", "will add", "set", or "noted" an unsupported or ambiguous request, and never list it in a summary.
+- After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft, readyForReview=true, approved=false.
+List every such request from the owner's CURRENT message in "configRequests" (empty array if none). "request" must quote the owner's own words — never your rewording or your alternative. Classify what the owner literally asked: if it is broader than any supported value (e.g. "all the time", "every message", "always"), it is not "supported" just because a narrower value exists. A "supported" request never has an alternative; if you are offering one, the status is "ambiguous" or "unsupported".
 
 Conversation settings (behavior — not business facts):
-- tone: free-text how the bot should sound (e.g. "warm", "professional"). Expression only — NEVER put services, benefits, guarantees, capabilities, or intake permissions into tone.
-- responseLength: "short" when the owner wants brief/concise/short replies; "standard" otherwise. Prefer "short" for "warm and short", "professional and concise", "keep it brief".
-- priceDisclosure: only two supported values:
-  - "relevant" — mention approved prices when useful/relevant; do not dump prices into unrelated answers.
-  - "on_request" — mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
-- Map natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
-- If the owner asks for unsupported price behavior (never disclose prices, always lead with prices, hide all prices forever), clearly explain the two supported options and ask which they want. Do NOT invent a third policy and do NOT set priceDisclosure to an unsupported value.
+- tone: a short description of the bot's voice (e.g. "warm", "professional"). Expression only — NEVER put rules, scripts, services, benefits, guarantees, capabilities, or intake permissions into tone.
+- responseLength: only these supported values (or null):
+${RESPONSE_LENGTH_LINES}
+  Prefer "short" for "warm and short", "professional and concise", "keep it brief"; otherwise "standard".
+- priceDisclosure: only these supported values (or null):
+${PRICE_DISCLOSURE_LINES}
+  Extra detail for "on_request": mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
+  Extra detail for "relevant": mention approved prices when useful; do not dump prices into unrelated answers; volunteering a price in every general description is not required.
+- Map clear natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
+- Proposed vs applied: describe changes as proposed until the owner approves. Do NOT say the bot "will now", "is updated", or "already does" something before approval. Your message, the pending draft, and the approval summary must agree.
 - Style/settings cannot establish service attributes, benefits, guarantees, capabilities, or extra intake. If a style request also contains a business fact, update the fact fields separately and keep settings as settings.
 - Assistant identity (conversation settings, NOT business facts):
   - assistantName: the name the owner gives the customer bot (e.g. "Maya"). Leave null unless the owner names it — never invent a name.
@@ -71,7 +109,7 @@ Interview rules:
 - Unsupported requests (calendar booking integrations, payments, CRM sync, automated outbound messages, etc.):
   - Clearly say that capability is not available in this demo.
   - Offer an in-scope alternative: answer from approved facts, clarify needs, collect listed details in chat, and suggest the customer message the owner directly.
-  - Do NOT imply the unsupported capability exists or that an inquiry will be saved or delivered to the owner by the system.
+  - Do NOT imply the unsupported capability exists or that an inquiry will be saved or delivered to the owner by the system. Wait for the owner to accept the alternative before treating it as the plan.
 - commonQuestions vs informationToCollect:
   - commonQuestions = FAQ entries { question, answer }. question = what customers ask; answer = the owner's full explanation the Business Bot may use.
   - When the owner explains a process, policy, or FAQ topic, store the COMPLETE answer in answer (not a one-line paraphrase that drops details). Topic titles alone are not enough.
@@ -86,11 +124,11 @@ Interview rules:
   - Leave null if they have not clarified a goal. Do not invent or guess a goal.
   - When they later clarify or change the goal, update ownerGoal and ask for approval again if already reviewed.
 - Before readyForReview / approve, you MUST have asked (once) whether the bot should collect any information from the customer, and set informationToCollect to an array (possibly empty) based on their answer.
-- When the owner later clarifies an unknown or changes a fact OR conversation setting, IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first.
+- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
 - When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts, ownerGoal when set, conversation settings when set, AND explicit unknowns, asking them to approve, correct, or say "approve". ownerGoal and conversation settings are helpful but NOT required for readyForReview.
 - If they correct facts, update the draft and confirm.
-- If they say approve / looks good / yes after a summary (or after a clarification summary), set approved=true.
-- If they change something later (e.g. a new price, goal, or style), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved.
+- If they say approve / looks good / yes after a summary of an already-pending draft (or after a clarification summary that did not introduce a new change this turn), set approved=true. If "yes" is accepting an offered alternative that you are applying now, that is a draft update + readyForReview — set approved=false.
+- If they change something later (e.g. a new price, goal, or style), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
 
 You MUST respond with a single JSON object only (no markdown fences):
 {
@@ -106,16 +144,18 @@ You MUST respond with a single JSON object only (no markdown fences):
     "informationToCollect": [string]|null,
     "unknowns": [string],
     "tone": string|null,
-    "responseLength": "short"|"standard"|null,
-    "priceDisclosure": "relevant"|"on_request"|null,
+    "responseLength": ${RESPONSE_LENGTH_ENUM}|null,
+    "priceDisclosure": ${PRICE_DISCLOSURE_ENUM}|null,
     "assistantName": string|null,
     "openingMessage": string|null,
     "assistantNameReset": boolean,
     "openingMessageReset": boolean
   },
+  "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
   "readyForReview": boolean,
   "approved": boolean
 }
+configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
 Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
@@ -242,6 +282,70 @@ export function reconcileDraft(draft, currentDraft) {
   return next;
 }
 
+const CONFIG_REQUEST_STATUSES = ['supported', 'ambiguous', 'unsupported'];
+const SETTING_KEYS = [...BEHAVIOR_KEYS, ...IDENTITY_KEYS];
+
+function normalizeConfigRequests(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((r) => r && typeof r === 'object')
+    .map((r) => {
+      const alternative =
+        typeof r.alternative === 'string' && r.alternative.trim()
+          ? r.alternative.trim()
+          : null;
+      let status = CONFIG_REQUEST_STATUSES.includes(r.status) ? r.status : 'ambiguous';
+      // Offering an alternative means the request as asked was not accepted.
+      if (status === 'supported' && alternative) status = 'ambiguous';
+      return {
+        request: String(r.request ?? '').trim(),
+        status,
+        field: typeof r.field === 'string' && r.field.trim() ? r.field.trim() : null,
+        alternative,
+      };
+    });
+}
+
+function restoreField(next, prev, key) {
+  next[key] =
+    prev[key] === undefined ? null : JSON.parse(JSON.stringify(prev[key]));
+  if (IDENTITY_KEYS.includes(key)) {
+    const flag = identityResetFlag(key);
+    next[flag] = prev[flag] === true;
+  }
+}
+
+/**
+ * A config request the Builder marked unsupported/ambiguous must not change the
+ * draft. Restores its field, and — when any request is unresolved — restores
+ * every setting field that changed this turn without a supported request
+ * naming it (blocks writing unsupported behavior into free-text settings).
+ */
+export function enforceConfigRequests(draft, currentDraft, configRequests) {
+  const requests = normalizeConfigRequests(configRequests);
+  const unresolved = requests.filter((r) => r.status !== 'supported');
+  if (!unresolved.length) return { draft, unresolved };
+
+  const next = { ...draft };
+  const prev = currentDraft || {};
+  const supportedFields = new Set(
+    requests.filter((r) => r.status === 'supported' && r.field).map((r) => r.field)
+  );
+
+  for (const r of unresolved) {
+    if (r.field && (r.field in next || r.field in prev)) {
+      restoreField(next, prev, r.field);
+    }
+  }
+  for (const key of SETTING_KEYS) {
+    if (supportedFields.has(key)) continue;
+    if (JSON.stringify(next[key] ?? null) !== JSON.stringify(prev[key] ?? null)) {
+      restoreField(next, prev, key);
+    }
+  }
+  return { draft: next, unresolved };
+}
+
 export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const client = getClient();
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -307,13 +411,17 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     };
   }
 
-  const draft = reconcileDraft(parsed.draft || currentDraft, currentDraft);
+  const { draft, unresolved } = enforceConfigRequests(
+    reconcileDraft(parsed.draft || currentDraft, currentDraft),
+    currentDraft,
+    parsed.configRequests
+  );
 
   const mergedPreview = mergeDraft(profile, draft);
 
   // Soft guard: if model marks approved without enough info, require review instead
-  let approved = !!parsed.approved;
-  let readyForReview = !!parsed.readyForReview;
+  let approved = !!parsed.approved && !unresolved.length;
+  let readyForReview = !!parsed.readyForReview && !unresolved.length;
   if (approved && !hasEnoughForFirstBot(mergedPreview)) {
     approved = false;
     readyForReview = true;
@@ -335,6 +443,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     draft,
     readyForReview,
     approved,
+    configRequests: normalizeConfigRequests(parsed.configRequests),
     usage: completion.usage,
     source: 'real-llm',
   };
@@ -346,24 +455,42 @@ const REVIEW_REQUIRED_NOTE =
   'Before I apply anything, please review the current version below.';
 
 /**
+ * True when a short owner-approve phrase may apply the current draft.
+ * Requires a prior presented review of exactly this draft (reviewedDraftKey).
+ * A "yes" that also introduces a new draft change this turn will not match
+ * the prior key, so soft-approve does not fire — the change stays pending.
+ */
+export function shouldSoftApprove({ profile, draft, userMessage }) {
+  if (!isOwnerApproveMessage(userMessage)) return false;
+  if (!hasAnsweredInformationToCollect(draft)) return false;
+  if (!hasEnoughForFirstBot(mergeDraft(profile, draft))) return false;
+  const key = draftReviewKey(profile, draft);
+  return !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
+}
+
+/**
  * Application approval gate (runs after every Builder turn, real or stubbed).
  * Approval is accepted only when the app already presented a review of exactly
  * this draft (profile.reviewedDraftKey). Any later draft change invalidates it.
- * A bare approve phrase cannot change content, so it approves the stored draft.
+ * Always keeps the turn's draft (so accepting an offered alternative can update
+ * the pending draft); soft-approve only fires when that draft was already reviewed.
  * Settings-only edits to an approved business are presented for review even if
  * the model asked an unrelated question instead.
  *
  * @returns turn fields plus reviewedDraftKey to persist on the profile
  */
 export function applyReviewGate(profile, turn, userMessage) {
-  const shortApprove = isOwnerApproveMessage(userMessage);
-  const draft = shortApprove && profile.draft ? profile.draft : turn.draft;
+  const draft = turn.draft;
   const key = draftReviewKey(profile, draft);
-  const reviewCurrent = !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
+  const reviewCurrent =
+    !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
   const intakeAnswered = hasAnsweredInformationToCollect(draft);
   const enough = hasEnoughForFirstBot(mergeDraft(profile, draft));
-  const wantsApprove = !!turn.approved || shortApprove;
+  const wantsApprove = !!turn.approved || isOwnerApproveMessage(userMessage);
 
+  // Soft-approve (short phrase) or model approved=true — both need a prior
+  // review of exactly this draft. A "yes" that also changes the draft this
+  // turn gets a new key and will not approve (see shouldSoftApprove).
   if (wantsApprove && intakeAnswered && enough && reviewCurrent) {
     return {
       ...turn,
@@ -376,9 +503,18 @@ export function applyReviewGate(profile, turn, userMessage) {
 
   let message = turn.message;
   let readyForReview = !!turn.readyForReview;
-  if (wantsApprove && intakeAnswered) {
+  if (wantsApprove && intakeAnswered && !reviewCurrent) {
     readyForReview = true;
-    message = REVIEW_REQUIRED_NOTE;
+    // Bare approve of an already-pending (unchanged) draft → stock "please review".
+    // "yes" that also applies an offered alternative changes the draft this turn —
+    // keep the model's pending-change preview; the summary still appends below.
+    const priorKey = profile.draft
+      ? draftReviewKey(profile, profile.draft)
+      : null;
+    const draftChangedThisTurn = !priorKey || priorKey !== key;
+    if (!draftChangedThisTurn || !String(turn.message || '').trim()) {
+      message = REVIEW_REQUIRED_NOTE;
+    }
   }
   if (intakeAnswered && profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
     readyForReview = true;

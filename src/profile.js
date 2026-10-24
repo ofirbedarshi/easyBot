@@ -36,6 +36,91 @@ export const RESPONSE_LENGTH_VALUES = ['short', 'standard'];
 export const PRICE_DISCLOSURE_VALUES = ['relevant', 'on_request'];
 
 /**
+ * Owner-facing labels for conversation-setting enums (summary + Builder prompt).
+ * Single source — do not re-describe these elsewhere.
+ */
+export const RESPONSE_LENGTH_LABELS = {
+  short: 'short',
+  standard: 'standard',
+};
+
+export const PRICE_DISCLOSURE_LABELS = {
+  relevant: 'when useful and relevant',
+  on_request: 'only when the customer asks about pricing',
+};
+
+/**
+ * What the product can configure. Single source for the Builder prompt and the
+ * config-request check: a request is supported only if one of these fields can
+ * represent it exactly. Anything else is unsupported, even if it could be
+ * written into a free-text field.
+ */
+export const CONFIG_CAPABILITIES = [
+  {
+    field: 'tone',
+    represents:
+      'Overall voice/style of the Business Bot, as a short description (e.g. warm, calm, professional, playful).',
+    cannotRepresent:
+      'Rules, scripts, or formatting the bot must follow per message: things every reply must start/end with, emoji or symbol rules, rotating or fixed phrases, required wording, message structure, language choice, frequency rules, or any capability.',
+  },
+  {
+    field: 'responseLength',
+    represents: `Reply length: ${RESPONSE_LENGTH_VALUES.map((v) => `"${v}" (${RESPONSE_LENGTH_LABELS[v]})`).join(' or ')}.`,
+    cannotRepresent:
+      'Exact word/character limits or different lengths per topic.',
+  },
+  {
+    field: 'priceDisclosure',
+    represents: `When approved prices are mentioned: ${PRICE_DISCLOSURE_VALUES.map((v) => `"${v}" (${PRICE_DISCLOSURE_LABELS[v]})`).join(' or ')}.`,
+    cannotRepresent:
+      'Prices in every reply regardless of topic, never revealing prices, discounts or prices not in the services list.',
+  },
+  {
+    field: 'assistantName',
+    represents: 'A display name for the Business Bot.',
+    cannotRepresent: 'Presenting the bot as the owner or as a human.',
+  },
+  {
+    field: 'openingMessage',
+    represents:
+      "The owner's text for the first reply of a fresh customer conversation only.",
+    cannotRepresent:
+      'Text added to every message, changing per message, or claims beyond approved facts and demo scope.',
+  },
+  {
+    field: 'informationToCollect',
+    represents: 'Details the Business Bot asks the customer for in chat.',
+    cannotRepresent:
+      'Saving, sending, or delivering those details anywhere; collecting files or payments.',
+  },
+  {
+    field: 'business facts',
+    represents:
+      'name, whatWeDo, ownerGoal, services (name/price/notes), hours, locationOrArea, commonQuestions (customer question + owner answer), unknowns — facts the Business Bot may tell customers.',
+    cannotRepresent:
+      'Instructions about how the bot behaves. Do not hide behavior rules inside facts, notes, FAQ answers, or ownerGoal.',
+  },
+];
+
+/** What the Business Bot can and cannot do once approved (demo scope). */
+export const DEMO_SCOPE = {
+  can: [
+    'Answer customer questions from approved business facts',
+    'Clarify what the customer needs',
+    'Collect the listed intake details in chat',
+    'Suggest the customer message the owner directly',
+  ],
+  cannot: [
+    'Book calendars or appointments',
+    'Take payments',
+    'Update a CRM or any external system',
+    'Send emails, SMS, reminders, or follow-up messages on its own',
+    'Save or deliver an inquiry record to the owner',
+    'Send images, files, voice notes, or links not in approved facts',
+  ],
+};
+
+/**
  * Effective defaults when a field is null / missing (legacy-safe).
  * Stored values stay null until the owner sets them.
  */
@@ -403,16 +488,15 @@ export function draftDiffersFromLive(profile, draft) {
 
 function formatResponseLengthLabel(value, isDefault) {
   const v = value || DEFAULT_BEHAVIOR.responseLength;
-  const label = v === 'short' ? 'short' : 'standard';
+  const label =
+    RESPONSE_LENGTH_LABELS[v] || RESPONSE_LENGTH_LABELS.standard;
   return isDefault ? `${label} (default)` : label;
 }
 
 function formatPriceDisclosureLabel(value, isDefault) {
   const v = value || DEFAULT_BEHAVIOR.priceDisclosure;
   const label =
-    v === 'on_request'
-      ? 'only when the customer asks about pricing'
-      : 'when useful and relevant';
+    PRICE_DISCLOSURE_LABELS[v] || PRICE_DISCLOSURE_LABELS.relevant;
   return isDefault ? `${label} (default)` : label;
 }
 

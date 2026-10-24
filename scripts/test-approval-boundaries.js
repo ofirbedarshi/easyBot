@@ -18,7 +18,12 @@ import {
   saveProfile,
   testProfilePath,
 } from '../src/profile.js';
-import { isOwnerApproveMessage, reconcileDraft } from '../src/builder.js';
+import {
+  enforceConfigRequests,
+  isOwnerApproveMessage,
+  reconcileDraft,
+  shouldSoftApprove,
+} from '../src/builder.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import { buildFlowData } from '../src/flowise.js';
 import { createSession, handleMessage } from '../src/session.js';
@@ -915,7 +920,229 @@ function testIsOwnerApproveMessage() {
   console.log('PASS is_owner_approve_message');
 }
 
+/**
+ * Soft-approve honesty:
+ * 1) pending draft already reviewed + "approve" → soft-approve
+ * 2) "yes" that also introduces a new draft change this turn → no approve; draft kept
+ * 3) first-time (no approvedAt) after a presented review → approve works
+ */
+async function testSoftApproveNoNewChangeThisTurn() {
+  clean();
+  const live = baseApprovedLive();
+  live.priceDisclosure = 'on_request';
+  live.draft = liveDraftWith(live, { priceDisclosure: 'on_request' });
+  saveProfile(live, PROFILE);
+
+  const draftRelevant = liveDraftWith(live, { priceDisclosure: 'relevant' });
+  const flowiseMock = { calls: [] };
+  const session = makeSession(
+    queuedTurns([
+      // Present review of relevant (pending)
+      {
+        message: 'Proposed: prices when useful and relevant.',
+        draft: draftRelevant,
+        readyForReview: true,
+        approved: false,
+      },
+      // Bare approve of the already-reviewed draft
+      {
+        message: 'Approved.',
+        draft: draftRelevant,
+        readyForReview: true,
+        approved: false,
+      },
+    ]),
+    flowiseMock
+  );
+
+  const r1 = await handleMessage(session, 'Switch to mentioning prices when relevant.');
+  assert.equal(r1.approved, false);
+  assert.ok(loadProfile(PROFILE).reviewedDraftKey);
+  assert.equal(loadProfile(PROFILE).draft.priceDisclosure, 'relevant');
+  assert.equal(loadProfile(PROFILE).priceDisclosure, 'on_request');
+
+  const softOk = shouldSoftApprove({
+    profile: loadProfile(PROFILE),
+    draft: draftRelevant,
+    userMessage: 'approve',
+  });
+  assert.equal(softOk, true, 'reviewed pending draft + approve → soft-approve');
+
+  const r2 = await handleMessage(session, 'approve');
+  assert.equal(r2.approved, true);
+  assert.equal(r2.event, 'approved_synced');
+  assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
+  console.log('PASS soft_approve_pending_then_approve');
+
+  // --- (2) "yes" with a new change this turn does not approve; draft kept ---
+  clean();
+  const live2 = baseApprovedLive();
+  live2.priceDisclosure = 'on_request';
+  live2.draft = liveDraftWith(live2, { priceDisclosure: 'on_request' });
+  saveProfile(live2, PROFILE);
+  const flowiseMock2 = { calls: [] };
+  const session2 = makeSession(
+    queuedTurns([
+      {
+        message: 'That every-reply policy is not supported. Closest is relevant — want that?',
+        draft: liveDraftWith(live2, { priceDisclosure: 'on_request' }),
+        readyForReview: false,
+        approved: false,
+      },
+      {
+        message: 'Proposed relevant price disclosure — approve when ready.',
+        draft: draftRelevant,
+        readyForReview: true,
+        approved: true, // model wrongly marks approved
+      },
+    ]),
+    flowiseMock2
+  );
+
+  await handleMessage(session2, 'Put the price in every reply.');
+  const rYes = await handleMessage(session2, 'yes');
+  assert.equal(rYes.approved, false, 'yes + new change must not approve');
+  assert.equal(flowiseMock2.calls.length, 0);
+  const diskYes = loadProfile(PROFILE);
+  assert.equal(diskYes.priceDisclosure, 'on_request', 'live unchanged');
+  assert.equal(diskYes.draft.priceDisclosure, 'relevant', 'draft keeps accepted alternative');
+  assert.ok(diskYes.reviewedDraftKey, 'review of new draft presented');
+  assert.match(
+    rYes.reply,
+    /Proposed relevant price disclosure/,
+    'keeps model preview when yes applies a new draft change'
+  );
+  assert.doesNotMatch(
+    rYes.reply,
+    /^Before I apply anything/m,
+    'does not replace preview with stock note when draft changed'
+  );
+  assert.equal(
+    shouldSoftApprove({
+      profile: { ...diskYes, reviewedDraftKey: null },
+      draft: draftRelevant,
+      userMessage: 'yes',
+    }),
+    false,
+    'no prior review → soft-approve false'
+  );
+  console.log('PASS soft_approve_yes_with_new_change_keeps_draft');
+
+  // --- (3) first-time approval (no approvedAt) after presented review ---
+  clean();
+  const first = emptyProfile();
+  first.name = 'Sunny Yoga';
+  first.whatWeDo = 'Private yoga lessons';
+  first.services = [{ name: 'Private lesson', price: '$70', notes: null }];
+  first.informationToCollect = [];
+  first.draft = liveDraftWith(first, {
+    name: 'Sunny Yoga',
+    whatWeDo: 'Private yoga lessons',
+    services: first.services,
+    informationToCollect: [],
+  });
+  saveProfile(first, PROFILE);
+  const flowiseMock3 = { calls: [] };
+  const session3 = makeSession(
+    queuedTurns([
+      {
+        message: 'Here is your first bot summary.',
+        draft: first.draft,
+        readyForReview: true,
+        approved: false,
+      },
+      {
+        message: 'Creating your bot.',
+        draft: first.draft,
+        readyForReview: true,
+        approved: false,
+      },
+    ]),
+    flowiseMock3
+  );
+
+  const rFirstReview = await handleMessage(session3, 'Looks ready.');
+  assert.equal(rFirstReview.approved, false);
+  assert.ok(loadProfile(PROFILE).reviewedDraftKey);
+  assert.equal(loadProfile(PROFILE).approvedAt, null);
+
+  const rFirstApprove = await handleMessage(session3, 'approve');
+  assert.equal(rFirstApprove.approved, true);
+  assert.equal(rFirstApprove.event, 'approved_synced');
+  assert.ok(loadProfile(PROFILE).approvedAt);
+  console.log('PASS soft_approve_first_time_after_review');
+}
+
+/** Unsupported/ambiguous config requests cannot change the draft, whatever the field. */
+function testEnforceConfigRequests() {
+  const prev = {
+    tone: 'warm',
+    responseLength: null,
+    priceDisclosure: 'on_request',
+    openingMessage: null,
+    assistantName: 'Noa',
+    commonQuestions: [],
+  };
+
+  // Unsupported request smuggled into tone (field named) → restored
+  const a = enforceConfigRequests(
+    { ...prev, tone: 'warm; start every message with a different emoji' },
+    prev,
+    [{ request: 'different emoji every message', status: 'unsupported', field: 'tone' }]
+  );
+  assert.equal(a.draft.tone, 'warm');
+  assert.equal(a.unresolved.length, 1);
+
+  // Unsupported with no field, but model still wrote into openingMessage → restored
+  const b = enforceConfigRequests(
+    { ...prev, openingMessage: 'Reminder sent tomorrow!' },
+    prev,
+    [{ request: 'send reminders next day', status: 'unsupported', field: null }]
+  );
+  assert.equal(b.draft.openingMessage, null);
+
+  // Supported change kept alongside an unsupported one
+  const c = enforceConfigRequests(
+    { ...prev, responseLength: 'short', tone: 'warm, emoji in every message' },
+    prev,
+    [
+      { request: 'short replies', status: 'supported', field: 'responseLength' },
+      { request: 'emoji in every message', status: 'unsupported', field: 'tone' },
+    ]
+  );
+  assert.equal(c.draft.responseLength, 'short');
+  assert.equal(c.draft.tone, 'warm');
+
+  // Ambiguous on a fact field → restored
+  const d = enforceConfigRequests(
+    { ...prev, commonQuestions: [{ question: 'x', answer: 'y' }] },
+    prev,
+    [{ request: 'unclear', status: 'ambiguous', field: 'commonQuestions' }]
+  );
+  assert.deepEqual(d.draft.commonQuestions, []);
+
+  // "supported" but carrying an alternative = not accepted → restored
+  const f = enforceConfigRequests(
+    { ...prev, priceDisclosure: 'relevant' },
+    prev,
+    [{ request: 'prices in every reply', status: 'supported', field: 'priceDisclosure', alternative: 'relevant' }]
+  );
+  assert.equal(f.draft.priceDisclosure, 'on_request');
+  assert.equal(f.unresolved.length, 1);
+
+  // All supported → untouched
+  const e = enforceConfigRequests(
+    { ...prev, tone: 'playful' },
+    prev,
+    [{ request: 'playful tone', status: 'supported', field: 'tone' }]
+  );
+  assert.equal(e.draft.tone, 'playful');
+  assert.equal(e.unresolved.length, 0);
+  console.log('PASS enforce_config_requests');
+}
+
 async function main() {
+  testEnforceConfigRequests();
   await testFormatSummaryIncludesOwnerGoal();
   await testDraftEditLeavesLiveUnchanged();
   await testReapproveUpdatesFlowise();
@@ -928,6 +1155,7 @@ async function main() {
   await testBehaviorOnlyMergePreservesFacts();
   await testApproveRequiresPresentedReview();
   await testEditAfterReviewRequiresNewReview();
+  await testSoftApproveNoNewChangeThisTurn();
   await testIdentityDraftIsolatesLive();
   await testIdentityApprovePropagates();
   await testOpeningOnlyEditPreservesName();
