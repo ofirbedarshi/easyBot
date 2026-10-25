@@ -67,6 +67,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
+- Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in draft.newFacts and edit stored ones only via factEdits.
 
 Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
@@ -113,6 +114,7 @@ ${PRICE_DISCLOSURE_LINES}
 Interview rules:
 - Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
 - Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
+- Store every business fact the owner states in the same turn, whatever you are currently asking about: in its field if one fits, otherwise in draft.newFacts.
 - After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
 - When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
 - Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
@@ -170,6 +172,7 @@ You MUST respond with a single JSON object only (no markdown fences):
     "commonQuestions": [{"question": string, "answer": string}],
     "informationToCollect": [string]|null,
     "unknowns": [string],
+    "newFacts": [string],
     "tone": string|null,
     "responseLength": ${RESPONSE_LENGTH_ENUM}|null,
     "priceDisclosure": ${PRICE_DISCLOSURE_ENUM}|null,
@@ -178,6 +181,9 @@ You MUST respond with a single JSON object only (no markdown fences):
     "assistantNameReset": boolean,
     "openingMessageReset": boolean
   },
+  "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"}],
+  "factEdits": [{"index": number, "text": string|null}],
+  "resolvedUnknowns": [number],
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
   "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
@@ -185,6 +191,10 @@ You MUST respond with a single JSON object only (no markdown fences):
   "readyForReview": boolean,
   "approved": boolean
 }
+ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes, however it is phrased. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit. Stored values not listed here are kept as they were, so never reword them.
+newFacts: otherFacts the owner states in the CURRENT message (not already stored). factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Both empty if none.
+resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
+
 configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
@@ -242,6 +252,94 @@ export function hasAnsweredInformationToCollect(draftOrProfile) {
 export function isOwnerApproveMessage(text) {
   const t = String(text || '').trim();
   return /^(approve|looks good|lgtm|yes\.?|ok\.?|okay\.?)$/i.test(t);
+}
+
+const sameKey = (a, b) =>
+  String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+/** True when `next` still contains all of `prev`, i.e. the change only adds detail. */
+const extends_ = (next, prev) =>
+  String(next || '').toLowerCase().includes(String(prev || '').trim().toLowerCase());
+
+/** Loose identity for model-reported edit targets, which may abbreviate the stored key. */
+const overlaps = (a, b) => {
+  const x = String(a || '').trim().toLowerCase();
+  const y = String(b || '').trim().toLowerCase();
+  return !!x && !!y && (x.includes(y) || y.includes(x));
+};
+
+/**
+ * Keep previously stored facts the model dropped or altered without the owner asking.
+ * The model reports owner-requested changes in `ownerEdits`; any other change that does
+ * not keep the whole previous value (i.e. is not purely additive) is reverted. Items are matched by identity (service name, FAQ
+ * question) so an edited item replaces the old one instead of duplicating it.
+ * `unknowns` are not guarded here; resolved ones are removed by dropResolved.
+ * `otherFacts` are code-owned (see applyFactOps).
+ * Relies on the model reporting edits; an unreported edit is reverted.
+ */
+export function preserveFacts(draft, currentDraft, ownerEdits) {
+  if (!currentDraft) return draft;
+  const next = { ...draft };
+  const prev = currentDraft;
+  const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
+  const edited = (field, item = null) =>
+    edits.some((e) => e && e.field === field && (item === null || !e.item || overlaps(e.item, item)));
+
+  const guardList = (field, key, valueKeys) => {
+    if (!Array.isArray(prev[field]) || !Array.isArray(next[field])) return;
+    const list = [...next[field]];
+    for (const old of prev[field]) {
+      if (!old || edited(field, old[key])) continue;
+      const i = list.findIndex((x) => x && sameKey(x[key], old[key]));
+      if (i === -1) {
+        list.push(old);
+        continue;
+      }
+      const kept = { ...list[i] };
+      for (const k of valueKeys) if (old[k] && !extends_(kept[k], old[k])) kept[k] = old[k];
+      list[i] = kept;
+    }
+    next[field] = list;
+  };
+  guardList('services', 'name', ['price', 'notes']);
+  guardList('commonQuestions', 'question', ['answer']);
+
+  for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
+    if (prev[field] && !extends_(next[field], prev[field]) && !edited(field)) next[field] = prev[field];
+  }
+  return next;
+}
+
+/** Remove stored unknowns the model reported as answered (by index into the stored list). */
+export function dropResolved(unknowns, stored, resolved) {
+  const list = Array.isArray(unknowns) ? unknowns : [];
+  const prev = Array.isArray(stored) ? stored : [];
+  const gone = (Array.isArray(resolved) ? resolved : [])
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < prev.length)
+    .map((i) => prev[i]);
+  return list.filter((u) => !gone.some((g) => sameKey(g, u)));
+}
+
+/**
+ * Apply this turn's otherFacts changes to the stored list. The model never re-emits
+ * the list, so stored facts cannot silently disappear, shorten, or duplicate.
+ * Edit indexes refer to the list shown to the model this turn; invalid edits are ignored.
+ */
+export function applyFactOps(facts, newFacts, edits) {
+  const list = Array.isArray(facts) ? [...facts] : [];
+  const removed = new Set();
+  for (const e of Array.isArray(edits) ? edits : []) {
+    if (!Number.isInteger(e?.index) || e.index < 0 || e.index >= list.length) continue;
+    const text = typeof e.text === 'string' ? e.text.trim() : '';
+    if (text) list[e.index] = text;
+    else if (e.text === null) removed.add(e.index);
+  }
+  const next = list.filter((_, i) => !removed.has(i));
+  for (const f of Array.isArray(newFacts) ? newFacts : []) {
+    const text = typeof f === 'string' ? f.trim() : '';
+    if (text && !next.some((x) => sameKey(x, text))) next.push(text);
+  }
+  return next;
 }
 
 /**
@@ -417,6 +515,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
         ? null
         : profile.informationToCollect,
     unknowns: profile.unknowns || [],
+    otherFacts: profile.otherFacts || [],
     tone: profile.tone,
     responseLength: profile.responseLength ?? null,
     priceDisclosure: profile.priceDisclosure ?? null,
@@ -445,9 +544,14 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   }
   const justAsked = topicJustAsked(buildHistory);
   if (justAsked) enoughHint += `\nHint: ${justAsked.answerHint}`;
+  const { otherFacts: storedFacts = [], ...draftForModel } = currentDraft;
   const contextNote = [
     'Current draft profile JSON:',
-    JSON.stringify(currentDraft, null, 2),
+    JSON.stringify(draftForModel, null, 2),
+    'Stored otherFacts (edit only via factEdits, by index):',
+    storedFacts.length ? storedFacts.map((f, i) => `[${i}] ${f}`).join('\n') : '(none)',
+    'Stored unknowns (report answered ones in resolvedUnknowns, by index):',
+    currentDraft.unknowns?.length ? currentDraft.unknowns.map((u, i) => `[${i}] ${u}`).join('\n') : '(none)',
     profile.approvedAt
       ? `Last approved at: ${profile.approvedAt}`
       : 'Not yet approved.',
@@ -481,8 +585,16 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     };
   }
 
+  const reconciled = reconcileDraft(parsed.draft || currentDraft, currentDraft);
+  const { newFacts, ...guarded } = preserveFacts(reconciled, currentDraft, parsed.ownerEdits);
+  const preserved = {
+    ...guarded,
+    otherFacts: applyFactOps(currentDraft.otherFacts, parsed.draft?.newFacts, parsed.factEdits),
+    unknowns: dropResolved(guarded.unknowns, currentDraft.unknowns, parsed.resolvedUnknowns),
+  };
+  
   const { draft, unresolved } = enforceConfigRequests(
-    reconcileDraft(parsed.draft || currentDraft, currentDraft),
+    preserved,
     currentDraft,
     parsed.configRequests
   );

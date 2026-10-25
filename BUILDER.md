@@ -96,6 +96,12 @@ On a correction or a later clarification, the prompt tells the model to update t
 
 If the model reply is not valid JSON, the app keeps the previous draft and does not approve.
 
+**Fact preservation across turns (app-enforced, `preserveFacts` / `applyFactOps` / `dropResolved` in `src/builder.js`).** Each turn the model also returns `ownerEdits` (stored services, FAQ entries, or `name` / `whatWeDo` / `hours` / `locationOrArea` that the owner's current message changes or removes), `factEdits`, and `resolvedUnknowns`. Code then:
+- Restores a stored service (matched by name) or FAQ (matched by question) that the model dropped, and reverts a changed `price`, `notes`, or `answer`, unless `ownerEdits` covers it. The same applies to the text fields. A change that still contains the whole previous value (adds detail only) is accepted.
+- Owns `otherFacts` (off-schema facts, policies, caveats, shown in the order they were stated). The model never re-emits the list. It sees it numbered in the context and returns `draft.newFacts` (appended, exact duplicates skipped) and `factEdits` (`{index, text}` replaces; `text: null` removes).
+- Takes `unknowns` from the model's draft, then removes the stored unknowns listed in `resolvedUnknowns`.
+- **Not enforced:** that the model reports edits correctly. An edit it fails to report is reverted (unless additive), and an edit it wrongly reports is not protected. Which field a fact lands in is up to the model.
+
 ## Review, `/test`, `/end`, and later edits
 
 The owner reads the acknowledgment, the summary lines, and the two options (Try my bot / Make changes). The prompt tells the model to set approved when the owner says “approve”, “looks good”, or “yes” after a presented review of an already-pending draft — and **not** when “yes” is accepting an offered alternative that the model is applying in the same turn. **Application review gate (enforced, `applyReviewGate` in the session after every Builder turn):**

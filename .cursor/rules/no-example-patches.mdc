@@ -1,0 +1,28 @@
+# No example-specific patches
+
+**Never add test-specific or example-specific content to production code or prompts.**
+
+Do NOT put content tied to specific failing tests, test businesses, or examples (e.g. Rosa, cakes, delivery, nuts, vegan, car wash, yoga, pottery) into:
+- Builder prompts
+- Customer bot prompts  
+- Validation rules
+- Normalization logic
+- Application code
+
+Fixes must be **generic** and address the **root cause**.
+
+## What IS allowed:
+- Generic examples in prompts (if truly needed): use abstract placeholders or unrelated domains
+- Specific examples in PR descriptions, comments, test fixtures, documentation
+- Explaining fixes using specific examples in reports
+
+## What is NOT allowed:
+- Prompt rules that mention specific test businesses or their domains
+- Code that checks for specific fact patterns from test cases
+- Examples in prompts that directly mirror failing test data
+
+## If you believe a specific patch is necessary:
+STOP and explicitly ask for owner approval in your report instead of adding it.
+
+## Prompt growth:
+Avoid growing prompts more than needed. The owner plans to shrink them later.
