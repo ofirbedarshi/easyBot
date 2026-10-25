@@ -27,7 +27,7 @@ Open http://localhost:3080
 
 ## Commands in chat
 
-- `/test` — Business Bot; requires approved facts (live as soon as you approve)
+- `/test` — Business Bot; requires approved facts (live as soon as you pick **Try my bot** on the review)
 - `/end` — back to Builder
 - `/reset` — clear profile for this session
 
