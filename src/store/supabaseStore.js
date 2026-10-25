@@ -137,6 +137,7 @@ export function createSupabaseStore() {
         buildHistory: data.build_history || [],
         testHistory: data.test_history || [],
         testSessionId: data.test_session_id || `test-${Date.now()}`,
+        leadIntake: data.lead_intake ?? null,
       };
     },
 
@@ -149,10 +150,23 @@ export function createSupabaseStore() {
           build_history: session.buildHistory || [],
           test_history: session.testHistory || [],
           test_session_id: session.testSessionId,
+          lead_intake: session.leadIntake ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq('sender_id', senderId);
       if (error) throw new Error(`saveSession: ${error.message}`);
+    },
+
+    /** One lead per sender (unique sender_id); a duplicate keeps the first. */
+    async saveLead(senderId, lead) {
+      await this.ensureSender(senderId);
+      const { error } = await sb.from('easybot_leads').insert({
+        sender_id: senderId,
+        business_name: lead.businessName ?? null,
+        answers: lead.answers,
+        created_at: lead.createdAt,
+      });
+      if (error && error.code !== '23505') throw new Error(`saveLead: ${error.message}`);
     },
 
     async enqueueInbound({ messageSid, senderId, body }) {
