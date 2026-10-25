@@ -10,6 +10,9 @@ import {
 } from '../limits.js';
 import { sendWhatsAppReply } from './send.js';
 
+const GENERIC_ERROR_REPLY =
+  'Sorry, something went wrong processing that message. Please try again.';
+
 /**
  * Durable inbound processor. Polls store; per-sender serial via claim RPC/store.
  */
@@ -82,7 +85,10 @@ async function processRow(store, row) {
     const result = await handleMessage(session, length.text);
     await persistSenderSession(session);
 
-    const reply = result.reply || result.error || '(no reply)';
+    if (!result.reply) {
+      console.warn(`inbound ${row.message_sid} no reply:`, result.error || '(empty)');
+    }
+    const reply = result.reply || GENERIC_ERROR_REPLY;
     let replySid = null;
     if (process.env.TWILIO_SKIP_OUTBOUND === '1') {
       // Tests / dry-run — no Twilio send
@@ -104,7 +110,7 @@ async function processRow(store, row) {
     try {
       await sendWhatsAppReply({
         to: senderId,
-        body: 'Sorry, something went wrong processing that message. Please try again.',
+        body: GENERIC_ERROR_REPLY,
       });
     } catch {
       /* ignore outbound fail */

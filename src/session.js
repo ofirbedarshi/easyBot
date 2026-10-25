@@ -199,7 +199,13 @@ function markFlowiseSyncPending(session, profile) {
 }
 
 const SYNC_PENDING_NOTE =
-  '\n\n[Approved. Flowise is waking up — syncing the customer bot usually takes 1–2 minutes. I will message you when it is ready; then choose Try my bot or type /test.]';
+  "Approved ✅ Your bot is getting ready. This can take a minute or two. I'll message you when it's ready, then choose **Try my bot** or type /test.";
+
+const BOT_WAKING_REPLY =
+  'Your bot is waking up. Please wait about a minute and send your question again.';
+
+const BOT_ERROR_REPLY =
+  "Sorry, your bot couldn't answer right now. Please try again in a moment.";
 
 /**
  * True when a presented review of the current draft is waiting to be applied
@@ -438,7 +444,7 @@ async function approvePendingAndTest(session, profile, text) {
   }
 
   // Sync pending — stay in BUILD; worker will show the menu when ready.
-  const reply = `Approved.${sync.syncNote}`;
+  const reply = sync.syncNote;
   session.buildHistory.push({ role: 'assistant', content: reply });
   return {
     ok: true,
@@ -601,20 +607,20 @@ async function handleTest(session, question, flowiseSessionId) {
       } catch (recoverErr) {
         if (isFlowiseUnavailableError(recoverErr)) {
           wakeFlowiseFn(session)().catch(() => {});
-          reply =
-            'Flowise is waking up. Wait about a minute and send your question again.';
+          reply = BOT_WAKING_REPLY;
         } else {
-          reply = `Flowise error: ${truncateFlowiseErrorBody(recoverErr.message)}`;
+          console.warn('Flowise predict failed:', truncateFlowiseErrorBody(recoverErr.message));
+          reply = BOT_ERROR_REPLY;
         }
         source = 'error';
       }
     } else if (isFlowiseUnavailableError(err)) {
       wakeFlowiseFn(session)().catch(() => {});
-      reply =
-        'Flowise is waking up. Wait about a minute and send your question again.';
+      reply = BOT_WAKING_REPLY;
       source = 'error';
     } else {
-      reply = `Flowise error: ${truncateFlowiseErrorBody(err.message)}`;
+      console.warn('Flowise predict failed:', truncateFlowiseErrorBody(err.message));
+      reply = BOT_ERROR_REPLY;
       source = 'error';
     }
   }
