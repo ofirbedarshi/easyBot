@@ -23,6 +23,28 @@ const PRICES = {
   'gpt-4o-mini': { in: 0.15, out: 0.6 },
   'gpt-4.1-mini': { in: 0.4, out: 1.6 },
   'gpt-4.1': { in: 2, out: 8 },
+  'gpt-5-mini': { in: 0.25, out: 2 },
+  'gpt-6-sol': { in: 2, out: 10 },
+  'gpt-6-luna': { in: 0.1, out: 0.5 },
+};
+
+/** Prior Rosa two-turn × 12 delta row (same PR), for reference — not rerun. */
+const PRIOR_DELTA = {
+  'gpt-4.1-mini': {
+    n: 12,
+    year1998: '100%',
+    nutFree: '100%',
+    delivery: '100%',
+    deliveryFull: '100%',
+    newFactsKey: '100%',
+    newFactsNonempty: '38%',
+    medianLatencyMs: 1997,
+    medianOutTok: 240,
+    medianInTok: 5129,
+    medianReasoningTok: 0,
+    effort: '—',
+    cost: 0.059,
+  },
 };
 
 const INTRO =
@@ -159,6 +181,10 @@ function summarize(cell) {
     medianLatencyMs: Math.round(median(lat)),
     medianOutTok: Math.round(median(outTok)),
     medianInTok: Math.round(median(inTok)),
+    medianReasoningTok: Math.round(
+      median(cell.runs.flatMap((r) => r.turns.map((t) => t.reasoningTokens || 0)))
+    ),
+    effort: [...new Set(cell.runs.flatMap((r) => r.turns.map((t) => t.reasoningEffort).filter(Boolean)))].join(',') || '—',
     cost: cell.cost,
   };
 }
@@ -204,6 +230,8 @@ const results = await poolMap(jobs, CONCURRENCY, async (job) => {
         usage: t.usage,
         newFactsKey: newFactsPresent(t.modelJson, job.mode),
         newFactsN: newFactsCount(t.modelJson, job.mode),
+        reasoningEffort: t.reasoningEffort,
+        reasoningTokens: t.reasoningTokens,
       })),
     };
     const key = `${job.model} ${job.mode}`;
@@ -212,8 +240,9 @@ const results = await poolMap(jobs, CONCURRENCY, async (job) => {
     cell.runs.push(row);
     cell.cost += usageCost;
     const s = row.score;
+    const effort = row.turns.map((t) => t.reasoningEffort || '—').join('/');
     console.log(
-      `  ${job.model} ${job.mode} #${job.run}: 1998=${s.year1998} nut=${s.nutFree} deliver=${s.delivery} $${usageCost.toFixed(4)}`
+      `  ${job.model} ${job.mode} #${job.run}: 1998=${s.year1998} nut=${s.nutFree} deliver=${s.delivery} effort=${effort} $${usageCost.toFixed(4)}`
     );
     return row;
   } catch (err) {
@@ -227,20 +256,42 @@ if (skipped) console.log(`\nStopped early: ${skipped} interviews skipped (budget
 
 console.log('\n## Capture replay\n');
 console.log(
-  '| Model | Mode | n | 1998 | nut-free | delivery | delivery+terms | newFacts key | newFacts nonempty | median latency | median out tok | median in tok | cost |'
+  '| Model | Mode | n | 1998 | nut-free | delivery | delivery+terms | newFacts key | newFacts nonempty | effort | median latency | median out tok | median reasoning tok | median in tok | cost |'
 );
-console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|');
+const printed = new Set();
+function printRow(model, mode, s, note = '') {
+  printed.add(`${model} ${mode}`);
+  const lat = s.medianLatencyMs === '—' ? '—' : `${s.medianLatencyMs}ms`;
+  console.log(
+    `| ${model} | ${mode}${note} | ${s.n} | ${s.year1998} | ${s.nutFree} | ${s.delivery} | ${s.deliveryFull} | ${s.newFactsKey} | ${s.newFactsNonempty} | ${s.effort} | ${lat} | ${s.medianOutTok} | ${s.medianReasoningTok} | ${s.medianInTok} | $${Number(s.cost).toFixed(3)} |`
+  );
+}
+if (!MODELS.includes('gpt-4.1-mini') && PRIOR_DELTA['gpt-4.1-mini']) {
+  printRow('gpt-4.1-mini', 'delta', PRIOR_DELTA['gpt-4.1-mini'], ' (prior)');
+}
 for (const model of MODELS) {
   for (const mode of MODES) {
     const cell = cells.get(`${model} ${mode}`);
     if (!cell) {
-      console.log(`| ${model} | ${mode} | 0 | — | — | — | — | — | — | — | — | — | $0 |`);
+      printRow(model, mode, {
+        n: 0,
+        year1998: '—',
+        nutFree: '—',
+        delivery: '—',
+        deliveryFull: '—',
+        newFactsKey: '—',
+        newFactsNonempty: '—',
+        effort: '—',
+        medianLatencyMs: '—',
+        medianOutTok: '—',
+        medianReasoningTok: '—',
+        medianInTok: '—',
+        cost: 0,
+      });
       continue;
     }
-    const s = summarize(cell);
-    console.log(
-      `| ${model} | ${mode} | ${s.n} | ${s.year1998} | ${s.nutFree} | ${s.delivery} | ${s.deliveryFull} | ${s.newFactsKey} | ${s.newFactsNonempty} | ${s.medianLatencyMs}ms | ${s.medianOutTok} | ${s.medianInTok} | $${s.cost.toFixed(3)} |`
-    );
+    printRow(model, mode, summarize(cell));
   }
 }
 console.log(`\nTotal spent: $${spent.toFixed(3)} (cap $${BUDGET.toFixed(2)})`);

@@ -1,8 +1,10 @@
 import { strict as assert } from 'assert';
 import {
+  adjustChatParamsOnError,
   applyBuilderModelOutput,
   applyDraftDelta,
   applyFactOps,
+  builderChatParams,
   preserveFacts,
 } from '../src/builder.js';
 import {
@@ -163,6 +165,25 @@ test('legacy output still reads draft.newFacts, not top-level', () => {
     { mode: 'legacy' }
   );
   assert.deepEqual(out.otherFacts, ['Deliver within 3 miles']);
+});
+
+test('chat params start with temperature; drop it and try lowest effort on 400', () => {
+  const start = builderChatParams({
+    model: 'm',
+    messages: [],
+    response_format: { type: 'json_object' },
+  });
+  assert.equal(start.temperature, 0.4);
+  const next = adjustChatParamsOnError(start, { message: "Unsupported parameter: 'temperature'" });
+  assert.ok(next);
+  assert.equal(next.temperature, undefined);
+  assert.equal(next.reasoning_effort, 'none');
+  assert.equal(next.max_completion_tokens, 4000);
+  const again = adjustChatParamsOnError(next, { message: "Unsupported value: 'none' for 'reasoning_effort'" });
+  assert.equal(again.reasoning_effort, 'minimal');
+  const low = adjustChatParamsOnError(again, { error: { message: 'reasoning_effort must be low' } });
+  assert.equal(low.reasoning_effort, 'low');
+  assert.equal(adjustChatParamsOnError(start, { message: 'insufficient_quota' }), null);
 });
 
 test('preserveFacts / applyFactOps still exported for existing tests', () => {

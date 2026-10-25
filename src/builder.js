@@ -177,6 +177,104 @@ export function getClient() {
   return new OpenAI({ apiKey: key });
 }
 
+/** Lowest efforts to try when a model rejects temperature / a given effort. */
+export const BUILDER_REASONING_EFFORTS = ['none', 'minimal', 'low'];
+const REASONING_COMPLETION_CAP = 4000;
+const chatParamCache = new Map();
+
+export function resetBuilderChatParamCache() {
+  chatParamCache.clear();
+}
+
+function apiErrorText(err) {
+  return [
+    err?.message,
+    err?.error?.message,
+    err?.code,
+    err?.error?.code,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Initial Chat Completions body for a Builder turn (classic models keep temperature). */
+export function builderChatParams({ model, messages, response_format, temperature = 0.4 }) {
+  return { model, messages, response_format, temperature };
+}
+
+/**
+ * Adjust a Chat Completions body after a 4xx. Returns a new body or null if
+ * the error is not a known parameter incompatibility.
+ */
+export function adjustChatParamsOnError(params, err) {
+  const msg = apiErrorText(err);
+  const next = { ...params };
+  let changed = false;
+
+  if (/temperature|top_p|top_logprobs|logprobs|presence_penalty|frequency_penalty/i.test(msg)) {
+    if ('temperature' in next) {
+      delete next.temperature;
+      changed = true;
+    }
+    if (!next.reasoning_effort) {
+      next.reasoning_effort = BUILDER_REASONING_EFFORTS[0];
+      changed = true;
+    }
+    if (next.max_completion_tokens == null) {
+      next.max_completion_tokens = REASONING_COMPLETION_CAP;
+      changed = true;
+    }
+  }
+
+  if (/max_tokens/i.test(msg) && !/max_completion_tokens/i.test(msg)) {
+    delete next.max_tokens;
+    next.max_completion_tokens = next.max_completion_tokens ?? REASONING_COMPLETION_CAP;
+    changed = true;
+  }
+
+  if (/reasoning_effort|reasoning\.effort/i.test(msg)) {
+    const cur = next.reasoning_effort || BUILDER_REASONING_EFFORTS[0];
+    const i = BUILDER_REASONING_EFFORTS.indexOf(cur);
+    const nxt = BUILDER_REASONING_EFFORTS[i + 1];
+    if (nxt) {
+      next.reasoning_effort = nxt;
+      delete next.temperature;
+      next.max_completion_tokens = next.max_completion_tokens ?? REASONING_COMPLETION_CAP;
+      changed = true;
+    }
+  }
+
+  return changed ? next : null;
+}
+
+async function createBuilderCompletion(client, base) {
+  let params = chatParamCache.has(base.model)
+    ? { ...chatParamCache.get(base.model), messages: base.messages, response_format: base.response_format }
+    : builderChatParams(base);
+
+  let lastErr;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const completion = await client.chat.completions.create(params);
+      const stored = { ...params };
+      delete stored.messages;
+      chatParamCache.set(base.model, stored);
+      return { completion, params };
+    } catch (err) {
+      lastErr = err;
+      const next = adjustChatParamsOnError(params, err);
+      if (!next) break;
+      params = { ...next, messages: base.messages, response_format: base.response_format };
+    }
+  }
+  throw lastErr;
+}
+
+function reasoningTokensFromUsage(usage) {
+  const n = usage?.completion_tokens_details?.reasoning_tokens;
+  return Number.isFinite(n) ? n : 0;
+}
+
 function parseJsonResponse(content) {
   let text = (content || '').trim();
   if (text.startsWith('```')) {
@@ -605,11 +703,10 @@ export async function runBuilderTurn({
   ];
 
   const started = Date.now();
-  const completion = await client.chat.completions.create({
+  const { completion, params: requestParams } = await createBuilderCompletion(client, {
     model,
-    temperature: 0.4,
-    response_format: legacy ? { type: 'json_object' } : builderResponseFormat(),
     messages,
+    response_format: legacy ? { type: 'json_object' } : builderResponseFormat(),
   });
   const latencyMs = Date.now() - started;
 
@@ -656,6 +753,8 @@ export async function runBuilderTurn({
     usage: completion.usage,
     latencyMs,
     modelJson: parsed,
+    reasoningEffort: requestParams.reasoning_effort ?? null,
+    reasoningTokens: reasoningTokensFromUsage(completion.usage),
     source: 'real-llm',
   };
 }
