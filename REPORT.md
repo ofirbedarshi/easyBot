@@ -10,7 +10,7 @@ Date: 2026-10-23
 
 **Cause:** Approved config stored `$10 per hour` + capacity notes, but no pricing basis and no `unknowns`. Customer system prompt allowed inference; capacity was treated as “flat rate regardless of quantity.” Builder had nowhere to preserve “undecided” policies.
 
-**Fix:** Profile `unknowns[]`; builder captures pricing-basis / policy ambiguities; customer prompt distinguishes approved facts vs supported conclusions vs unknowns (no capacity→price, no contact promises). Tester: `npm run e2e:ambiguity` (29 real Flowise/LLM checks).
+**Fix:** Profile `unknowns[]`; builder captures pricing-basis / policy ambiguities; customer prompt distinguishes approved facts vs supported conclusions vs unknowns (no capacity→price, no contact promises).
 
 **Before (real Flowise, old prompt):** `The price for dog walking is $10 per hour, regardless of the number of dogs. So it would still be $10 for both dogs!`
 

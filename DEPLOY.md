@@ -87,9 +87,7 @@ Sandbox is **not** a public number you can advertise.
 | Kind | Command / action | Status |
 |---|---|---|
 | Mocked | `npm run test:twilio` | Ran — signatures, dupes, isolation, order, `/test`+/`/end` |
-| Existing e2e | `npm run e2e` | Ran — all passed |
-| Existing ambiguity | `npm run e2e:ambiguity` | Ran — some Flowise/judge flaky fails (model unknowns), not webhook regressions |
-| Adaptive | `npm run e2e:adaptive` | **Not run** (needs approval — paid model heavy) |
+| Deterministic | `npm run test:approval` / `test:nav` / `test:customer-prompt` | Product-behavior checks |
 | Sandbox | Message Sandbox after Render URL live | **Not run** — Twilio number still in progress |
 | Live | Real WhatsApp number E2E | **Not run** — not public-ready |
 

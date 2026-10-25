@@ -1,6 +1,5 @@
 /**
  * Deterministic structure/boundary checks for buildCustomerSystemPrompt.
- * Behavioral regressions belong in e2e / judge calibration — not here.
  */
 import assert from 'assert';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';

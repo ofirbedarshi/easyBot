@@ -68,7 +68,6 @@ See [.env.example](.env.example) for the full name list.
 - Push to `main` triggers deploys via GitHub Actions + Render Deploy Hooks (path-filtered). Setup: [DEPLOY.md](DEPLOY.md) § **GitHub Actions → Render deploy**.
 - Free tier spins down after ~15 minutes idle; cold start ~1 minute. Hit `/api/health` before Sandbox tests.
 - Flowise should use Supabase Postgres (`DATABASE_*` in Flowise service) — free Render has no persistent disk.
-- Production hides `/api/test-results*` and `results.html` unless `ALLOW_TEST_RESULTS=1`.
 
 ## CTO agent workflow
 
@@ -77,12 +76,11 @@ Milestone handoffs live in [`cto-workflow/`](cto-workflow/). Start/resume paste 
 ## Scripts
 
 ```bash
-npm run test:twilio   # MOCKED signature / dupe / isolation / order (no Twilio network)
-npm run spike         # create Flowise chatflow + one prediction
-npm run judge:calib   # calibrate Tester judge on fixed labelled examples
-npm run e2e           # full yoga-teacher workflow (app must be running)
-npm run e2e:ambiguity # fabrication / unknowns regressions + semantic judge
-npm run e2e:adaptive  # adaptive Tester-as-Owner (expensive; ask before large runs)
+npm run test:approval         # deterministic approval boundaries (no network)
+npm run test:nav              # deterministic Builder editing-menu nav (no network)
+npm run test:customer-prompt  # deterministic customer-prompt structure checks
+npm run test:twilio           # MOCKED signature / dupe / isolation / order (no Twilio network)
+npm run spike                 # create Flowise chatflow + one prediction
 ```
 
 ### Test labels
@@ -93,12 +91,9 @@ npm run e2e:adaptive  # adaptive Tester-as-Owner (expensive; ask before large ru
 | **Sandbox** | Twilio WhatsApp Sandbox against deployed/tunneled URL |
 | **Live** | Real WhatsApp Business number — not done until you finish Twilio setup |
 
-Adaptive suite env: `ADAPTIVE_BUSINESS=yoga-teacher`, `OWNER_TURN_LIMIT=20`, `ADAPTIVE_CONCURRENCY=2`. Set `JUDGE_MODE=stub` to avoid paid judge calls.
-
 ## Notes
 
 - Browser profile: `data/business-profile.json`
-- Adaptive e2e profiles: `data/test-profiles/<fixture-id>.json`
 - Builder behavior: [BUILDER.md](BUILDER.md)
 - SQL: `supabase/migrations/`
 - Leave `FLOWISE_API_KEY` empty unless Flowise auth is enabled

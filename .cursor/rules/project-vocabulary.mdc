@@ -1,5 +1,5 @@
 ---
-description: Canonical role names — Builder, Business Bot, Tester
+description: Canonical role names — Builder, Business Bot
 alwaysApply: true
 ---
 
@@ -11,6 +11,5 @@ Use these names in discussions, plans, test reports, and documentation. Prefer t
 |------|---------|
 | **Builder** | Agent that interviews the business owner, proposes business facts for approval, and creates or updates the approved business configuration. |
 | **Business Bot** | Customer-facing bot configured from the approved business information. Answers customers; does not modify business facts. |
-| **Tester** | Test-only actor that simulates business owners talking to the Builder, then customers talking to the Business Bot, and evaluates results. Not a production product role. |
 
 Do not rename code or change implementation solely to match this vocabulary.

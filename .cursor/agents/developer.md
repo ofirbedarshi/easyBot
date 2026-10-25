@@ -18,7 +18,7 @@ mark work as independently verified — only the Verifier does that.
 ## Before coding
 
 1. Read `cto-workflow/state.json` and the milestone id / acceptance criteria in your task prompt.
-2. Follow project vocabulary: **Builder**, **Business Bot**, **Tester** (see `.cursor/rules/project-vocabulary.mdc`).
+2. Follow project vocabulary: **Builder**, **Business Bot** (see `.cursor/rules/project-vocabulary.mdc`).
 3. If Builder behavior changes, update `BUILDER.md` in the same change.
 4. Run `graphify query` before broad exploration when `graphify-out/graph.json` exists.
 
@@ -26,8 +26,8 @@ mark work as independently verified — only the Verifier does that.
 
 1. Set your agent activity in `cto-workflow/state.json` (`agents.developer`) at start and handoff.
 2. Implement the minimal change that satisfies acceptance criteria.
-3. Run relevant checks (targeted tests, lint, or smoke commands listed in the task). Prefer existing scripts: `npm run e2e`, `e2e:ambiguity`, `e2e:adaptive`, `judge:calib`, `test:twilio`.
-4. Do **not** add judge “rescue” / forced PASS patches unless the user explicitly approved that approach.
+3. Run relevant checks (targeted tests, lint, or smoke commands listed in the task). Prefer existing scripts: `npm run test:approval`, `test:nav`, `test:customer-prompt`, `test:twilio`.
+4. Do **not** introduce an AI judge / semantic evaluation framework.
 
 ## Handoff report (required)
 

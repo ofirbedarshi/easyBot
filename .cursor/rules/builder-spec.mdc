@@ -12,4 +12,4 @@ When a change alters that behavior, update `BUILDER.md` in the same change.
 - Describe current behavior. Separate prompt instructions from checks the application enforces.
 - Prompt instructions do not guarantee model behavior. Mark anything not enforced or not verified.
 - Edit `BUILDER.md` only. Do not add a second Builder spec.
-- Use the names in the project vocabulary rule (Builder, Business Bot, Tester).
+- Use the names in the project vocabulary rule (Builder, Business Bot).

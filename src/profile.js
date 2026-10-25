@@ -255,7 +255,7 @@ export function normalizeBehaviorSettings(profile) {
 }
 
 /**
- * Effective conversation settings for prompts / judges / summaries.
+ * Effective conversation settings for prompts / summaries.
  * Null stored values resolve to DEFAULT_BEHAVIOR.
  */
 export function effectiveBehavior(profile) {
@@ -304,7 +304,7 @@ export function assistantIdentityView(profile) {
   };
 }
 
-/** Conversation settings view (effective values) for judges / prompts. */
+/** Conversation settings view (effective values) for prompts / summaries. */
 export function behaviorSettingsView(profile) {
   return { ...effectiveBehavior(profile), ...assistantIdentityView(profile) };
 }

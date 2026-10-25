@@ -2,9 +2,8 @@
 name: verifier
 description: >-
   Independently verifies a milestone against acceptance criteria and product
-  behavior. Use after the developer marks implementation complete. Reuses
-  easyBot correctness (judgeSemantic) and UX (judgeUx) evaluators when the
-  criteria involve Builder or Business Bot replies. Do not implement fixes.
+  behavior. Use after the developer marks implementation complete. Prefer
+  deterministic product tests over reading code alone. Do not implement fixes.
 model: inherit
 readonly: true
 ---
@@ -28,16 +27,15 @@ JSON patch for the CTO to apply).
 
 ## How to evaluate
 
-For each acceptance criterion, record: pass | fail | blocked | needs_decision, plus evidence (command output, file paths, HTTP status, judge verdict).
+For each acceptance criterion, record: pass | fail | blocked | needs_decision, plus evidence (command output, file paths, HTTP status).
 
-### Product reply quality (reuse evaluators)
+### Product behavior
 
-When criteria involve Builder or Business Bot answers:
+When criteria involve Builder, Business Bot, approval, `/test`, or `/end`:
 
-- Correctness: `judgeSemantic` from `src/judge.js` (via e2e scripts or a small Node one-liner that imports it). Stages: `builder_extraction` | `business_bot_answer`.
-- UX: `judgeUx` from `src/judgeUx.js`. Channels: `builder` | `business_bot`.
-- Prefer existing suites: `npm run e2e`, `e2e:ambiguity`, `e2e:adaptive`, `judge:calib` when they cover the criterion.
-- Respect `.cursor/rules/no-judge-patches.mdc` — do not rescue verdicts with keyword overrides.
+- Prefer deterministic scripts: `npm run test:approval`, `test:nav`, `test:customer-prompt`, `test:twilio`.
+- Smoke the running app (`/api/health`, chat flows) when criteria require it.
+- Do **not** introduce or call an AI evaluation / judge framework.
 
 ### Workflow / infrastructure criteria
 

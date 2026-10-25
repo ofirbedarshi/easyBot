@@ -128,4 +128,4 @@ Useful filters: `--text Flowise`, `--text inbound`, `--text Twilio`, `--path /we
 
 - Spec: `DEPLOY.md`, `README.md` WhatsApp section
 - Mocked webhook tests only: `npm run test:twilio` (no live Twilio)
-- Vocabulary: Builder / Business Bot / Tester (project rule)
+- Vocabulary: Builder / Business Bot (project rule)

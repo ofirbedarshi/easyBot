@@ -7,20 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "spike": "node scripts/spike-flowise.js",
-    "e2e": "node scripts/e2e-workflow.js",
-    "e2e:ambiguity": "node scripts/e2e-ambiguity.js",
-    "e2e:closed-world": "node scripts/e2e-closed-world.js",
-    "e2e:adaptive": "node scripts/e2e-adaptive.js",
-    "e2e:builder": "node scripts/e2e-builder-experience.js",
-    "e2e:behavior": "node scripts/e2e-behavior-settings.js",
-    "e2e:identity": "node scripts/e2e-assistant-identity.js",
-    "e2e:builder-honesty": "node scripts/e2e-builder-settings-honesty.js",
-    "judge:calib": "node scripts/judge-calibration.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
     "test:nav": "node scripts/test-builder-nav.js",
-    "e2e:nav": "node scripts/e2e-builder-nav.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
-    "test:judge-inputs": "node scripts/test-judge-inputs.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3"
   },
@@ -29,7 +18,6 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
-    "ajv": "^8.20.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "openai": "^4.86.2",

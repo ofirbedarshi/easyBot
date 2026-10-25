@@ -8,7 +8,7 @@
     "status": "completed",
     "agreedScope": "One reversible marker file under cto-workflow/, state handoffs, and a real Task spawn of developer then verifier. No product code.",
     "outOfScope": [
-      "Builder, Business Bot, or Tester behavior changes",
+      "Builder or Business Bot behavior changes",
       "generalPurpose fallback",
       "New product features"
     ]
