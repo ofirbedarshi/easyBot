@@ -2,149 +2,337 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>easyBot — Business Bot Builder</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg0: #1a2f28;
-      --bg1: #243d34;
-      --ink: #f3f0e7;
-      --muted: #b8c4bc;
-      --accent: #e8a87c;
-      --build: #7ec8a3;
-      --test: #e8a87c;
-      --line: rgba(243, 240, 231, 0.12);
+      --wa-header: #008069;
+      --wa-header-deep: #075e54;
+      --wa-outgoing: #d9fdd3;
+      --wa-incoming: #ffffff;
+      --wa-composer: #f0f2f5;
+      --wa-send: #00a884;
+      --wa-ink: #111b21;
+      --wa-muted: #667781;
+      --wa-tick: #53bdeb;
+      --wa-desk: #0b141a;
+      --wa-desk-panel: #111b21;
+      --bubble-radius: 7.5px;
     }
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
-      min-height: 100vh;
-      font-family: "DM Sans", sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(ellipse 80% 50% at 10% 0%, #2f5548 0%, transparent 55%),
-        radial-gradient(ellipse 60% 40% at 100% 100%, #3d2e22 0%, transparent 50%),
-        linear-gradient(160deg, var(--bg0), var(--bg1));
+      height: 100%;
+    }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--wa-ink);
+      background: var(--wa-desk);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
     }
     .wrap {
-      max-width: 720px;
-      margin: 0 auto;
-      min-height: 100vh;
+      width: 100%;
+      max-width: 480px;
+      min-height: 100%;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
-      padding: 1.25rem 1rem 1rem;
+      background: var(--wa-desk-panel);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 12px 40px rgba(0,0,0,0.45);
+      position: relative;
     }
-    header {
+    @media (min-width: 640px) {
+      body {
+        padding: 1.5rem 0;
+        background:
+          radial-gradient(ellipse 70% 40% at 50% -10%, #1f2c34 0%, transparent 60%),
+          var(--wa-desk);
+      }
+      .wrap {
+        height: min(900px, calc(100dvh - 3rem));
+        min-height: 0;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+    }
+
+    /* —— Header (WhatsApp conversation bar) —— */
+    header.chat-header {
+      flex-shrink: 0;
       display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0.85rem;
+      background: var(--wa-header);
+      color: #fff;
+      z-index: 2;
     }
-    h1 {
-      font-family: "Fraunces", serif;
-      font-size: 1.65rem;
-      font-weight: 600;
-      margin: 0;
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #25d366, #128c7e);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.95rem;
       letter-spacing: -0.02em;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+    }
+    .header-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .header-text h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 500;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .header-sub {
+      margin: 0.1rem 0 0;
+      font-size: 0.75rem;
+      opacity: 0.85;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
     }
     .mode {
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      padding: 0.35rem 0.65rem;
-      border: 1px solid var(--line);
+      padding: 0.12rem 0.4rem;
+      border-radius: 3px;
       background: rgba(0,0,0,0.2);
     }
-    .mode.build { color: var(--build); }
-    .mode.test { color: var(--test); }
-    .hint {
-      color: var(--muted);
-      font-size: 0.85rem;
-      margin: 0 0 1rem;
+    .mode.build { color: #a7f3d0; }
+    .mode.test { color: #fde68a; }
+    .hint-cmds {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      opacity: 0.75;
+      text-align: right;
+      line-height: 1.35;
+      max-width: 7.5rem;
     }
+    .hint-cmds code {
+      font-family: inherit;
+      font-size: inherit;
+      opacity: 1;
+    }
+
+    /* —— Chat log + wallpaper —— */
     #log {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
-      padding: 0.5rem 0 1rem;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-      min-height: 50vh;
+      gap: 0.15rem;
+      padding: 0.75rem 0.65rem 0.5rem;
+      min-height: 0;
+      background-color: #e5ddd5;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260' viewBox='0 0 260 260'%3E%3Cg fill='%23c8beb4' fill-opacity='0.35'%3E%3Cpath d='M40 30c8 0 12 6 8 12s-14 4-16-2 0-10 8-10zm90 20c6 2 8 10 2 14s-14-2-12-8 4-8 10-6zm70 40c7 0 10 7 5 12s-14 2-14-5 2-7 9-7zM30 120c5 3 5 11-1 13s-11-5-8-10 4-6 9-3zm100 50c8-1 12 6 7 12s-15 3-15-4 0-7 8-8zm80 30c6 3 5 12-2 13s-10-6-7-11 3-5 9-2zM60 200c7 0 9 8 3 12s-13 0-12-6 2-6 9-6z'/%3E%3Ccircle cx='200' cy='80' r='3'/%3E%3Ccircle cx='120' cy='160' r='2.5'/%3E%3Ccircle cx='50' cy='70' r='2'/%3E%3C/g%3E%3C/svg%3E");
+      background-size: 260px 260px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .day-chip {
+      align-self: center;
+      margin: 0.35rem 0 0.55rem;
+      padding: 0.3rem 0.7rem;
+      background: #e1f2fb;
+      color: var(--wa-muted);
+      font-size: 0.72rem;
+      font-weight: 500;
+      border-radius: 7px;
+      box-shadow: 0 1px 0.5px rgba(11,20,26,0.13);
     }
     .msg {
-      max-width: 92%;
-      padding: 0.75rem 0.9rem;
-      line-height: 1.45;
+      position: relative;
+      max-width: 85%;
+      padding: 0.35rem 0.5rem 0.4rem 0.55rem;
+      line-height: 1.4;
       white-space: pre-wrap;
-      font-size: 0.95rem;
+      word-wrap: break-word;
+      font-size: 0.925rem;
+      border-radius: var(--bubble-radius);
+      box-shadow: 0 1px 0.5px rgba(11,20,26,0.13);
+      margin-bottom: 0.2rem;
+    }
+    .msg .body {
+      display: block;
+      padding-right: 0.15rem;
+    }
+    .msg .meta {
+      display: none;
+    }
+    .msg .time {
+      float: right;
+      margin: 0.35rem 0 0 0.65rem;
+      font-size: 0.68rem;
+      color: var(--wa-muted);
+      line-height: 1;
+      white-space: nowrap;
     }
     .msg.assistant {
       align-self: flex-start;
-      background: rgba(255,255,255,0.06);
-      border-left: 3px solid var(--build);
+      background: var(--wa-incoming);
+      border-top-left-radius: 0;
+      margin-left: 0.35rem;
+    }
+    .msg.assistant::before {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 8px 10px 0;
+      border-color: transparent #fff transparent transparent;
     }
     .msg.user {
       align-self: flex-end;
-      background: rgba(232, 168, 124, 0.15);
-      border-right: 3px solid var(--accent);
+      background: var(--wa-outgoing);
+      border-top-right-radius: 0;
+      margin-right: 0.35rem;
     }
-    .msg .meta {
+    .msg.user::before {
+      content: "";
+      position: absolute;
+      right: -7px;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 0 10px 8px;
+      border-color: transparent transparent transparent var(--wa-outgoing);
+    }
+    .msg.user .time {
+      color: #667781;
+    }
+    .msg .source-tag {
       display: block;
-      font-size: 0.7rem;
-      color: var(--muted);
-      margin-bottom: 0.25rem;
-      letter-spacing: 0.04em;
+      font-size: 0.68rem;
+      color: var(--wa-muted);
+      margin-bottom: 0.15rem;
+      font-weight: 500;
     }
-    form {
+
+    /* —— Composer —— */
+    form#form {
+      flex-shrink: 0;
       display: flex;
-      gap: 0.5rem;
-      padding-top: 0.85rem;
+      align-items: flex-end;
+      gap: 0.45rem;
+      padding: 0.45rem 0.55rem 0.55rem;
+      background: var(--wa-composer);
+      border-top: 1px solid rgba(0,0,0,0.06);
+    }
+    .composer-shell {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border-radius: 24px;
+      padding: 0.15rem 0.85rem;
+      min-height: 44px;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.04);
     }
     input[type="text"] {
       flex: 1;
-      padding: 0.85rem 1rem;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.25);
-      color: var(--ink);
-      font: inherit;
-      outline: none;
-    }
-    input[type="text"]:focus { border-color: var(--accent); }
-    button {
-      padding: 0.85rem 1.15rem;
       border: none;
-      background: var(--accent);
-      color: #1a1a1a;
+      background: transparent;
+      color: var(--wa-ink);
       font: inherit;
-      font-weight: 600;
-      cursor: pointer;
+      font-size: 0.95rem;
+      outline: none;
+      padding: 0.55rem 0;
+      min-width: 0;
     }
-    button:disabled { opacity: 0.5; cursor: wait; }
+    input[type="text"]::placeholder {
+      color: #8696a0;
+    }
+    button#send {
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: var(--wa-send);
+      color: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      box-shadow: 0 1px 3px rgba(11,20,26,0.2);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    button#send:hover:not(:disabled) {
+      background: #029873;
+    }
+    button#send:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    button#send:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    button#send svg {
+      width: 22px;
+      height: 22px;
+      margin-left: 2px;
+    }
     #status {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 0.5rem;
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      color: var(--wa-muted);
+      text-align: center;
+      padding: 0.2rem 0.75rem 0.45rem;
+      background: var(--wa-composer);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button#send { transition: none; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>easyBot</h1>
-      <div id="mode" class="mode build">BUILD</div>
+    <header class="chat-header">
+      <div class="avatar" aria-hidden="true">eB</div>
+      <div class="header-text">
+        <h1>easyBot</h1>
+        <p class="header-sub">
+          <span id="mode" class="mode build">BUILD</span>
+          <span id="online">tap to build your bot</span>
+        </p>
+      </div>
+      <div class="hint-cmds" title="Owner commands">
+        <code>/test</code> · <code>/end</code><br /><code>/reset</code>
+      </div>
     </header>
-    <p class="hint">Chat to build your business bot. Commands: <code>/test</code> · <code>/end</code> · <code>/reset</code></p>
-    <div id="log"></div>
+    <div id="log" role="log" aria-live="polite"></div>
     <form id="form">
-      <input id="input" type="text" placeholder="Type a message…" autocomplete="off" />
-      <button type="submit" id="send">Send</button>
+      <div class="composer-shell">
+        <input id="input" type="text" placeholder="Type a message" autocomplete="off" enterkeyhint="send" />
+      </div>
+      <button type="submit" id="send" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+        </svg>
+      </button>
     </form>
     <div id="status">Connecting…</div>
   </div>
@@ -155,17 +343,30 @@
     const send = document.getElementById('send');
     const modeEl = document.getElementById('mode');
     const status = document.getElementById('status');
+    const online = document.getElementById('online');
+
+    function clock() {
+      const d = new Date();
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
 
     function addMsg(role, text, meta) {
       const div = document.createElement('div');
       div.className = 'msg ' + role;
       if (meta) {
-        const m = document.createElement('span');
-        m.className = 'meta';
-        m.textContent = meta;
-        div.appendChild(m);
+        const tag = document.createElement('span');
+        tag.className = 'source-tag';
+        tag.textContent = meta;
+        div.appendChild(tag);
       }
-      div.appendChild(document.createTextNode(text));
+      const body = document.createElement('span');
+      body.className = 'body';
+      body.textContent = text;
+      div.appendChild(body);
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = clock();
+      div.appendChild(time);
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
     }
@@ -173,6 +374,9 @@
     function setMode(mode) {
       modeEl.textContent = mode;
       modeEl.className = 'mode ' + (mode === 'TEST' ? 'test' : 'build');
+      online.textContent = mode === 'TEST'
+        ? 'testing your business bot'
+        : 'tap to build your bot';
     }
 
     async function refreshHealth() {
@@ -193,6 +397,10 @@
       const data = await fetch('/api/start', { method: 'POST' }).then((r) => r.json());
       setMode(data.mode || 'BUILD');
       log.innerHTML = '';
+      const chip = document.createElement('div');
+      chip.className = 'day-chip';
+      chip.textContent = 'TODAY';
+      log.appendChild(chip);
       for (const m of data.buildHistory || []) {
         addMsg(m.role === 'user' ? 'user' : 'assistant', m.content);
       }
