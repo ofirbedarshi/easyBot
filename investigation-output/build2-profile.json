@@ -1,0 +1,80 @@
+{
+  "name": null,
+  "whatWeDo": null,
+  "ownerGoal": null,
+  "ownerGoalRequested": null,
+  "services": [],
+  "hours": null,
+  "locationOrArea": null,
+  "commonQuestions": [],
+  "informationToCollect": null,
+  "unknowns": [],
+  "tone": null,
+  "responseLength": null,
+  "priceDisclosure": null,
+  "assistantName": null,
+  "openingMessage": null,
+  "approvedAt": null,
+  "chatflowId": null,
+  "flowiseSyncedAt": null,
+  "flowiseSyncOk": false,
+  "flowiseSyncPending": false,
+  "flowiseSyncRequestedAt": null,
+  "reviewedDraftKey": "08be59ad29f629181df43b85b81c9e32002b7a5059e9843c39bb30bf3f456a8a",
+  "draft": {
+    "name": "Rosa's Bakery",
+    "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+    "ownerGoal": "answer_and_collect",
+    "ownerGoalRequested": "Answer questions and collect details for cake orders.",
+    "services": [
+      {
+        "name": "Sourdough Loaf",
+        "price": "$9",
+        "notes": null
+      },
+      {
+        "name": "Croissant",
+        "price": "$4.50",
+        "notes": null
+      },
+      {
+        "name": "Custom Cakes",
+        "price": "$65",
+        "notes": "Starting price, requires 5 days notice."
+      }
+    ],
+    "hours": "Tue-Sun 7am-3pm, closed Monday",
+    "locationOrArea": "Portland, Oregon",
+    "commonQuestions": [
+      {
+        "question": "Do you have gluten-free?",
+        "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+      },
+      {
+        "question": "Do you take walk-in cake orders?",
+        "answer": "No, 5 days notice."
+      },
+      {
+        "question": "Can I pay by card?",
+        "answer": "Yes, cash and card in the shop."
+      }
+    ],
+    "informationToCollect": [
+      "name",
+      "phone",
+      "date needed",
+      "type of cake"
+    ],
+    "unknowns": [],
+    "tone": null,
+    "responseLength": null,
+    "priceDisclosure": null,
+    "assistantName": null,
+    "openingMessage": null,
+    "assistantNameReset": false,
+    "openingMessageReset": false,
+    "askedTopics": [
+      "informationToCollect"
+    ]
+  }
+}

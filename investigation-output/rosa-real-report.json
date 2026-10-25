@@ -1,0 +1,480 @@
+{
+  "timestamp": "2026-10-25T08:46:51.429Z",
+  "model": "gpt-4o-mini",
+  "ownerMessages": [
+    "Hello! I own Rosa's Bakery, a family bakery in Portland, Oregon, we've been there since 1998 and everybody loves our sourdough",
+    "I own Rosa's Bakery, a family bakery in Portland, Oregon, open since 1998, famous for our sourdough and custom cakes.",
+    "Sourdough loaf is $9, croissant $4.50, custom cakes start at $65 and need 5 days notice. We are nut-free in the kitchen but we do use wheat, milk and eggs. Open Tue-Sun 7am-3pm, closed Monday. We deliver only within 3 miles for orders over $40, delivery fee $8.",
+    "Common ones: do you have gluten-free? No, we can't guarantee, wheat is everywhere in the kitchen. Do you take walk-in cake orders? No, 5 days notice. Can I pay by card? Yes, cash and card in the shop.",
+    "Answer questions, and for cake orders collect name, phone, date needed and what kind of cake, I will confirm myself",
+    "1"
+  ],
+  "profile": {
+    "name": null,
+    "whatWeDo": null,
+    "ownerGoal": null,
+    "ownerGoalRequested": null,
+    "services": [],
+    "hours": null,
+    "locationOrArea": null,
+    "commonQuestions": [],
+    "informationToCollect": null,
+    "unknowns": [],
+    "tone": null,
+    "responseLength": null,
+    "priceDisclosure": null,
+    "assistantName": null,
+    "openingMessage": null,
+    "approvedAt": null,
+    "chatflowId": null,
+    "flowiseSyncedAt": null,
+    "flowiseSyncOk": false,
+    "flowiseSyncPending": false,
+    "flowiseSyncRequestedAt": null,
+    "reviewedDraftKey": null,
+    "draft": {
+      "name": "Rosa's Bakery",
+      "whatWeDo": "a family bakery in Portland, Oregon, famous for sourdough and custom cakes",
+      "ownerGoal": "answer_and_collect",
+      "ownerGoalRequested": "answer customer questions and collect details for cake orders",
+      "services": [
+        {
+          "name": "Sourdough Loaf",
+          "price": "$9",
+          "notes": null
+        },
+        {
+          "name": "Croissant",
+          "price": "$4.50",
+          "notes": null
+        },
+        {
+          "name": "Custom Cakes",
+          "price": "$65",
+          "notes": "starts at, needs 5 days notice"
+        }
+      ],
+      "hours": "Tue-Sun 7am-3pm, closed Monday",
+      "locationOrArea": "Portland, Oregon",
+      "commonQuestions": [
+        {
+          "question": "Do you have gluten-free?",
+          "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+        },
+        {
+          "question": "Do you take walk-in cake orders?",
+          "answer": "No, 5 days notice."
+        },
+        {
+          "question": "Can I pay by card?",
+          "answer": "Yes, cash and card in the shop."
+        }
+      ],
+      "informationToCollect": [
+        "name",
+        "phone",
+        "date needed",
+        "what kind of cake"
+      ],
+      "unknowns": [],
+      "tone": null,
+      "responseLength": null,
+      "priceDisclosure": null,
+      "assistantName": null,
+      "openingMessage": null,
+      "assistantNameReset": false,
+      "openingMessageReset": false,
+      "askedTopics": []
+    }
+  },
+  "stages": [
+    {
+      "turn": 1,
+      "userMessage": "I own Rosa's Bakery, a family bakery in Portland, Oregon, open since 1998, famous for our sourdough and custom cakes.",
+      "builderMessage": "Thanks for sharing! I’ve noted your business name as Rosa's Bakery. Could you tell me more about the services you offer, such as specific products or any special offerings?",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": null,
+        "ownerGoal": null,
+        "ownerGoalRequested": null,
+        "services": [],
+        "hours": null,
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [],
+        "informationToCollect": null,
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "askedTopics": [],
+        "assistantNameReset": false,
+        "openingMessageReset": false
+      },
+      "approved": false,
+      "reviewPresented": false
+    },
+    {
+      "turn": 2,
+      "userMessage": "Sourdough loaf is $9, croissant $4.50, custom cakes start at $65 and need 5 days notice. We are nut-free in the kitchen but we do use wheat, milk and eggs. Open Tue-Sun 7am-3pm, closed Monday. We deliver only within 3 miles for orders over $40, delivery fee $8.",
+      "builderMessage": "Got it! Here’s what I have so far: \n- Rosa's Bakery offers sourdough loaves for $9, croissants for $4.50, and custom cakes starting at $65 with a 5-day notice. \n- The bakery is nut-free but uses wheat, milk, and eggs. \n- Open Tuesday to Sunday from 7 AM to 3 PM and closed on Mondays. \n- Delivery is available within 3 miles for orders over $40 with an $8 delivery fee. \n\nNow, what's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "a family bakery in Portland, Oregon, famous for sourdough and custom cakes",
+        "ownerGoal": null,
+        "ownerGoalRequested": null,
+        "services": [
+          {
+            "name": "Sourdough Loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom Cakes",
+            "price": "$65",
+            "notes": "starts at, needs 5 days notice"
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm, closed Monday",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [],
+        "informationToCollect": null,
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": []
+      },
+      "approved": false,
+      "reviewPresented": false
+    },
+    {
+      "turn": 3,
+      "userMessage": "Common ones: do you have gluten-free? No, we can't guarantee, wheat is everywhere in the kitchen. Do you take walk-in cake orders? No, 5 days notice. Can I pay by card? Yes, cash and card in the shop.",
+      "builderMessage": "Thanks for the common questions! I’ve noted the following: \n1. **Do you have gluten-free?** - No, we can't guarantee, wheat is everywhere in the kitchen.\n2. **Do you take walk-in cake orders?** - No, 5 days notice.\n3. **Can I pay by card?** - Yes, cash and card in the shop.\n\nNow, do you want the bot to collect any specific details from customers, like their name, phone number, or preferred day/time for orders?",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "a family bakery in Portland, Oregon, famous for sourdough and custom cakes",
+        "ownerGoal": null,
+        "ownerGoalRequested": null,
+        "services": [
+          {
+            "name": "Sourdough Loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom Cakes",
+            "price": "$65",
+            "notes": "starts at, needs 5 days notice"
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm, closed Monday",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [
+          {
+            "question": "Do you have gluten-free?",
+            "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+          },
+          {
+            "question": "Do you take walk-in cake orders?",
+            "answer": "No, 5 days notice."
+          },
+          {
+            "question": "Can I pay by card?",
+            "answer": "Yes, cash and card in the shop."
+          }
+        ],
+        "informationToCollect": null,
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": []
+      },
+      "approved": false,
+      "reviewPresented": false
+    },
+    {
+      "turn": 4,
+      "userMessage": "Answer questions, and for cake orders collect name, phone, date needed and what kind of cake, I will confirm myself",
+      "builderMessage": "Got it! The bot will answer customer questions and collect the following details for cake orders: name, phone number, date needed, and what kind of cake. I’ll set that up now.  \n\nHere’s a summary of what I have so far:  \n- **Business Name:** Rosa's Bakery  \n- **What We Do:** A family bakery in Portland, Oregon, famous for sourdough and custom cakes.  \n- **Services:**  \n  - Sourdough Loaf: $9  \n  - Croissant: $4.50  \n  - Custom Cakes: starting at $65 (needs 5 days notice)  \n- **Hours:** Tue-Sun 7am-3pm, closed Monday  \n- **Location:** Portland, Oregon  \n- **Common Questions:**  \n  - Do you have gluten-free? No, we can't guarantee, wheat is everywhere in the kitchen.  \n  - Do you take walk-in cake orders? No, 5 days notice.  \n  - Can I pay by card? Yes, cash and card in the shop.  \n- **Information to Collect:** Name, phone number, date needed, and what kind of cake.  \n\nNow, do you have any preferences for the tone of the bot, such as warm, professional, or playful?",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "a family bakery in Portland, Oregon, famous for sourdough and custom cakes",
+        "ownerGoal": "answer_and_collect",
+        "ownerGoalRequested": "answer customer questions and collect details for cake orders",
+        "services": [
+          {
+            "name": "Sourdough Loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom Cakes",
+            "price": "$65",
+            "notes": "starts at, needs 5 days notice"
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm, closed Monday",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [
+          {
+            "question": "Do you have gluten-free?",
+            "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+          },
+          {
+            "question": "Do you take walk-in cake orders?",
+            "answer": "No, 5 days notice."
+          },
+          {
+            "question": "Can I pay by card?",
+            "answer": "Yes, cash and card in the shop."
+          }
+        ],
+        "informationToCollect": [
+          "name",
+          "phone",
+          "date needed",
+          "what kind of cake"
+        ],
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": []
+      },
+      "approved": false,
+      "reviewPresented": false
+    },
+    {
+      "turn": 5,
+      "userMessage": "1",
+      "builderMessage": "It seems like your response was brief. Could you please clarify what tone you'd like for the bot? For example, would you prefer it to be warm, professional, or playful?",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "a family bakery in Portland, Oregon, famous for sourdough and custom cakes",
+        "ownerGoal": "answer_and_collect",
+        "ownerGoalRequested": "answer customer questions and collect details for cake orders",
+        "services": [
+          {
+            "name": "Sourdough Loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom Cakes",
+            "price": "$65",
+            "notes": "starts at, needs 5 days notice"
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm, closed Monday",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [
+          {
+            "question": "Do you have gluten-free?",
+            "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+          },
+          {
+            "question": "Do you take walk-in cake orders?",
+            "answer": "No, 5 days notice."
+          },
+          {
+            "question": "Can I pay by card?",
+            "answer": "Yes, cash and card in the shop."
+          }
+        ],
+        "informationToCollect": [
+          "name",
+          "phone",
+          "date needed",
+          "what kind of cake"
+        ],
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": []
+      },
+      "approved": false,
+      "reviewPresented": false
+    }
+  ],
+  "storageFindings": [
+    {
+      "topic": "Delivery terms",
+      "ownerSaid": "We deliver only within 3 miles for orders over $40, delivery fee $8",
+      "foundIn": {
+        "name": false,
+        "whatWeDo": false,
+        "locationOrArea": false,
+        "hours": false,
+        "services": false,
+        "unknowns": false,
+        "commonQuestions": false
+      },
+      "analysis": "Trace where \"deliver only within 3 miles for orders over $40, delivery fee $8\" ended up"
+    },
+    {
+      "topic": "Nut-free statement",
+      "ownerSaid": "We are nut-free in the kitchen but we do use wheat, milk and eggs",
+      "foundIn": {
+        "name": false,
+        "whatWeDo": false,
+        "services": false,
+        "unknowns": false,
+        "commonQuestions": false
+      },
+      "analysis": "Trace where \"nut-free in the kitchen\" statement ended up"
+    },
+    {
+      "topic": "Vegan cakes (never mentioned)",
+      "ownerSaid": "(never mentioned vegan)",
+      "foundIn": {
+        "services": false,
+        "unknowns": false,
+        "commonQuestions": false
+      },
+      "analysis": "Should be absent everywhere - was it invented as a negation?"
+    }
+  ],
+  "promptAnalysis": [
+    {
+      "topic": "Delivery in APPROVED BUSINESS FACTS",
+      "present": false,
+      "details": "NOT FOUND"
+    },
+    {
+      "topic": "Nut-free in APPROVED BUSINESS FACTS",
+      "present": false,
+      "details": "NOT FOUND"
+    },
+    {
+      "topic": "Delivery in UNKNOWNS",
+      "present": false,
+      "details": "NOT FOUND"
+    }
+  ],
+  "customerResults": [
+    {
+      "question": "Do you deliver to my place 2 miles away? I want 1 sourdough and 2 croissants",
+      "label": "delivery_2_miles_$18",
+      "expectedIssue": "Should say delivery available (within 3 miles, order needs to be $40+, $8 fee). Bot said 'does not offer delivery services'",
+      "answer": "I don't have information about delivery options or distances. You might want to message the owner directly to confirm if they can deliver to your location.",
+      "tokens": {
+        "prompt_tokens": 1633,
+        "completion_tokens": 28,
+        "total_tokens": 1661,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    },
+    {
+      "question": "Is anything nut free? My son has a peanut allergy, is it safe for him?",
+      "label": "peanut_allergy",
+      "expectedIssue": "Should cite nut-free kitchen + owner confirmation for safety. Bot mixed it with wheat FAQ wording",
+      "answer": "I don't have information about specific menu items or their allergen status. It's best to check directly with the owner to confirm if there are nut-free options available and if it's safe for your son.",
+      "tokens": {
+        "prompt_tokens": 1628,
+        "completion_tokens": 39,
+        "total_tokens": 1667,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    },
+    {
+      "question": "Do you have vegan or gluten free cakes?",
+      "label": "vegan_gluten_free",
+      "expectedIssue": "Gluten-free is in FAQ (no). Vegan never mentioned - should say unknown. Bot said 'we do not have vegan cakes available'",
+      "answer": "I don't have that information. You may want to message the owner directly to inquire about vegan or gluten-free cake options.",
+      "tokens": {
+        "prompt_tokens": 1619,
+        "completion_tokens": 24,
+        "total_tokens": 1643,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  ],
+  "rootCauses": [
+    {
+      "problem": "Rosa's delivery denied (2 miles, $18 order)",
+      "stage": "STAGE 1: Extraction",
+      "cause": "Delivery terms lost during Builder extraction - not stored in any field",
+      "evidence": "Owner said \"deliver only within 3 miles for orders over $40, delivery fee $8\" but profile has no delivery info"
+    },
+    {
+      "problem": "Peanut allergy answer mixes wheat fact",
+      "stage": "STAGE 1: Extraction",
+      "cause": "Nut-free statement lost during extraction",
+      "evidence": "Owner said \"nut-free in the kitchen\" but not stored anywhere"
+    },
+    {
+      "problem": "Vegan cakes invented as denial",
+      "stage": "STAGE 3: Model interpretation",
+      "cause": "gpt-4o-mini invents \"we do not have vegan cakes\" for unstated item",
+      "evidence": "Vegan absent from profile and prompt (correct), but model says \"do not have\""
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "name": "Luna's Pottery Studio",
+  "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+  "ownerGoal": "answer_and_collect",
+  "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+  "services": [
+    {
+      "name": "Pottery Classes",
+      "price": "$45",
+      "notes": null
+    }
+  ],
+  "hours": null,
+  "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+  "commonQuestions": [
+    {
+      "question": "Is your clay lead-free?",
+      "answer": "Yes, our clay is lead-free."
+    },
+    {
+      "question": "Do you use any special materials?",
+      "answer": "We use some materials with natural minerals."
+    },
+    {
+      "question": "Is the air completely dust-free in the studio?",
+      "answer": "We can't guarantee completely dust-free air since it's an active studio."
+    },
+    {
+      "question": "Do I need experience?",
+      "answer": "No, our beginner classes are designed for complete newcomers."
+    },
+    {
+      "question": "What should I bring?",
+      "answer": "Just yourself and comfortable clothes that can get dirty."
+    },
+    {
+      "question": "Can I make gifts?",
+      "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+    }
+  ],
+  "informationToCollect": [
+    "name",
+    "phone number",
+    "preferred class time"
+  ],
+  "unknowns": [],
+  "tone": null,
+  "responseLength": null,
+  "priceDisclosure": null,
+  "assistantName": null,
+  "openingMessage": null,
+  "approvedAt": "2026-10-25T08:44:42.021Z",
+  "chatflowId": null,
+  "flowiseSyncedAt": null,
+  "flowiseSyncOk": false,
+  "flowiseSyncPending": false,
+  "flowiseSyncRequestedAt": null,
+  "reviewedDraftKey": "23d3608fb2c82152e33ca73c95dceebb8840fab5eb732a10246ff90a0b414c77",
+  "draft": null
+}

@@ -185,6 +185,7 @@ You MUST respond with a single JSON object only (no markdown fences):
     "assistantNameReset": boolean,
     "openingMessageReset": boolean
   },
+  "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"|"add"}],
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
   "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
@@ -192,6 +193,18 @@ You MUST respond with a single JSON object only (no markdown fences):
   "readyForReview": boolean,
   "approved": boolean
 }
+ownerEdits: List any facts the owner explicitly asked to change, remove, or add IN THEIR CURRENT MESSAGE ONLY.
+- field: the draft key affected (e.g. "services", "commonQuestions", "hours", "otherFacts").
+- item: for arrays, a short phrase identifying which item (service name, question start, fact keyword). For single-value fields, null.
+- action: "change" (owner updated an existing item), "remove" (owner deleted an item), or "add" (owner added a new item).
+Empty array if the owner only answered your question without requesting changes or if they acknowledged facts you gathered from their initial description.
+Examples:
+- "the wash is $60 now" on a service -> [{"field":"services","item":"wash","action":"change"}]
+- "remove the nut-free policy" -> [{"field":"otherFacts","item":"nut-free","action":"remove"}]
+- "add a FAQ about refunds" -> [{"field":"commonQuestions","item":"refunds","action":"add"}]
+- "change my hours to 9-6" -> [{"field":"hours","item":null,"action":"change"}]
+Owner providing initial facts in response to your questions is NOT an edit (they are NEW facts) -> ownerEdits=[].
+
 configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
@@ -255,86 +268,140 @@ export function isOwnerApproveMessage(text) {
 /**
  * Preserve previously stored facts across Builder turns.
  * Facts may only be removed/shortened if the owner asked to change them this turn.
- * Otherwise, restore them from the previous draft.
  * 
- * Design: The model returns the complete draft each turn but may forget to re-emit
- * facts from prior turns. This guard restores any facts that disappeared without
- * an explicit owner request.
+ * Design: Model returns explicit structured list of what owner asked to change/remove.
+ * Code matches items by identity (services by name, FAQ by question) and restores
+ * anything that disappeared without being in the edit list.
  * 
- * Limits: Cannot detect if the model wrongly claims the owner asked for a change.
- * Owner corrections and deletions still work — the guard only restores unmentioned losses.
+ * Limits: Relies on model correctly identifying owner edits. If model misses an edit,
+ * old value may be restored (owner can re-edit). If model wrongly claims an edit,
+ * guard won't restore (acceptable - model understood something as an edit).
  */
-export function preserveFacts(draft, currentDraft, userMessage) {
+export function preserveFacts(draft, currentDraft, ownerEdits) {
   if (!currentDraft) return draft;
   
   const next = { ...draft };
   const prev = currentDraft || {};
-  const msg = String(userMessage || '').toLowerCase();
+  const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
   
-  // Check if owner explicitly mentioned removing, changing, or updating specific facts
-  const ownerRequestedChange = (field) => {
-    if (!msg) return false;
-    // Common change phrases
-    const changePatterns = [
-      /change/i, /update/i, /edit/i, /fix/i, /correct/i, 
-      /remove/i, /delete/i, /drop/i, /not .* anymore/i,
-      /actually/i, /instead/i, /replace/i
-    ];
-    return changePatterns.some(p => p.test(msg));
+  // Check if a field was explicitly edited by owner
+  const wasEdited = (field, itemIdentity = null) => {
+    return edits.some(edit => {
+      if (edit.field !== field) return false;
+      // For array fields, check if this specific item was edited
+      if (itemIdentity && edit.item) {
+        return edit.item.toLowerCase().includes(itemIdentity.toLowerCase()) ||
+               itemIdentity.toLowerCase().includes(edit.item.toLowerCase());
+      }
+      return true; // Field-level edit
+    });
   };
   
-  // For array fields, preserve previous entries unless owner message suggests changes
-  const arrayFields = ['services', 'commonQuestions', 'unknowns', 'otherFacts'];
-  
-  for (const field of arrayFields) {
-    const prevArray = Array.isArray(prev[field]) ? prev[field] : [];
-    const nextArray = Array.isArray(next[field]) ? next[field] : [];
+  // Helper to find matching item by identity
+  const findByIdentity = (array, item, identityKey) => {
+    if (!Array.isArray(array)) return null;
+    const identity = typeof item === 'string' ? item : item[identityKey];
+    if (!identity) return null;
     
-    if (prevArray.length > 0 && !ownerRequestedChange(field)) {
-      // Check for missing items by comparing JSON representations
-      const nextJson = nextArray.map(item => JSON.stringify(item));
-      const missing = prevArray.filter(item => {
-        const itemJson = JSON.stringify(item);
-        return !nextJson.includes(itemJson);
-      });
+    return array.find(existing => {
+      const existingIdentity = typeof existing === 'string' ? existing : existing[identityKey];
+      return existingIdentity && 
+             existingIdentity.toLowerCase().trim() === identity.toLowerCase().trim();
+    });
+  };
+  
+  // Services: match by name, restore if not edited
+  if (Array.isArray(prev.services) && Array.isArray(next.services)) {
+    const restored = [...next.services];
+    
+    for (const prevService of prev.services) {
+      const existingIndex = restored.findIndex(s => 
+        s.name && s.name.toLowerCase().trim() === prevService.name.toLowerCase().trim()
+      );
       
-      if (missing.length > 0) {
-        // Restore missing items
-        next[field] = [...nextArray, ...missing];
+      if (existingIndex === -1) {
+        // Service completely missing and not edited -> restore
+        if (!wasEdited('services', prevService.name)) {
+          restored.push(prevService);
+        }
+      } else {
+        // Service exists - check if any fields were dropped/changed without edit
+        const existing = restored[existingIndex];
+        if (!wasEdited('services', prevService.name)) {
+          // No edit reported for this service - restore any dropped fields
+          if (prevService.notes && !existing.notes) {
+            restored[existingIndex] = { ...existing, notes: prevService.notes };
+          }
+          if (prevService.price && !existing.price) {
+            restored[existingIndex] = { ...existing, price: prevService.price };
+          }
+          // If notes changed (not just dropped), restore old value
+          if (prevService.notes && existing.notes && prevService.notes !== existing.notes) {
+            restored[existingIndex] = { ...existing, notes: prevService.notes };
+          }
+        }
       }
     }
+    
+    next.services = restored;
   }
   
-  // After restoring missing items, check for shortened strings within service items
-  if (Array.isArray(next.services) && next.services.length > 0 && 
-      Array.isArray(prev.services) && prev.services.length > 0 &&
-      !ownerRequestedChange('services')) {
-    next.services = next.services.map((service) => {
-      // Find matching service by name
-      const prevService = prev.services.find(p => p.name === service.name);
-      if (!prevService) return service;
+  // Common questions: match by question, restore if not edited
+  if (Array.isArray(prev.commonQuestions) && Array.isArray(next.commonQuestions)) {
+    const restored = [...next.commonQuestions];
+    
+    for (const prevQ of prev.commonQuestions) {
+      const existingIndex = restored.findIndex(q => 
+        q.question && q.question.toLowerCase().trim() === prevQ.question.toLowerCase().trim()
+      );
       
-      const result = { ...service };
-      
-      // Restore notes if they were dropped
-      if (prevService.notes && !service.notes) {
-        result.notes = prevService.notes;
+      if (existingIndex === -1) {
+        // FAQ completely missing and not edited -> restore
+        if (!wasEdited('commonQuestions', prevQ.question)) {
+          restored.push(prevQ);
+        }
+      } else {
+        // FAQ exists - check if answer changed without edit
+        const existing = restored[existingIndex];
+        if (!wasEdited('commonQuestions', prevQ.question)) {
+          // No edit reported - restore old answer if it changed
+          if (prevQ.answer && existing.answer !== prevQ.answer) {
+            restored[existingIndex] = { ...existing, answer: prevQ.answer };
+          }
+        }
       }
-      
-      // Restore price details if shortened significantly (e.g. "start at" lost)
-      if (prevService.price && service.price && 
-          prevService.price.length > service.price.length + 10) {
-        result.price = prevService.price;
-      }
-      
-      return result;
-    });
+    }
+    
+    next.commonQuestions = restored;
   }
   
-  // For text fields, restore if they vanished
+  // Other facts and unknowns: string arrays, harder to match by identity
+  // For these, restore anything from prev that's not in next and not explicitly removed
+  const stringArrayFields = ['otherFacts', 'unknowns'];
+  
+  for (const field of stringArrayFields) {
+    if (!Array.isArray(prev[field]) || !Array.isArray(next[field])) continue;
+    
+    const restored = [...next[field]];
+    
+    for (const prevItem of prev[field]) {
+      // Check if this exact item exists in next
+      const existsInNext = next[field].some(item => 
+        item.toLowerCase().trim() === prevItem.toLowerCase().trim()
+      );
+      
+      if (!existsInNext && !wasEdited(field, prevItem)) {
+        restored.push(prevItem);
+      }
+    }
+    
+    next[field] = restored;
+  }
+  
+  // Text fields: restore if vanished and not edited
   const textFields = ['name', 'whatWeDo', 'hours', 'locationOrArea'];
   for (const field of textFields) {
-    if (prev[field] && !next[field] && !ownerRequestedChange(field)) {
+    if (prev[field] && !next[field] && !wasEdited(field)) {
       next[field] = prev[field];
     }
   }
@@ -584,7 +651,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const reconciled = reconcileDraft(parsed.draft || currentDraft, currentDraft);
   
   // Then preserve facts that may have been dropped
-  const preserved = preserveFacts(reconciled, currentDraft, userMessage);
+  const preserved = preserveFacts(reconciled, currentDraft, parsed.ownerEdits);
   
   const { draft, unresolved } = enforceConfigRequests(
     preserved,

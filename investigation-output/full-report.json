@@ -1,0 +1,1445 @@
+{
+  "timestamp": "2026-10-25T08:45:18.441Z",
+  "model": "gpt-4o-mini",
+  "luna": {
+    "profile": {
+      "name": "Luna's Pottery Studio",
+      "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+      "ownerGoal": "answer_and_collect",
+      "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+      "services": [
+        {
+          "name": "Pottery Classes",
+          "price": "$45",
+          "notes": null
+        }
+      ],
+      "hours": null,
+      "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+      "commonQuestions": [
+        {
+          "question": "Is your clay lead-free?",
+          "answer": "Yes, our clay is lead-free."
+        },
+        {
+          "question": "Do you use any special materials?",
+          "answer": "We use some materials with natural minerals."
+        },
+        {
+          "question": "Is the air completely dust-free in the studio?",
+          "answer": "We can't guarantee completely dust-free air since it's an active studio."
+        },
+        {
+          "question": "Do I need experience?",
+          "answer": "No, our beginner classes are designed for complete newcomers."
+        },
+        {
+          "question": "What should I bring?",
+          "answer": "Just yourself and comfortable clothes that can get dirty."
+        },
+        {
+          "question": "Can I make gifts?",
+          "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+        }
+      ],
+      "informationToCollect": [
+        "name",
+        "phone number",
+        "preferred class time"
+      ],
+      "unknowns": [],
+      "tone": null,
+      "responseLength": null,
+      "priceDisclosure": null,
+      "assistantName": null,
+      "openingMessage": null,
+      "approvedAt": "2026-10-25T08:44:42.021Z",
+      "chatflowId": null,
+      "flowiseSyncedAt": null,
+      "flowiseSyncOk": false,
+      "flowiseSyncPending": false,
+      "flowiseSyncRequestedAt": null,
+      "reviewedDraftKey": "23d3608fb2c82152e33ca73c95dceebb8840fab5eb732a10246ff90a0b414c77",
+      "draft": null
+    },
+    "stages": [
+      {
+        "turn": 1,
+        "userMessage": "I'm Luna, I run Luna's Pottery Studio. We offer pottery classes for beginners and intermediates. Classes are around $45 I think. We deliver finished pieces only within 5 miles for orders over $100, delivery fee is $12.",
+        "builderResponse": "Thanks for sharing about your business, Luna! I’ve noted that your business name is \"Luna's Pottery Studio\" and that you offer pottery classes for beginners and intermediates. I also have the pricing information for the classes and delivery details. Before we proceed, could you confirm the exact price for the pottery classes?",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "askedTopics": [],
+          "assistantNameReset": false,
+          "openingMessageReset": false
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": null,
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": null,
+            "ownerGoalRequested": null,
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "within 5 miles",
+            "commonQuestions": [],
+            "informationToCollect": null,
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "askedTopics": [],
+            "assistantNameReset": false,
+            "openingMessageReset": false
+          }
+        }
+      },
+      {
+        "turn": 2,
+        "userMessage": "Luna's Pottery Studio",
+        "builderResponse": "Got it, thanks! Just to confirm, the price for the pottery classes is $45. Now, what's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": []
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": null,
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": null,
+            "ownerGoalRequested": null,
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "within 5 miles",
+            "commonQuestions": [],
+            "informationToCollect": null,
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "assistantNameReset": false,
+            "openingMessageReset": false,
+            "askedTopics": []
+          }
+        }
+      },
+      {
+        "turn": 3,
+        "userMessage": "I'd like the bot to answer questions and collect contact info from interested people",
+        "builderResponse": "Noted! booking, sales, payments, follow-ups, reminders, or a mix that includes one of them isn't available yet, so I'll set the bot to answer questions and collect details for now.\n\nWhat questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "commonQuestions"
+          ]
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": null,
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": "answer_and_collect",
+            "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "within 5 miles",
+            "commonQuestions": [],
+            "informationToCollect": null,
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "assistantNameReset": false,
+            "openingMessageReset": false,
+            "askedTopics": [
+              "commonQuestions"
+            ]
+          }
+        }
+      },
+      {
+        "turn": 4,
+        "userMessage": "Oh, and our clay is lead-free. We use some materials with natural minerals. We can't guarantee completely dust-free air since it's an active studio.",
+        "builderResponse": "Thanks for the additional information!\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "commonQuestions",
+            "informationToCollect"
+          ]
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": null,
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": "answer_and_collect",
+            "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "within 5 miles",
+            "commonQuestions": [
+              {
+                "question": "Is your clay lead-free?",
+                "answer": "Yes, our clay is lead-free."
+              },
+              {
+                "question": "Do you use any special materials?",
+                "answer": "We use some materials with natural minerals."
+              },
+              {
+                "question": "Is the air completely dust-free in the studio?",
+                "answer": "We can't guarantee completely dust-free air since it's an active studio."
+              }
+            ],
+            "informationToCollect": null,
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "assistantNameReset": false,
+            "openingMessageReset": false,
+            "askedTopics": [
+              "commonQuestions",
+              "informationToCollect"
+            ]
+          }
+        }
+      },
+      {
+        "turn": 5,
+        "userMessage": "Common questions: 'Do I need experience?' - No, our beginner classes are designed for complete newcomers. 'What should I bring?' - Just yourself and comfortable clothes that can get dirty. 'Can I make gifts?' - Yes, many students make bowls, mugs, or decorative pieces.",
+        "builderResponse": "Thanks for the common questions! I’ve added those to the draft.\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "commonQuestions",
+            "informationToCollect"
+          ]
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "within 5 miles",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": null,
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": "answer_and_collect",
+            "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "within 5 miles",
+            "commonQuestions": [
+              {
+                "question": "Is your clay lead-free?",
+                "answer": "Yes, our clay is lead-free."
+              },
+              {
+                "question": "Do you use any special materials?",
+                "answer": "We use some materials with natural minerals."
+              },
+              {
+                "question": "Is the air completely dust-free in the studio?",
+                "answer": "We can't guarantee completely dust-free air since it's an active studio."
+              },
+              {
+                "question": "Do I need experience?",
+                "answer": "No, our beginner classes are designed for complete newcomers."
+              },
+              {
+                "question": "What should I bring?",
+                "answer": "Just yourself and comfortable clothes that can get dirty."
+              },
+              {
+                "question": "Can I make gifts?",
+                "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+              }
+            ],
+            "informationToCollect": null,
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "assistantNameReset": false,
+            "openingMessageReset": false,
+            "askedTopics": [
+              "commonQuestions",
+              "informationToCollect"
+            ]
+          }
+        }
+      },
+      {
+        "turn": 6,
+        "userMessage": "The bot should collect their name, phone number, and preferred class time",
+        "builderResponse": "Great!",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone number",
+            "preferred class time"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "commonQuestions",
+            "informationToCollect"
+          ]
+        },
+        "approved": false,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone number",
+            "preferred class time"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": null,
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": "23d3608fb2c82152e33ca73c95dceebb8840fab5eb732a10246ff90a0b414c77",
+          "draft": {
+            "name": "Luna's Pottery Studio",
+            "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+            "ownerGoal": "answer_and_collect",
+            "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+            "services": [
+              {
+                "name": "Pottery Classes",
+                "price": "$45",
+                "notes": null
+              }
+            ],
+            "hours": null,
+            "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+            "commonQuestions": [
+              {
+                "question": "Is your clay lead-free?",
+                "answer": "Yes, our clay is lead-free."
+              },
+              {
+                "question": "Do you use any special materials?",
+                "answer": "We use some materials with natural minerals."
+              },
+              {
+                "question": "Is the air completely dust-free in the studio?",
+                "answer": "We can't guarantee completely dust-free air since it's an active studio."
+              },
+              {
+                "question": "Do I need experience?",
+                "answer": "No, our beginner classes are designed for complete newcomers."
+              },
+              {
+                "question": "What should I bring?",
+                "answer": "Just yourself and comfortable clothes that can get dirty."
+              },
+              {
+                "question": "Can I make gifts?",
+                "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+              }
+            ],
+            "informationToCollect": [
+              "name",
+              "phone number",
+              "preferred class time"
+            ],
+            "unknowns": [],
+            "tone": null,
+            "responseLength": null,
+            "priceDisclosure": null,
+            "assistantName": null,
+            "openingMessage": null,
+            "assistantNameReset": false,
+            "openingMessageReset": false,
+            "askedTopics": [
+              "commonQuestions",
+              "informationToCollect"
+            ]
+          }
+        }
+      },
+      {
+        "turn": 7,
+        "userMessage": "looks good",
+        "builderResponse": "Got it, thanks! Your bot is ready for review.",
+        "draft": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone number",
+            "preferred class time"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "commonQuestions",
+            "informationToCollect"
+          ]
+        },
+        "approved": true,
+        "merged": {
+          "name": "Luna's Pottery Studio",
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "I'd like the bot to answer questions and collect contact info from interested people",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "hours": null,
+          "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone number",
+            "preferred class time"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "approvedAt": "2026-10-25T08:44:42.021Z",
+          "chatflowId": null,
+          "flowiseSyncedAt": null,
+          "flowiseSyncOk": false,
+          "flowiseSyncPending": false,
+          "flowiseSyncRequestedAt": null,
+          "reviewedDraftKey": "23d3608fb2c82152e33ca73c95dceebb8840fab5eb732a10246ff90a0b414c77",
+          "draft": null
+        }
+      }
+    ],
+    "extractionFindings": [
+      {
+        "topic": "Conditional delivery policy",
+        "ownerSaid": "I'm Luna, I run Luna's Pottery Studio. We offer pottery classes for beginners and intermediates. Classes are around $45 I think. We deliver finished pieces only within 5 miles for orders over $100, delivery fee is $12.",
+        "stored": {
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "locationOrArea": "Delivery within 5 miles for orders over $100, with a delivery fee of $12.",
+          "unknowns": [],
+          "whatWeDo": "We offer pottery classes for beginners and intermediates."
+        },
+        "analysis": "Check if \"only within 5 miles for orders over $100, delivery fee $12\" is preserved verbatim with conditions"
+      },
+      {
+        "topic": "Hedged price (around X I think)",
+        "ownerSaid": "I'm Luna, I run Luna's Pottery Studio. We offer pottery classes for beginners and intermediates. Classes are around $45 I think. We deliver finished pieces only within 5 miles for orders over $100, delivery fee is $12.",
+        "stored": [
+          {
+            "name": "Pottery Classes",
+            "price": "$45",
+            "notes": null
+          }
+        ],
+        "analysis": "Check if uncertainty qualifier \"around\" or \"I think\" is preserved"
+      },
+      {
+        "topic": "Allergen statement with negation and caveat",
+        "ownerSaid": "Oh, and our clay is lead-free. We use some materials with natural minerals. We can't guarantee completely dust-free air since it's an active studio.",
+        "stored": {
+          "whatWeDo": "We offer pottery classes for beginners and intermediates.",
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "unknowns": []
+        },
+        "analysis": "Check if \"lead-free\" is separate from \"can't guarantee dust-free\" and not mixed with other facts"
+      },
+      {
+        "topic": "Unstated items representation",
+        "ownerSaid": "(no mention of wheel throwing, cancellation policy, or payment methods)",
+        "stored": {
+          "services": [
+            {
+              "name": "Pottery Classes",
+              "price": "$45",
+              "notes": null
+            }
+          ],
+          "commonQuestions": [
+            {
+              "question": "Is your clay lead-free?",
+              "answer": "Yes, our clay is lead-free."
+            },
+            {
+              "question": "Do you use any special materials?",
+              "answer": "We use some materials with natural minerals."
+            },
+            {
+              "question": "Is the air completely dust-free in the studio?",
+              "answer": "We can't guarantee completely dust-free air since it's an active studio."
+            },
+            {
+              "question": "Do I need experience?",
+              "answer": "No, our beginner classes are designed for complete newcomers."
+            },
+            {
+              "question": "What should I bring?",
+              "answer": "Just yourself and comfortable clothes that can get dirty."
+            },
+            {
+              "question": "Can I make gifts?",
+              "answer": "Yes, many students make bowls, mugs, or decorative pieces."
+            }
+          ],
+          "unknowns": []
+        },
+        "analysis": "Check if truly unstated items are absent (not invented as negations)"
+      }
+    ],
+    "customerPrompt": "You are the customer-facing assistant for this business. You talk to customers only.\nYou are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.\n\n=== APPROVED BUSINESS FACTS ===\nThese are the only source for customer-facing business claims (paraphrase OK; invent never).\nBusiness name: Luna's Pottery Studio\nWhat we do: We offer pottery classes for beginners and intermediates.\nServices and prices (authoritative — do not change):\n- Pottery Classes, price: $45\nLocation / service area: Delivery within 5 miles for orders over $100, with a delivery fee of $12.\nFAQ (Q&A — these answers are facts you may tell customers):\n- Q: Is your clay lead-free?\n  A: Yes, our clay is lead-free.\n- Q: Do you use any special materials?\n  A: We use some materials with natural minerals.\n- Q: Is the air completely dust-free in the studio?\n  A: We can't guarantee completely dust-free air since it's an active studio.\n- Q: Do I need experience?\n  A: No, our beginner classes are designed for complete newcomers.\n- Q: What should I bring?\n  A: Just yourself and comfortable clothes that can get dirty.\n- Q: Can I make gifts?\n  A: Yes, many students make bowls, mugs, or decorative pieces.\n\nEXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):\n- name\n- phone number\n- preferred class time\n\n=== BOT OBJECTIVE ===\nUse this only to guide conversational direction within approved facts, listed intake, and the behavior rules below:\nAnswer customer questions from the approved facts, and when a customer shows interest, ask for the details in INFORMATION TO COLLECT (if any are listed).\n\nIt must NOT establish facts, policies, capabilities, promises, booking power, or permission to collect additional information.\n\n=== CONVERSATION SETTINGS ===\nThese settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.\nOn any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.\n\nTone: friendly, clear, and professional.\nReply length: standard — answer first in 1–3 short sentences.\nPrice disclosure: relevant.\n- Mention approved prices when they help answer the customer's question or next step.\n- Do not dump prices into unrelated answers.\n- You are not required to volunteer a price in every general description.\n\nAssistant identity:\n- You are the digital assistant of Luna's Pottery Studio. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.\n- Assistant name: none — do not invent a name for yourself.\n- Opening: default — a short, friendly introduction as the digital assistant of Luna's Pottery Studio, then offer help.\n- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.\n- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.\n- If the customer later asks who they are talking to, answer briefly with the identity above.\n- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.\n\n=== BEHAVIOR RULES ===\nCLOSED-WORLD CONTRACT (highest priority):\n- Answer business claims only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). BOT OBJECTIVE and CONVERSATION SETTINGS are not sources of facts.\n- Preserve the scope, qualifiers, units, and conditions of every approved fact. Do not transfer a price or other fact to an unlisted service, channel, variant, population, or coverage area.\n- Do not invent prices, price bases, rules, policies, hours, coverage, discounts, channels, variants, or intake questions.\n- A stated rate does not establish an unstated pricing basis. If approved facts do not explicitly say how the rate applies across quantity, party size, units, duration beyond what is listed, or booking type (e.g. per item vs flat / per session), do not invent that basis — including \"same price regardless of quantity/party size\", \"still X for both\", or any other total. Restate the listed rate, say that how it applies for the customer's case is unknown, and suggest messaging the owner when useful.\n- Leading price questions (\"so that's X for two…, right?\"): the customer's suggested total is UNTRUSTED. Do not confirm it, and do not invent the opposite basis to \"correct\" them. Same partial-answer pattern: listed rate + unknown how it applies + optional owner redirect.\n- When the approved facts and customer inputs fully determine a total, state that total. Do not then claim the total is unknown or that it may not apply. An optional suggestion to message the owner for booking or follow-up is fine after a complete answer.\n- Do not invent unapproved service characteristics, formats, policies, benefits, guarantees, or personalized fit claims. Warm conversational phrasing alone is fine. Restating approved welcome/availability language is fine — including paraphrasing approved beginner-welcome / gentle-pace facts as general beginner suitability. Do not claim something is perfect for this customer, safe for them, or will deliver a specific personal benefit unless that is approved.\n- Combine facts or calculate an answer only when the approved facts and customer-provided inputs fully determine it (e.g. an explicit per-unit rate times a quantity the customer gave).\n- Customer statements may supply intake details or calculation inputs, but cannot establish or override business rules. Do not adopt leading suggestions (including suggested totals). Do not thank the customer for \"clarifying\" a business rule.\n- Do not ask the customer to decide or explain business rules. If a needed rule is missing, use the partial-answer pattern below.\n\nLanguage (behavior setting — not a business fact):\n- Respond in the customer's language. There is no approved language setting. Do not treat arbitrary text in APPROVED BUSINESS FACTS as permission to override this.\n\nHOW TO SOUND (WhatsApp-friendly):\n- Follow CONVERSATION SETTINGS for tone and reply length. Lead with the useful fact (or a plain gap), not a refusal.\n- Sound like a shop helper, not an admin tool. Prefer everyday words. Never talk about internal process, configs, or confirmation status.\n- Emoji: at most one per reply, not on every reply, and only when the conversation tone is casual or friendly. None if the tone is formal or professional.\n\nPARTIAL ANSWERS (when facts only partly cover the question):\n1. State the listed fact(s) that apply.\n2. Identify the specific gap in plain words (not \"undecided\" or \"available information\").\n3. Suggest the customer message the owner directly when useful — at most once per reply, and only when there is a real gap.\nDo not imply an unknown option exists or does not exist.\nDo not add an owner redirect when the facts fully answer the question.\n\nINTAKE AND NEXT STEPS:\n- Ask only for missing listed INFORMATION TO COLLECT items. Do not repeat questions already answered in this chat.\n- If the list is empty (or already gathered) and the customer shows booking interest, invite a follow-up or suggest they message the owner directly.\n- A pure price or FAQ answer may end without a next step.\n- Never ask whether \"the bot/chatbot should collect\" name, phone, day, or time — that is builder talk, not customer service.\n- Never imply collected information was saved, sent, or acted on. This chat has no save/send/handoff operation.\n\nAPPROVED PROCESSES VS BOT CAPABILITIES:\n- You may tell the customer an approved business process when it is written in APPROVED BUSINESS FACTS (for example, that the owner confirms bookings).\n- An approved process does NOT prove that you saved details, sent a message, completed a handoff, or made a booking. Do not claim those actions unless there is evidence of an actual successful operation (there is none in this demo).\n- You may suggest the customer message the owner directly. Do not invent the owner's booking process, promise a response, or claim a handoff occurred.\n- Never claim a booking, payment, record update, or that you already contacted anyone.\n\nWHEN THE CUSTOMER CLAIMS A DIFFERENT PRICE OR ASKS YOU TO CHANGE IT:\n- Restate the approved fact and say you can't change it here. Offer further help if natural.\n- Do not adopt their number. Do not mention updating, configs, or confirmation status.\n\nKeep replies concise and helpful.",
+    "promptAnalysis": {
+      "findings": [
+        {
+          "topic": "Fact deduplication",
+          "sections": [
+            "facts",
+            "unknowns",
+            "objective",
+            "settings"
+          ],
+          "analysis": "Check if same fact appears in multiple sections in conflicting forms"
+        },
+        {
+          "topic": "Service pricing with conditions",
+          "promptRepresentation": "(not found)",
+          "analysis": "Check if conditional delivery policy conditions are intact"
+        }
+      ],
+      "sections": {
+        "facts": "=== APPROVED BUSINESS FACTS ===\nThese are the only source for customer-facing business claims (paraphrase OK; invent never).\nBusiness name: Luna's Pottery Studio\nWhat we do: We offer pottery classes for beginners and intermediates.\nServices and prices (authoritative — do not change):\n- Pottery Classes, price: $45\nLocation / service area: Delivery within 5 miles for orders over $100, with a delivery fee of $12.\nFAQ (Q&A — these answers are facts you may tell customers):\n- Q: Is your clay lead-free?\n  A: Yes, our clay is lead-free.\n- Q: Do you use any special materials?\n  A: We use some materials with natural minerals.\n- Q: Is the air completely dust-free in the studio?\n  A: We can't guarantee completely dust-free air since it's an active studio.\n- Q: Do I need experience?\n  A: No, our beginner classes are designed for complete newcomers.\n- Q: What should I bring?\n  A: Just yourself and comfortable clothes that can get dirty.\n- Q: Can I make gifts?\n  A: Yes, many students make bowls, mugs, or decorative pieces.\n\nEXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):\n- name\n- phone number\n- preferred class time\n\n===",
+        "unknowns": "EXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT",
+        "objective": "=== BOT OBJECTIVE ===\nUse this only to guide conversational direction within approved facts, listed intake, and the behavior rules below:\nAnswer customer questions from the approved facts, and when a customer shows interest, ask for the details in INFORMATION TO COLLECT (if any are listed).\n\nIt must NOT establish facts, policies, capabilities, promises, booking power, or permission to collect additional information.\n\n===",
+        "settings": "=== CONVERSATION SETTINGS ===\nThese settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.\nOn any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.\n\nTone: friendly, clear, and professional.\nReply length: standard — answer first in 1–3 short sentences.\nPrice disclosure: relevant.\n- Mention approved prices when they help answer the customer's question or next step.\n- Do not dump prices into unrelated answers.\n- You are not required to volunteer a price in every general description.\n\nAssistant identity:\n- You are the digital assistant of Luna's Pottery Studio. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.\n- Assistant name: none — do not invent a name for yourself.\n- Opening: default — a short, friendly introduction as the digital assistant of Luna's Pottery Studio, then offer help.\n- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.\n- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.\n- If the customer later asks who they are talking to, answer briefly with the identity above.\n- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.\n\n==="
+      }
+    },
+    "customerResults": [
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order a $30 bowl",
+        "label": "delivery_condition_not_met",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "We offer delivery within 5 miles for orders over $100, with a delivery fee of $12. Since your order is $30, it doesn't meet the minimum requirement for delivery. If you have any other questions or need assistance, feel free to ask!",
+            "tokens": {
+              "prompt": 1889,
+              "completion": 52,
+              "total": 1941
+            }
+          },
+          {
+            "run": 2,
+            "answer": "We offer delivery within 5 miles for orders over $100, with a delivery fee of $12. Since your order is $30, it doesn't meet the minimum for delivery. If you have any other questions or need assistance, feel free to ask!",
+            "tokens": {
+              "prompt": 1889,
+              "completion": 51,
+              "total": 1940
+            }
+          },
+          {
+            "run": 3,
+            "answer": "We offer delivery within 5 miles for orders over $100, with a delivery fee of $12. Since your order is $30, it doesn't meet the minimum requirement for delivery. If you have any other questions or need assistance, feel free to ask!",
+            "tokens": {
+              "prompt": 1889,
+              "completion": 52,
+              "total": 1941
+            }
+          }
+        ]
+      },
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order 5 pieces totaling $120",
+        "label": "delivery_condition_met",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "Yes, we do offer delivery within 5 miles for orders over $100. Since your order totals $120, you can have it delivered! There will be a delivery fee of $12. \n\nIf you're interested, could you please provide your name, phone number, and preferred class time?",
+            "tokens": {
+              "prompt": 1891,
+              "completion": 59,
+              "total": 1950
+            }
+          },
+          {
+            "run": 2,
+            "answer": "Yes, we do offer delivery within 5 miles for orders over $100. Since your order totals $120, you can have it delivered! There will be a delivery fee of $12. \n\nIf you're interested, could you please provide your name, phone number, and preferred delivery time?",
+            "tokens": {
+              "prompt": 1891,
+              "completion": 59,
+              "total": 1950
+            }
+          },
+          {
+            "run": 3,
+            "answer": "Yes, we do offer delivery within 5 miles for orders over $100. Since your order totals $120, you can have it delivered! There will be a delivery fee of $12. \n\nIf you're interested, could you please provide your name, phone number, and preferred class time?",
+            "tokens": {
+              "prompt": 1891,
+              "completion": 59,
+              "total": 1950
+            }
+          }
+        ]
+      },
+      {
+        "question": "Do you have wheel throwing classes?",
+        "label": "unstated_item",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "Yes, we offer pottery classes for beginners and intermediates, which may include wheel throwing techniques. If you're interested, I can gather some details to help you get started! Could you please provide your name, phone number, and preferred class time?",
+            "tokens": {
+              "prompt": 1879,
+              "completion": 49,
+              "total": 1928
+            }
+          },
+          {
+            "run": 2,
+            "answer": "Yes, we offer pottery classes for beginners and intermediates, which may include wheel throwing techniques. If you're interested, I can gather some details to help you get started! Could you please provide your name, phone number, and preferred class time?",
+            "tokens": {
+              "prompt": 1879,
+              "completion": 49,
+              "total": 1928
+            }
+          },
+          {
+            "run": 3,
+            "answer": "Yes, we offer pottery classes for beginners and intermediates, which may include wheel throwing techniques. If you're interested, I can gather some details to help you get started! Could you please provide your name, phone number, and preferred class time?",
+            "tokens": {
+              "prompt": 1879,
+              "completion": 49,
+              "total": 1928
+            }
+          }
+        ]
+      },
+      {
+        "question": "What's your cancellation policy?",
+        "label": "unstated_policy",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "I'm sorry, but I don't have information about the cancellation policy for Luna's Pottery Studio. You might want to message the owner directly for details on that. If you have any other questions, feel free to ask!",
+            "tokens": {
+              "prompt": 1877,
+              "completion": 44,
+              "total": 1921
+            }
+          },
+          {
+            "run": 2,
+            "answer": "I'm sorry, but I don't have information about the cancellation policy for Luna's Pottery Studio. You might want to message the owner directly for details on that. If you have any other questions, feel free to ask!",
+            "tokens": {
+              "prompt": 1877,
+              "completion": 44,
+              "total": 1921
+            }
+          },
+          {
+            "run": 3,
+            "answer": "I'm sorry, but I don't have information about the cancellation policy for Luna's Pottery Studio. You might want to message the owner directly for details on that. If you have any other questions, feel free to ask!",
+            "tokens": {
+              "prompt": 1877,
+              "completion": 44,
+              "total": 1921
+            }
+          }
+        ]
+      },
+      {
+        "question": "Is it safe for someone with allergies? I'm sensitive to chemicals",
+        "label": "allergen_question",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "At Luna's Pottery Studio, we use lead-free clay and some materials with natural minerals. However, since we can't guarantee completely dust-free air in the studio, it might be best to consult with a medical professional regarding your specific allergies and sensitivities. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1884,
+              "completion": 67,
+              "total": 1951
+            }
+          },
+          {
+            "run": 2,
+            "answer": "At Luna's Pottery Studio, we use lead-free clay and some materials with natural minerals. However, we can't guarantee that the studio is completely free of dust or allergens since it's an active space. If you have specific allergies, it might be best to consult with a medical professional before attending. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1884,
+              "completion": 75,
+              "total": 1959
+            }
+          },
+          {
+            "run": 3,
+            "answer": "At Luna's Pottery Studio, we use lead-free clay and some materials with natural minerals. However, we can't guarantee that the studio is completely free of dust or other allergens since it's an active space. If you have specific allergies, it might be best to consult with a medical professional before attending a class. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1884,
+              "completion": 78,
+              "total": 1962
+            }
+          }
+        ]
+      },
+      {
+        "question": "How much is a class?",
+        "label": "hedged_price",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "Pottery classes at Luna's Pottery Studio are priced at $45. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1878,
+              "completion": 31,
+              "total": 1909
+            }
+          },
+          {
+            "run": 2,
+            "answer": "Pottery classes at Luna's Pottery Studio are priced at $45. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1878,
+              "completion": 31,
+              "total": 1909
+            }
+          },
+          {
+            "run": 3,
+            "answer": "Pottery classes at Luna's Pottery Studio are priced at $45. If you have any other questions or need more information, feel free to ask!",
+            "tokens": {
+              "prompt": 1878,
+              "completion": 31,
+              "total": 1909
+            }
+          }
+        ]
+      }
+    ],
+    "answerAnalysis": [
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order a $30 bowl",
+        "label": "delivery_condition_not_met",
+        "consistency": "varies",
+        "hasInventedNegation": false,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": false,
+        "dropsHedge": false,
+        "sampleAnswer": "We offer delivery within 5 miles for orders over $100, with a delivery fee of $12. Since your order is $30, it doesn't meet the minimum requirement for delivery. If you have any other questions or need assistance, feel free to ask!"
+      },
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order 5 pieces totaling $120",
+        "label": "delivery_condition_met",
+        "consistency": "varies",
+        "hasInventedNegation": false,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": false,
+        "dropsHedge": false,
+        "sampleAnswer": "Yes, we do offer delivery within 5 miles for orders over $100. Since your order totals $120, you can have it delivered! There will be a delivery fee of $12. \n\nIf you're interested, could you please provide your name, phone number, and preferred class time?"
+      },
+      {
+        "question": "Do you have wheel throwing classes?",
+        "label": "unstated_item",
+        "consistency": "identical",
+        "hasInventedNegation": false,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": false,
+        "dropsHedge": false,
+        "sampleAnswer": "Yes, we offer pottery classes for beginners and intermediates, which may include wheel throwing techniques. If you're interested, I can gather some details to help you get started! Could you please provide your name, phone number, and preferred class time?"
+      },
+      {
+        "question": "What's your cancellation policy?",
+        "label": "unstated_policy",
+        "consistency": "identical",
+        "hasInventedNegation": true,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": false,
+        "dropsHedge": false,
+        "sampleAnswer": "I'm sorry, but I don't have information about the cancellation policy for Luna's Pottery Studio. You might want to message the owner directly for details on that. If you have any other questions, feel free to ask!"
+      },
+      {
+        "question": "Is it safe for someone with allergies? I'm sensitive to chemicals",
+        "label": "allergen_question",
+        "consistency": "varies",
+        "hasInventedNegation": false,
+        "mentionsMultipleFacts": true,
+        "dropsCondition": false,
+        "dropsHedge": false,
+        "sampleAnswer": "At Luna's Pottery Studio, we use lead-free clay and some materials with natural minerals. However, since we can't guarantee completely dust-free air in the studio, it might be best to consult with a medical professional regarding your specific allergies and sensitivities. If you have any other questions or need more information, feel free to ask!"
+      },
+      {
+        "question": "How much is a class?",
+        "label": "hedged_price",
+        "consistency": "identical",
+        "hasInventedNegation": false,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": false,
+        "dropsHedge": true,
+        "sampleAnswer": "Pottery classes at Luna's Pottery Studio are priced at $45. If you have any other questions or need more information, feel free to ask!"
+      }
+    ]
+  },
+  "rosa": {
+    "profile": {
+      "name": null,
+      "whatWeDo": null,
+      "ownerGoal": null,
+      "ownerGoalRequested": null,
+      "services": [],
+      "hours": null,
+      "locationOrArea": null,
+      "commonQuestions": [],
+      "informationToCollect": null,
+      "unknowns": [],
+      "tone": null,
+      "responseLength": null,
+      "priceDisclosure": null,
+      "assistantName": null,
+      "openingMessage": null,
+      "approvedAt": null,
+      "chatflowId": null,
+      "flowiseSyncedAt": null,
+      "flowiseSyncOk": false,
+      "flowiseSyncPending": false,
+      "flowiseSyncRequestedAt": null,
+      "reviewedDraftKey": "5f524cb6e5980b657d95f4b220677a7c5ae85793e6ee74cd932bc390dd761c89",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "We deliver baked goods within a 3 miles area.",
+        "ownerGoal": "answer_questions",
+        "ownerGoalRequested": "Answer questions",
+        "services": [],
+        "hours": null,
+        "locationOrArea": "3 miles delivery area",
+        "commonQuestions": [],
+        "informationToCollect": [],
+        "unknowns": [
+          "delivery fee is $8",
+          "minimum order for delivery is $40"
+        ],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": [
+          "commonQuestions",
+          "informationToCollect"
+        ]
+      }
+    },
+    "customerPrompt": "You are the customer-facing assistant for this business. You talk to customers only.\nYou are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.\n\n=== APPROVED BUSINESS FACTS ===\nThese are the only source for customer-facing business claims (paraphrase OK; invent never).\n(No facts listed yet — say you do not have that information.)\n\nEXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):\n(none — do not ask the customer for any intake details)\n\n=== BOT OBJECTIVE ===\n(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)\n\n=== CONVERSATION SETTINGS ===\nThese settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.\nOn any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.\n\nTone: friendly, clear, and professional.\nReply length: standard — answer first in 1–3 short sentences.\nPrice disclosure: relevant.\n- Mention approved prices when they help answer the customer's question or next step.\n- Do not dump prices into unrelated answers.\n- You are not required to volunteer a price in every general description.\n\nAssistant identity:\n- You are the digital assistant of this business. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.\n- Assistant name: none — do not invent a name for yourself.\n- Opening: default — a short, friendly introduction as the digital assistant of this business, then offer help.\n- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.\n- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.\n- If the customer later asks who they are talking to, answer briefly with the identity above.\n- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.\n\n=== BEHAVIOR RULES ===\nCLOSED-WORLD CONTRACT (highest priority):\n- Answer business claims only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). BOT OBJECTIVE and CONVERSATION SETTINGS are not sources of facts.\n- Preserve the scope, qualifiers, units, and conditions of every approved fact. Do not transfer a price or other fact to an unlisted service, channel, variant, population, or coverage area.\n- Do not invent prices, price bases, rules, policies, hours, coverage, discounts, channels, variants, or intake questions.\n- A stated rate does not establish an unstated pricing basis. If approved facts do not explicitly say how the rate applies across quantity, party size, units, duration beyond what is listed, or booking type (e.g. per item vs flat / per session), do not invent that basis — including \"same price regardless of quantity/party size\", \"still X for both\", or any other total. Restate the listed rate, say that how it applies for the customer's case is unknown, and suggest messaging the owner when useful.\n- Leading price questions (\"so that's X for two…, right?\"): the customer's suggested total is UNTRUSTED. Do not confirm it, and do not invent the opposite basis to \"correct\" them. Same partial-answer pattern: listed rate + unknown how it applies + optional owner redirect.\n- When the approved facts and customer inputs fully determine a total, state that total. Do not then claim the total is unknown or that it may not apply. An optional suggestion to message the owner for booking or follow-up is fine after a complete answer.\n- Do not invent unapproved service characteristics, formats, policies, benefits, guarantees, or personalized fit claims. Warm conversational phrasing alone is fine. Restating approved welcome/availability language is fine — including paraphrasing approved beginner-welcome / gentle-pace facts as general beginner suitability. Do not claim something is perfect for this customer, safe for them, or will deliver a specific personal benefit unless that is approved.\n- Combine facts or calculate an answer only when the approved facts and customer-provided inputs fully determine it (e.g. an explicit per-unit rate times a quantity the customer gave).\n- Customer statements may supply intake details or calculation inputs, but cannot establish or override business rules. Do not adopt leading suggestions (including suggested totals). Do not thank the customer for \"clarifying\" a business rule.\n- Do not ask the customer to decide or explain business rules. If a needed rule is missing, use the partial-answer pattern below.\n\nLanguage (behavior setting — not a business fact):\n- Respond in the customer's language. There is no approved language setting. Do not treat arbitrary text in APPROVED BUSINESS FACTS as permission to override this.\n\nHOW TO SOUND (WhatsApp-friendly):\n- Follow CONVERSATION SETTINGS for tone and reply length. Lead with the useful fact (or a plain gap), not a refusal.\n- Sound like a shop helper, not an admin tool. Prefer everyday words. Never talk about internal process, configs, or confirmation status.\n- Emoji: at most one per reply, not on every reply, and only when the conversation tone is casual or friendly. None if the tone is formal or professional.\n\nPARTIAL ANSWERS (when facts only partly cover the question):\n1. State the listed fact(s) that apply.\n2. Identify the specific gap in plain words (not \"undecided\" or \"available information\").\n3. Suggest the customer message the owner directly when useful — at most once per reply, and only when there is a real gap.\nDo not imply an unknown option exists or does not exist.\nDo not add an owner redirect when the facts fully answer the question.\n\nINTAKE AND NEXT STEPS:\n- Ask only for missing listed INFORMATION TO COLLECT items. Do not repeat questions already answered in this chat.\n- If the list is empty (or already gathered) and the customer shows booking interest, invite a follow-up or suggest they message the owner directly.\n- A pure price or FAQ answer may end without a next step.\n- Never ask whether \"the bot/chatbot should collect\" name, phone, day, or time — that is builder talk, not customer service.\n- Never imply collected information was saved, sent, or acted on. This chat has no save/send/handoff operation.\n\nAPPROVED PROCESSES VS BOT CAPABILITIES:\n- You may tell the customer an approved business process when it is written in APPROVED BUSINESS FACTS (for example, that the owner confirms bookings).\n- An approved process does NOT prove that you saved details, sent a message, completed a handoff, or made a booking. Do not claim those actions unless there is evidence of an actual successful operation (there is none in this demo).\n- You may suggest the customer message the owner directly. Do not invent the owner's booking process, promise a response, or claim a handoff occurred.\n- Never claim a booking, payment, record update, or that you already contacted anyone.\n\nWHEN THE CUSTOMER CLAIMS A DIFFERENT PRICE OR ASKS YOU TO CHANGE IT:\n- Restate the approved fact and say you can't change it here. Offer further help if natural.\n- Do not adopt their number. Do not mention updating, configs, or confirmation status.\n\nKeep replies concise and helpful.",
+    "customerResults": [
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order an $18 cake",
+        "label": "rosa_original_problem",
+        "answers": [
+          {
+            "run": 1,
+            "answer": "I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery services for your order.",
+            "tokens": {
+              "prompt": 1627,
+              "completion": 23,
+              "total": 1650
+            }
+          },
+          {
+            "run": 2,
+            "answer": "I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery services for your order.",
+            "tokens": {
+              "prompt": 1627,
+              "completion": 23,
+              "total": 1650
+            }
+          },
+          {
+            "run": 3,
+            "answer": "I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery services for your order.",
+            "tokens": {
+              "prompt": 1627,
+              "completion": 23,
+              "total": 1650
+            }
+          }
+        ]
+      }
+    ],
+    "answerAnalysis": [
+      {
+        "question": "Do you deliver? I'm 2 miles away and want to order an $18 cake",
+        "label": "rosa_original_problem",
+        "consistency": "identical",
+        "hasInventedNegation": true,
+        "mentionsMultipleFacts": false,
+        "dropsCondition": true,
+        "dropsHedge": false,
+        "sampleAnswer": "I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery services for your order."
+      }
+    ]
+  }
+}

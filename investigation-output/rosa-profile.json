@@ -1,0 +1,50 @@
+{
+  "name": null,
+  "whatWeDo": null,
+  "ownerGoal": null,
+  "ownerGoalRequested": null,
+  "services": [],
+  "hours": null,
+  "locationOrArea": null,
+  "commonQuestions": [],
+  "informationToCollect": null,
+  "unknowns": [],
+  "tone": null,
+  "responseLength": null,
+  "priceDisclosure": null,
+  "assistantName": null,
+  "openingMessage": null,
+  "approvedAt": null,
+  "chatflowId": null,
+  "flowiseSyncedAt": null,
+  "flowiseSyncOk": false,
+  "flowiseSyncPending": false,
+  "flowiseSyncRequestedAt": null,
+  "reviewedDraftKey": "5f524cb6e5980b657d95f4b220677a7c5ae85793e6ee74cd932bc390dd761c89",
+  "draft": {
+    "name": "Rosa's Bakery",
+    "whatWeDo": "We deliver baked goods within a 3 miles area.",
+    "ownerGoal": "answer_questions",
+    "ownerGoalRequested": "Answer questions",
+    "services": [],
+    "hours": null,
+    "locationOrArea": "3 miles delivery area",
+    "commonQuestions": [],
+    "informationToCollect": [],
+    "unknowns": [
+      "delivery fee is $8",
+      "minimum order for delivery is $40"
+    ],
+    "tone": null,
+    "responseLength": null,
+    "priceDisclosure": null,
+    "assistantName": null,
+    "openingMessage": null,
+    "assistantNameReset": false,
+    "openingMessageReset": false,
+    "askedTopics": [
+      "commonQuestions",
+      "informationToCollect"
+    ]
+  }
+}

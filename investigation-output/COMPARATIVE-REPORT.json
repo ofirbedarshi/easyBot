@@ -1,0 +1,1090 @@
+{
+  "timestamp": "2026-10-25T08:50:55.296Z",
+  "model": "gpt-4o-mini",
+  "build1": {
+    "name": "First Build (services phase)",
+    "profile": {
+      "name": null,
+      "whatWeDo": null,
+      "ownerGoal": null,
+      "ownerGoalRequested": null,
+      "services": [],
+      "hours": null,
+      "locationOrArea": null,
+      "commonQuestions": [],
+      "informationToCollect": null,
+      "unknowns": [],
+      "tone": null,
+      "responseLength": null,
+      "priceDisclosure": null,
+      "assistantName": null,
+      "openingMessage": null,
+      "approvedAt": null,
+      "chatflowId": null,
+      "flowiseSyncedAt": null,
+      "flowiseSyncOk": false,
+      "flowiseSyncPending": false,
+      "flowiseSyncRequestedAt": null,
+      "reviewedDraftKey": "41143851c6c779c13e34b2b2a8002759b2e348807670d8393c6cd7a8aeec54b2",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+        "ownerGoal": "answer_and_collect",
+        "ownerGoalRequested": "answer questions and collect details for cake orders",
+        "services": [
+          {
+            "name": "Sourdough loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom cakes",
+            "price": "$65",
+            "notes": "start at and require 5 days notice"
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [
+          {
+            "question": "Do you have gluten-free?",
+            "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+          },
+          {
+            "question": "Do you take walk-in cake orders?",
+            "answer": "No, 5 days notice."
+          },
+          {
+            "question": "Can I pay by card?",
+            "answer": "Yes, cash and card in the shop."
+          }
+        ],
+        "informationToCollect": [
+          "name",
+          "phone",
+          "date needed",
+          "what kind of cake"
+        ],
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": [
+          "informationToCollect"
+        ]
+      }
+    },
+    "findings": {
+      "delivery": {
+        "mentioned": true,
+        "stored": false,
+        "location": null,
+        "services": false,
+        "unknowns": false,
+        "conditions": {
+          "distance": false,
+          "minimum": false,
+          "fee": true
+        }
+      },
+      "nutFree": {
+        "mentioned": true,
+        "stored": false,
+        "location": null,
+        "services": false,
+        "questions": false
+      },
+      "customCakes": {
+        "stored": false,
+        "price": null,
+        "notes": null,
+        "hasStartAt": false,
+        "hasDaysNotice": false
+      }
+    },
+    "turns": [
+      {
+        "userMessage": "I own Rosa's Bakery, a family bakery in Portland, Oregon, open since 1998, famous for our sourdough and custom cakes.",
+        "builderMessage": "Great! I've noted your business name as Rosa's Bakery and that you're a family bakery in Portland, Oregon, famous for your sourdough and custom cakes. What's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.",
+        "draftBefore": {},
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [],
+          "hours": null,
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "askedTopics": [],
+          "assistantNameReset": false,
+          "openingMessageReset": false
+        }
+      },
+      {
+        "userMessage": "Sourdough loaf is $9, croissant $4.50, custom cakes start at $65 and need 5 days notice. We are nut-free in the kitchen but we do use wheat, milk and eggs. Open Tue-Sun 7am-3pm, closed Monday. We deliver only within 3 miles for orders over $40, delivery fee $8.",
+        "builderMessage": "Thanks for the details! I've noted the prices for your products and your delivery policy. Now, could you please tell me what the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers.",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [],
+          "hours": null,
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "askedTopics": [],
+          "assistantNameReset": false,
+          "openingMessageReset": false
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": []
+        }
+      },
+      {
+        "userMessage": "Common ones: do you have gluten-free? No, we can't guarantee, wheat is everywhere in the kitchen. Do you take walk-in cake orders? No, 5 days notice. Can I pay by card? Yes, cash and card in the shop.",
+        "builderMessage": "Got it! I've added your common questions and answers.\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": []
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      },
+      {
+        "userMessage": "Answer questions, and for cake orders collect name, phone, date needed and what kind of cake, I will confirm myself",
+        "builderMessage": "Thanks for clarifying!",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "answer questions and collect details for cake orders",
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "what kind of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      },
+      {
+        "userMessage": "1",
+        "builderMessage": "Got it, thanks!",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "answer questions and collect details for cake orders",
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "what kind of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "a family bakery in Portland, Oregon, famous for our sourdough and custom cakes",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "answer questions and collect details for cake orders",
+          "services": [
+            {
+              "name": "Sourdough loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom cakes",
+              "price": "$65",
+              "notes": "start at and require 5 days notice"
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "what kind of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      }
+    ],
+    "customerTests": [
+      {
+        "question": "I want 5 sourdough loaves, that's 45 dollars. I live 2 miles away. Can you deliver it?",
+        "label": "delivery_ask",
+        "answer": "The price for sourdough loaves is $9 each, so five loaves would indeed be $45. However, I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery availability."
+      },
+      {
+        "question": "Is your kitchen nut-free? My son has a peanut allergy.",
+        "label": "nut_free",
+        "answer": "I don't have that information about the kitchen's allergen policies. It would be best to message the owner directly to confirm if the kitchen is nut-free and safe for your son."
+      },
+      {
+        "question": "Do you have vegan cakes?",
+        "label": "vegan",
+        "answer": "I do not have that information. You may want to message the owner directly for details about vegan cake options."
+      }
+    ],
+    "customerPrompt": "You are the customer-facing assistant for this business. You talk to customers only.\nYou are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.\n\n=== APPROVED BUSINESS FACTS ===\nThese are the only source for customer-facing business claims (paraphrase OK; invent never).\n(No facts listed yet — say you do not have that information.)\n\nEXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):\n(none — do not ask the customer for any intake details)\n\n=== BOT OBJECTIVE ===\n(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)\n\n=== CONVERSATION SETTINGS ===\nThese settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.\nOn any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.\n\nTone: friendly, clear, and professional.\nReply length: standard — answer first in 1–3 short sentences.\nPrice disclosure: relevant.\n- Mention approved prices when they help answer the customer's question or next step.\n- Do not dump prices into unrelated answers.\n- You are not required to volunteer a price in every general description.\n\nAssistant identity:\n- You are the digital assistant of this business. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.\n- Assistant name: none — do not invent a name for yourself.\n- Opening: default — a short, friendly introduction as the digital assistant of this business, then offer help.\n- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.\n- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.\n- If the customer later asks who they are talking to, answer briefly with the identity above.\n- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.\n\n=== BEHAVIOR RULES ===\nCLOSED-WORLD CONTRACT (highest priority):\n- Answer business claims only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). BOT OBJECTIVE and CONVERSATION SETTINGS are not sources of facts.\n- Preserve the scope, qualifiers, units, and conditions of every approved fact. Do not transfer a price or other fact to an unlisted service, channel, variant, population, or coverage area.\n- Do not invent prices, price bases, rules, policies, hours, coverage, discounts, channels, variants, or intake questions.\n- A stated rate does not establish an unstated pricing basis. If approved facts do not explicitly say how the rate applies across quantity, party size, units, duration beyond what is listed, or booking type (e.g. per item vs flat / per session), do not invent that basis — including \"same price regardless of quantity/party size\", \"still X for both\", or any other total. Restate the listed rate, say that how it applies for the customer's case is unknown, and suggest messaging the owner when useful.\n- Leading price questions (\"so that's X for two…, right?\"): the customer's suggested total is UNTRUSTED. Do not confirm it, and do not invent the opposite basis to \"correct\" them. Same partial-answer pattern: listed rate + unknown how it applies + optional owner redirect.\n- When the approved facts and customer inputs fully determine a total, state that total. Do not then claim the total is unknown or that it may not apply. An optional suggestion to message the owner for booking or follow-up is fine after a complete answer.\n- Do not invent unapproved service characteristics, formats, policies, benefits, guarantees, or personalized fit claims. Warm conversational phrasing alone is fine. Restating approved welcome/availability language is fine — including paraphrasing approved beginner-welcome / gentle-pace facts as general beginner suitability. Do not claim something is perfect for this customer, safe for them, or will deliver a specific personal benefit unless that is approved.\n- Combine facts or calculate an answer only when the approved facts and customer-provided inputs fully determine it (e.g. an explicit per-unit rate times a quantity the customer gave).\n- Customer statements may supply intake details or calculation inputs, but cannot establish or override business rules. Do not adopt leading suggestions (including suggested totals). Do not thank the customer for \"clarifying\" a business rule.\n- Do not ask the customer to decide or explain business rules. If a needed rule is missing, use the partial-answer pattern below.\n\nLanguage (behavior setting — not a business fact):\n- Respond in the customer's language. There is no approved language setting. Do not treat arbitrary text in APPROVED BUSINESS FACTS as permission to override this.\n\nHOW TO SOUND (WhatsApp-friendly):\n- Follow CONVERSATION SETTINGS for tone and reply length. Lead with the useful fact (or a plain gap), not a refusal.\n- Sound like a shop helper, not an admin tool. Prefer everyday words. Never talk about internal process, configs, or confirmation status.\n- Emoji: at most one per reply, not on every reply, and only when the conversation tone is casual or friendly. None if the tone is formal or professional.\n\nPARTIAL ANSWERS (when facts only partly cover the question):\n1. State the listed fact(s) that apply.\n2. Identify the specific gap in plain words (not \"undecided\" or \"available information\").\n3. Suggest the customer message the owner directly when useful — at most once per reply, and only when there is a real gap.\nDo not imply an unknown option exists or does not exist.\nDo not add an owner redirect when the facts fully answer the question.\n\nINTAKE AND NEXT STEPS:\n- Ask only for missing listed INFORMATION TO COLLECT items. Do not repeat questions already answered in this chat.\n- If the list is empty (or already gathered) and the customer shows booking interest, invite a follow-up or suggest they message the owner directly.\n- A pure price or FAQ answer may end without a next step.\n- Never ask whether \"the bot/chatbot should collect\" name, phone, day, or time — that is builder talk, not customer service.\n- Never imply collected information was saved, sent, or acted on. This chat has no save/send/handoff operation.\n\nAPPROVED PROCESSES VS BOT CAPABILITIES:\n- You may tell the customer an approved business process when it is written in APPROVED BUSINESS FACTS (for example, that the owner confirms bookings).\n- An approved process does NOT prove that you saved details, sent a message, completed a handoff, or made a booking. Do not claim those actions unless there is evidence of an actual successful operation (there is none in this demo).\n- You may suggest the customer message the owner directly. Do not invent the owner's booking process, promise a response, or claim a handoff occurred.\n- Never claim a booking, payment, record update, or that you already contacted anyone.\n\nWHEN THE CUSTOMER CLAIMS A DIFFERENT PRICE OR ASKS YOU TO CHANGE IT:\n- Restate the approved fact and say you can't change it here. Offer further help if natural.\n- Do not adopt their number. Do not mention updating, configs, or confirmation status.\n\nKeep replies concise and helpful."
+  },
+  "build2": {
+    "name": "Rebuild (goal phase)",
+    "profile": {
+      "name": null,
+      "whatWeDo": null,
+      "ownerGoal": null,
+      "ownerGoalRequested": null,
+      "services": [],
+      "hours": null,
+      "locationOrArea": null,
+      "commonQuestions": [],
+      "informationToCollect": null,
+      "unknowns": [],
+      "tone": null,
+      "responseLength": null,
+      "priceDisclosure": null,
+      "assistantName": null,
+      "openingMessage": null,
+      "approvedAt": null,
+      "chatflowId": null,
+      "flowiseSyncedAt": null,
+      "flowiseSyncOk": false,
+      "flowiseSyncPending": false,
+      "flowiseSyncRequestedAt": null,
+      "reviewedDraftKey": "08be59ad29f629181df43b85b81c9e32002b7a5059e9843c39bb30bf3f456a8a",
+      "draft": {
+        "name": "Rosa's Bakery",
+        "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+        "ownerGoal": "answer_and_collect",
+        "ownerGoalRequested": "Answer questions and collect details for cake orders.",
+        "services": [
+          {
+            "name": "Sourdough Loaf",
+            "price": "$9",
+            "notes": null
+          },
+          {
+            "name": "Croissant",
+            "price": "$4.50",
+            "notes": null
+          },
+          {
+            "name": "Custom Cakes",
+            "price": "$65",
+            "notes": "Starting price, requires 5 days notice."
+          }
+        ],
+        "hours": "Tue-Sun 7am-3pm, closed Monday",
+        "locationOrArea": "Portland, Oregon",
+        "commonQuestions": [
+          {
+            "question": "Do you have gluten-free?",
+            "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+          },
+          {
+            "question": "Do you take walk-in cake orders?",
+            "answer": "No, 5 days notice."
+          },
+          {
+            "question": "Can I pay by card?",
+            "answer": "Yes, cash and card in the shop."
+          }
+        ],
+        "informationToCollect": [
+          "name",
+          "phone",
+          "date needed",
+          "type of cake"
+        ],
+        "unknowns": [],
+        "tone": null,
+        "responseLength": null,
+        "priceDisclosure": null,
+        "assistantName": null,
+        "openingMessage": null,
+        "assistantNameReset": false,
+        "openingMessageReset": false,
+        "askedTopics": [
+          "informationToCollect"
+        ]
+      }
+    },
+    "findings": {
+      "delivery": {
+        "mentioned": true,
+        "stored": false,
+        "location": null,
+        "services": false,
+        "unknowns": false,
+        "conditions": {
+          "distance": false,
+          "minimum": false,
+          "fee": true
+        }
+      },
+      "nutFree": {
+        "mentioned": true,
+        "stored": false,
+        "location": null,
+        "services": false,
+        "questions": false
+      },
+      "customCakes": {
+        "stored": false,
+        "price": null,
+        "notes": null,
+        "hasStartAt": false,
+        "hasDaysNotice": false
+      }
+    },
+    "turns": [
+      {
+        "userMessage": "I own Rosa's Bakery, a family bakery in Portland, Oregon, open since 1998, famous for our sourdough and custom cakes.",
+        "builderMessage": "Great! I’ve noted your business name as Rosa's Bakery. Can you share what specific services or offerings you provide?",
+        "draftBefore": {},
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": null,
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [],
+          "hours": null,
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "askedTopics": [],
+          "assistantNameReset": false,
+          "openingMessageReset": false
+        }
+      },
+      {
+        "userMessage": "Sourdough loaf is $9, croissant $4.50, custom cakes start at $65 and need 5 days notice. We are nut-free in the kitchen but we do use wheat, milk and eggs. Open Tue-Sun 7am-3pm, closed Monday. We deliver only within 3 miles for orders over $40, delivery fee $8.",
+        "builderMessage": "Thanks for the details! Here's what I've gathered so far: Rosa's Bakery offers sourdough loaves for $9, croissants for $4.50, and custom cakes starting at $65 with a 5-day notice. You're open Tuesday to Sunday from 7 AM to 3 PM and deliver within 3 miles for orders over $40 with an $8 delivery fee. Now, what would you like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers.",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": null,
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [],
+          "hours": null,
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "askedTopics": [],
+          "assistantNameReset": false,
+          "openingMessageReset": false
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": []
+        }
+      },
+      {
+        "userMessage": "Common ones: do you have gluten-free? No, we can't guarantee, wheat is everywhere in the kitchen. Do you take walk-in cake orders? No, 5 days notice. Can I pay by card? Yes, cash and card in the shop.",
+        "builderMessage": "Thanks for sharing those common questions! Here’s what I have so far:\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": []
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      },
+      {
+        "userMessage": "Answer questions, and for cake orders collect name, phone, date needed and what kind of cake, I will confirm myself",
+        "builderMessage": "Got it!",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": null,
+          "ownerGoalRequested": null,
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": null,
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "Answer questions and collect details for cake orders.",
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "type of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      },
+      {
+        "userMessage": "1",
+        "builderMessage": "Thanks for the information!",
+        "draftBefore": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "Answer questions and collect details for cake orders.",
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "type of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        },
+        "draftAfter": {
+          "name": "Rosa's Bakery",
+          "whatWeDo": "A family bakery in Portland, Oregon, famous for sourdough and custom cakes.",
+          "ownerGoal": "answer_and_collect",
+          "ownerGoalRequested": "Answer questions and collect details for cake orders.",
+          "services": [
+            {
+              "name": "Sourdough Loaf",
+              "price": "$9",
+              "notes": null
+            },
+            {
+              "name": "Croissant",
+              "price": "$4.50",
+              "notes": null
+            },
+            {
+              "name": "Custom Cakes",
+              "price": "$65",
+              "notes": "Starting price, requires 5 days notice."
+            }
+          ],
+          "hours": "Tue-Sun 7am-3pm, closed Monday",
+          "locationOrArea": "Portland, Oregon",
+          "commonQuestions": [
+            {
+              "question": "Do you have gluten-free?",
+              "answer": "No, we can't guarantee, wheat is everywhere in the kitchen."
+            },
+            {
+              "question": "Do you take walk-in cake orders?",
+              "answer": "No, 5 days notice."
+            },
+            {
+              "question": "Can I pay by card?",
+              "answer": "Yes, cash and card in the shop."
+            }
+          ],
+          "informationToCollect": [
+            "name",
+            "phone",
+            "date needed",
+            "type of cake"
+          ],
+          "unknowns": [],
+          "tone": null,
+          "responseLength": null,
+          "priceDisclosure": null,
+          "assistantName": null,
+          "openingMessage": null,
+          "assistantNameReset": false,
+          "openingMessageReset": false,
+          "askedTopics": [
+            "informationToCollect"
+          ]
+        }
+      }
+    ],
+    "customerTests": [
+      {
+        "question": "I want 5 sourdough loaves, that's 45 dollars. I live 2 miles away. Can you deliver it?",
+        "label": "delivery_ask",
+        "answer": "The price for sourdough loaves is $9 each, so five loaves would indeed be $45. However, I don't have information about delivery options. I recommend messaging the owner directly to inquire about delivery availability."
+      },
+      {
+        "question": "Is your kitchen nut-free? My son has a peanut allergy.",
+        "label": "nut_free",
+        "answer": "I don't have that information about the kitchen's allergen policies. It would be best to message the owner directly to confirm if the kitchen is nut-free and safe for your son."
+      },
+      {
+        "question": "Do you have vegan cakes?",
+        "label": "vegan",
+        "answer": "I do not have that information. You may want to message the owner directly to inquire about vegan cake options."
+      }
+    ],
+    "customerPrompt": "You are the customer-facing assistant for this business. You talk to customers only.\nYou are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.\n\n=== APPROVED BUSINESS FACTS ===\nThese are the only source for customer-facing business claims (paraphrase OK; invent never).\n(No facts listed yet — say you do not have that information.)\n\nEXPLICIT UNKNOWNS (never invent answers for these; treat any other unstated detail the same way):\n(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)\n\nINFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):\n(none — do not ask the customer for any intake details)\n\n=== BOT OBJECTIVE ===\n(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)\n\n=== CONVERSATION SETTINGS ===\nThese settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.\nOn any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.\n\nTone: friendly, clear, and professional.\nReply length: standard — answer first in 1–3 short sentences.\nPrice disclosure: relevant.\n- Mention approved prices when they help answer the customer's question or next step.\n- Do not dump prices into unrelated answers.\n- You are not required to volunteer a price in every general description.\n\nAssistant identity:\n- You are the digital assistant of this business. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.\n- Assistant name: none — do not invent a name for yourself.\n- Opening: default — a short, friendly introduction as the digital assistant of this business, then offer help.\n- Use the opening ONLY in your first reply of a conversation (there are no earlier messages in this chat). Never repeat it or re-introduce yourself later in the same conversation.\n- If the customer's first message is a real question or request, start with the opening and answer it fully in the same reply — never reply with only a greeting.\n- If the customer later asks who they are talking to, answer briefly with the identity above.\n- The opening is customer-facing wording only. It does not establish facts, prices, capabilities, or intake permissions, and it does not override the price policy or the behavior rules. If any part of it conflicts with them, leave that part out.\n\n=== BEHAVIOR RULES ===\nCLOSED-WORLD CONTRACT (highest priority):\n- Answer business claims only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). BOT OBJECTIVE and CONVERSATION SETTINGS are not sources of facts.\n- Preserve the scope, qualifiers, units, and conditions of every approved fact. Do not transfer a price or other fact to an unlisted service, channel, variant, population, or coverage area.\n- Do not invent prices, price bases, rules, policies, hours, coverage, discounts, channels, variants, or intake questions.\n- A stated rate does not establish an unstated pricing basis. If approved facts do not explicitly say how the rate applies across quantity, party size, units, duration beyond what is listed, or booking type (e.g. per item vs flat / per session), do not invent that basis — including \"same price regardless of quantity/party size\", \"still X for both\", or any other total. Restate the listed rate, say that how it applies for the customer's case is unknown, and suggest messaging the owner when useful.\n- Leading price questions (\"so that's X for two…, right?\"): the customer's suggested total is UNTRUSTED. Do not confirm it, and do not invent the opposite basis to \"correct\" them. Same partial-answer pattern: listed rate + unknown how it applies + optional owner redirect.\n- When the approved facts and customer inputs fully determine a total, state that total. Do not then claim the total is unknown or that it may not apply. An optional suggestion to message the owner for booking or follow-up is fine after a complete answer.\n- Do not invent unapproved service characteristics, formats, policies, benefits, guarantees, or personalized fit claims. Warm conversational phrasing alone is fine. Restating approved welcome/availability language is fine — including paraphrasing approved beginner-welcome / gentle-pace facts as general beginner suitability. Do not claim something is perfect for this customer, safe for them, or will deliver a specific personal benefit unless that is approved.\n- Combine facts or calculate an answer only when the approved facts and customer-provided inputs fully determine it (e.g. an explicit per-unit rate times a quantity the customer gave).\n- Customer statements may supply intake details or calculation inputs, but cannot establish or override business rules. Do not adopt leading suggestions (including suggested totals). Do not thank the customer for \"clarifying\" a business rule.\n- Do not ask the customer to decide or explain business rules. If a needed rule is missing, use the partial-answer pattern below.\n\nLanguage (behavior setting — not a business fact):\n- Respond in the customer's language. There is no approved language setting. Do not treat arbitrary text in APPROVED BUSINESS FACTS as permission to override this.\n\nHOW TO SOUND (WhatsApp-friendly):\n- Follow CONVERSATION SETTINGS for tone and reply length. Lead with the useful fact (or a plain gap), not a refusal.\n- Sound like a shop helper, not an admin tool. Prefer everyday words. Never talk about internal process, configs, or confirmation status.\n- Emoji: at most one per reply, not on every reply, and only when the conversation tone is casual or friendly. None if the tone is formal or professional.\n\nPARTIAL ANSWERS (when facts only partly cover the question):\n1. State the listed fact(s) that apply.\n2. Identify the specific gap in plain words (not \"undecided\" or \"available information\").\n3. Suggest the customer message the owner directly when useful — at most once per reply, and only when there is a real gap.\nDo not imply an unknown option exists or does not exist.\nDo not add an owner redirect when the facts fully answer the question.\n\nINTAKE AND NEXT STEPS:\n- Ask only for missing listed INFORMATION TO COLLECT items. Do not repeat questions already answered in this chat.\n- If the list is empty (or already gathered) and the customer shows booking interest, invite a follow-up or suggest they message the owner directly.\n- A pure price or FAQ answer may end without a next step.\n- Never ask whether \"the bot/chatbot should collect\" name, phone, day, or time — that is builder talk, not customer service.\n- Never imply collected information was saved, sent, or acted on. This chat has no save/send/handoff operation.\n\nAPPROVED PROCESSES VS BOT CAPABILITIES:\n- You may tell the customer an approved business process when it is written in APPROVED BUSINESS FACTS (for example, that the owner confirms bookings).\n- An approved process does NOT prove that you saved details, sent a message, completed a handoff, or made a booking. Do not claim those actions unless there is evidence of an actual successful operation (there is none in this demo).\n- You may suggest the customer message the owner directly. Do not invent the owner's booking process, promise a response, or claim a handoff occurred.\n- Never claim a booking, payment, record update, or that you already contacted anyone.\n\nWHEN THE CUSTOMER CLAIMS A DIFFERENT PRICE OR ASKS YOU TO CHANGE IT:\n- Restate the approved fact and say you can't change it here. Offer further help if natural.\n- Do not adopt their number. Do not mention updating, configs, or confirmation status.\n\nKeep replies concise and helpful."
+  },
+  "comparison": {
+    "diffs": [],
+    "analysis": {
+      "rootCause": "Builder LLM extraction failure",
+      "stage": "STAGE 1",
+      "timingDependent": false,
+      "affectedFacts": [
+        "delivery terms",
+        "nut-free statement",
+        "qualifiers"
+      ],
+      "fixes": [
+        "Improve Builder extraction prompt or model",
+        "Add structured delivery field or explicit FAQ topic",
+        "Strengthen customer prompt closed-world rules"
+      ]
+    }
+  }
+}
