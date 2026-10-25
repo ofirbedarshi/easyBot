@@ -18,11 +18,11 @@ function sectionBetween(prompt, startMarker, endMarker) {
 }
 
 function testOwnerGoalSeparatedFromFacts() {
-  const goal = 'Steer customers toward weekday evening lessons';
+  const goal = 'Answer customer questions from the approved facts, and when a customer shows interest';
   const prompt = buildCustomerSystemPrompt({
     name: 'Maya Yoga',
     whatWeDo: 'Yoga lessons',
-    ownerGoal: goal,
+    ownerGoal: 'answer_and_collect',
     services: [{ name: 'Private', price: '$70 for 60 minutes', notes: null }],
     hours: 'Weekday evenings',
     locationOrArea: 'Oak Street',
@@ -58,6 +58,24 @@ function testOwnerGoalSeparatedFromFacts() {
     /must NOT establish facts/i.test(objective),
     'objective must warn that ownerGoal does not establish facts'
   );
+}
+
+function testObjectivePerGoal() {
+  const base = { name: 'X', whatWeDo: 'Y', services: [], informationToCollect: [] };
+  const objective = (ownerGoal) =>
+    sectionBetween(
+      buildCustomerSystemPrompt({ ...base, ownerGoal }),
+      '=== BOT OBJECTIVE ===',
+      '=== CONVERSATION SETTINGS ==='
+    );
+  assert.match(objective('answer_questions'), /answering their questions from the approved facts/);
+  assert.doesNotMatch(objective('answer_questions'), /INFORMATION TO COLLECT/);
+  assert.match(objective('collect_details'), /ask for the details in INFORMATION TO COLLECT/);
+  assert.match(objective('answer_and_collect'), /Answer customer questions[\s\S]*INFORMATION TO COLLECT/);
+  // Legacy free text is never sent to the Business Bot.
+  const legacy = objective('Book as many sessions as possible');
+  assert.match(legacy, /none set/i);
+  assert.doesNotMatch(legacy, /Book as many/);
 }
 
 function testFactsFaqUnknownsIntakeRendered() {
@@ -244,6 +262,7 @@ function testLegacyDefaultsInPrompt() {
 
 function main() {
   testOwnerGoalSeparatedFromFacts();
+  testObjectivePerGoal();
   testFactsFaqUnknownsIntakeRendered();
   testEmptyIntakeAndNullOwnerGoal();
   testNoForcedEnglishOrForcedBookingProcess();

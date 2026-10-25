@@ -12,10 +12,31 @@ const TEST_PROFILES_DIR = path.join(DATA_DIR, 'test-profiles');
 const TEXT_FACT_KEYS = [
   'name',
   'whatWeDo',
-  'ownerGoal',
   'hours',
   'locationOrArea',
 ];
+
+/**
+ * Bot goal (`ownerGoal`): only what the Business Bot can actually do.
+ * Anything else the owner asks for is mapped to `answer_and_collect`.
+ */
+export const OWNER_GOAL_VALUES = ['answer_questions', 'collect_details', 'answer_and_collect'];
+
+export const OWNER_GOAL_LABELS = {
+  answer_questions: 'Answer customer questions',
+  collect_details: 'Collect details from interested customers',
+  answer_and_collect: 'Answer customer questions and collect their details',
+};
+
+/** Goal used when the owner asks for something the bot cannot do. */
+export const FALLBACK_OWNER_GOAL = 'answer_and_collect';
+
+/** Stored goal value, or null (legacy free text and unknown values → null). */
+export function normalizeOwnerGoal(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return OWNER_GOAL_VALUES.includes(s) ? s : null;
+}
 
 /** Conversation settings — expression / disclosure, not business facts. */
 export const BEHAVIOR_KEYS = ['tone', 'responseLength', 'priceDisclosure'];
@@ -88,6 +109,12 @@ export const CONFIG_CAPABILITIES = [
       'Text added to every message, changing per message, or claims beyond approved facts and demo scope.',
   },
   {
+    field: 'ownerGoal',
+    represents: `The bot goal, one of: ${OWNER_GOAL_VALUES.map((v) => `"${v}" (${OWNER_GOAL_LABELS[v]})`).join(', ')}.`,
+    cannotRepresent:
+      'Booking, sales follow-up, payments, reminders, or any goal beyond answering questions and collecting the listed details.',
+  },
+  {
     field: 'informationToCollect',
     represents: 'Details the Business Bot asks the customer for in chat.',
     cannotRepresent:
@@ -96,9 +123,9 @@ export const CONFIG_CAPABILITIES = [
   {
     field: 'business facts',
     represents:
-      'name, whatWeDo, ownerGoal, services (name/price/notes), hours, locationOrArea, commonQuestions (customer question + owner answer), unknowns — facts the Business Bot may tell customers.',
+      'name, whatWeDo, services (name/price/notes), hours, locationOrArea, commonQuestions (customer question + owner answer), unknowns — facts the Business Bot may tell customers.',
     cannotRepresent:
-      'Instructions about how the bot behaves. Do not hide behavior rules inside facts, notes, FAQ answers, or ownerGoal.',
+      'Instructions about how the bot behaves. Do not hide behavior rules inside facts, notes, or FAQ answers.',
   },
 ];
 
@@ -230,7 +257,11 @@ export function normalizeBehaviorSettings(profile) {
   for (const key of IDENTITY_KEYS) {
     if (key in profile) profile[key] = normalizeIdentityText(profile[key]);
   }
+  if ('ownerGoal' in profile) profile.ownerGoal = normalizeOwnerGoal(profile.ownerGoal);
   if (profile.draft && typeof profile.draft === 'object') {
+    if ('ownerGoal' in profile.draft) {
+      profile.draft.ownerGoal = normalizeOwnerGoal(profile.draft.ownerGoal);
+    }
     for (const key of IDENTITY_KEYS) {
       if (key in profile.draft) {
         profile.draft[key] = normalizeIdentityText(profile.draft[key]);
@@ -278,7 +309,7 @@ export function businessFactsView(profile) {
   return {
     name: p.name ?? null,
     whatWeDo: p.whatWeDo ?? null,
-    ownerGoal: p.ownerGoal ?? null,
+    ownerGoal: normalizeOwnerGoal(p.ownerGoal),
     services: Array.isArray(p.services) ? p.services : [],
     hours: p.hours ?? null,
     locationOrArea: p.locationOrArea ?? null,
@@ -314,10 +345,11 @@ export function emptyProfile() {
     name: null,
     whatWeDo: null,
     /**
-     * Outcome the owner wants the customer bot to achieve.
-     * null = not clarified yet — never invent a goal in app code.
+     * Bot goal: one of OWNER_GOAL_VALUES, or null = not asked / not answered yet.
      */
     ownerGoal: null,
+    /** The owner's own words when asked the goal (demo research only; never sent to the Business Bot). */
+    ownerGoalRequested: null,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -415,6 +447,11 @@ export function mergeDraft(profile, draft) {
   for (const key of TEXT_FACT_KEYS) {
     if (draft[key] != null && draft[key] !== '') next[key] = draft[key];
   }
+  const goal = normalizeOwnerGoal(draft.ownerGoal);
+  if (goal) next.ownerGoal = goal;
+  else next.ownerGoal = normalizeOwnerGoal(next.ownerGoal);
+  const requested = normalizeIdentityText(draft.ownerGoalRequested);
+  if (requested) next.ownerGoalRequested = requested;
   for (const key of BEHAVIOR_KEYS) {
     if (key === 'tone') {
       if (draft.tone != null && draft.tone !== '') next.tone = draft.tone;
@@ -452,6 +489,9 @@ export function draftDiffersFromLive(profile, draft) {
   const merged = mergeDraft(profile, draft);
   for (const key of TEXT_FACT_KEYS) {
     if ((merged[key] || null) !== (profile[key] || null)) return true;
+  }
+  if (normalizeOwnerGoal(merged.ownerGoal) !== normalizeOwnerGoal(profile.ownerGoal)) {
+    return true;
   }
   const liveB = effectiveBehavior(profile);
   const mergedB = effectiveBehavior(merged);
@@ -504,7 +544,8 @@ function formatFactsBlock(profile) {
   const lines = [];
   lines.push(`Business: ${profile.name || '(not set)'}`);
   lines.push(`What they do: ${profile.whatWeDo || '(not set)'}`);
-  lines.push(`Owner goal: ${profile.ownerGoal || '(not set)'}`);
+  const goal = normalizeOwnerGoal(profile.ownerGoal);
+  lines.push(`Bot goal: ${goal ? OWNER_GOAL_LABELS[goal] : '(not set)'}`);
   if (profile.services?.length) {
     lines.push('Services:');
     for (const s of profile.services) {
@@ -617,8 +658,8 @@ export function draftChangesOnlySettings(profile, draft) {
 }
 
 export function hasEnoughForFirstBot(profile) {
-  const hasIdentity = !!(profile.name || profile.whatWeDo);
+  const hasName = !!(profile.name && String(profile.name).trim());
   const hasOffering =
     (profile.services && profile.services.length > 0) || !!profile.whatWeDo;
-  return hasIdentity && hasOffering;
+  return hasName && hasOffering;
 }

@@ -5,26 +5,39 @@ import {
   DEMO_SCOPE,
   draftChangesOnlySettings,
   draftReviewKey,
-  formatSummary,
   hasEnoughForFirstBot,
   identityResetFlag,
   IDENTITY_KEYS,
   mergeDraft,
   normalizeCommonQuestions,
+  FALLBACK_OWNER_GOAL,
   normalizeIdentityText,
+  normalizeOwnerGoal,
   normalizePriceDisclosure,
   normalizeResponseLength,
+  OWNER_GOAL_LABELS,
+  OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_LABELS,
   PRICE_DISCLOSURE_VALUES,
   RESPONSE_LENGTH_LABELS,
   RESPONSE_LENGTH_VALUES,
 } from './profile.js';
+import {
+  nextOpenTopic,
+  REQUIRED_TOPICS,
+  topicJustAsked,
+  topicModelAsked,
+} from './builderTopics.js';
 
-const INTAKE_GATE_QUESTION =
-  'Before we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.';
+export const OWNER_GOAL_QUESTION =
+  "What's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.";
 
 const RESPONSE_LENGTH_ENUM = RESPONSE_LENGTH_VALUES.map((v) => `"${v}"`).join('|');
 const PRICE_DISCLOSURE_ENUM = PRICE_DISCLOSURE_VALUES.map((v) => `"${v}"`).join('|');
+const OWNER_GOAL_ENUM = OWNER_GOAL_VALUES.map((v) => `"${v}"`).join('|');
+const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
+  (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
+).join('\n');
 
 const RESPONSE_LENGTH_LINES = RESPONSE_LENGTH_VALUES.map(
   (v) => `  - "${v}" — ${RESPONSE_LENGTH_LABELS[v]}`
@@ -42,17 +55,20 @@ const CAPABILITY_LINES = CONFIG_CAPABILITIES.map(
 
 const SYSTEM = `You are a capable new employee learning how this business handles customer inquiries. You help a non-technical owner set up a customer-facing chatbot by chatting — not by running a feature checklist.
 
-Your job: understand the business and the outcome the owner wants, clarify what is unclear, extract facts into a draft, and reach a useful first bot without an unnecessarily long interview.
+Your job: understand the business first, then (once named) the outcome the owner wants, clarify what is unclear, extract facts into a draft, and reach a useful first bot without an unnecessarily long interview.
 
 Discover when relevant (partial info is OK — do not force every category):
+- Business name (required for a first bot — never invent it)
 - What the business does
-- ownerGoal — the outcome the owner wants this customer bot to achieve (only when the owner has clarified it)
+- ownerGoal — the bot goal, mapped to a supported value (only after draft.name is set; see ownerGoal below)
 - Services and offerings
-- Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking)
+- Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking). Store each services[].price with its currency and unit exactly as the owner stated them (e.g. "200 ILS per 60-minute lesson", "$50 per person"). Never invent a currency or unit. If the owner gives a bare number and the currency or unit is unclear, ask once; if they don't know, keep the number and add the missing part to unknowns.
 - Opening hours or availability
 - Location or service area
-- Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers)
-- Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers)
+- Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
+- Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
+
+Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once approved):
@@ -95,10 +111,11 @@ ${PRICE_DISCLOSURE_LINES}
 - Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style, price disclosure, assistant name, or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true, show what changed (quote the new opening), and ask for approval again (approved=false until they confirm). Do not switch to unrelated interview questions in that turn.
 
 Interview rules:
-- Start by understanding the business and the owner's desired outcome — not by listing features to enable.
-- If the owner is vague ("I need a bot"), help them clarify the goal with one concise question. Leave draft.ownerGoal null until they clarify; NEVER invent a goal.
-- When they dump many facts in one message, absorb what you can into the draft and ask only the missing high-value follow-ups (one or two).
-- Ask one or two relevant questions at a time. Adapt to what they already said. Never repeat answered questions.
+- Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
+- Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
+- After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
+- When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
+- Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
 - If they interrupt, add requirements, or change direction mid-setup, update the draft to match the new direction and drop stale offerings that no longer apply.
 - Never invent business facts.
 - Identify missing, contradictory, or ambiguous info gently.
@@ -119,16 +136,25 @@ Interview rules:
   - Keep draft.informationToCollect as null until the owner answers whether the bot should collect anything.
   - When they say collect nothing / none / no, set informationToCollect to [] (empty array).
   - When they list items, set informationToCollect to those strings.
-- ownerGoal:
-  - Set or update only from what the owner clearly stated as their desired outcome.
-  - Leave null if they have not clarified a goal. Do not invent or guess a goal.
-  - When they later clarify or change the goal, update ownerGoal and ask for approval again if already reviewed.
-- Before readyForReview / approve, you MUST have asked (once) whether the bot should collect any information from the customer, and set informationToCollect to an array (possibly empty) based on their answer.
-- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true, show a short summary of what changed, and ask them to approve. Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
-- When you have enough for a useful first customer bot (identity + at least one offering or clear description) AND informationToCollect is an array (possibly empty), set readyForReview=true and present a concise summary that includes known facts, ownerGoal when set, conversation settings when set, AND explicit unknowns, asking them to approve, correct, or say "approve". ownerGoal and conversation settings are helpful but NOT required for readyForReview.
-- If they correct facts, update the draft and confirm.
-- If they say approve / looks good / yes after a summary of an already-pending draft (or after a clarification summary that did not introduce a new change this turn), set approved=true. If "yes" is accepting an offered alternative that you are applying now, that is a draft update + readyForReview — set approved=false.
-- If they change something later (e.g. a new price, goal, or style), update draft, show the change, and ask for approval again (readyForReview=true, approved=false until they confirm). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
+- ownerGoal (the bot goal):
+  - Do not ask for it until draft.name is set.
+  - Once draft.name is set and ownerGoal is null, ask this (keep the meaning and examples):
+    "${OWNER_GOAL_QUESTION}"
+  - Never phrase it as "outcome" or "customer bot".
+  - The bot supports only these goals:
+${OWNER_GOAL_LINES}
+  - When the owner answers: copy their own words into draft.ownerGoalRequested, and set draft.ownerGoal to the matching supported value.
+    - Fully supported (only answering questions and/or collecting details): set the matching value and goalSupported=true.
+    - Anything else (booking, sales, payments, follow-ups, reminders, or a mix that includes one of them): set ownerGoal="${FALLBACK_OWNER_GOAL}", goalSupported=false, and goalUnsupportedPart = a short phrase of what the bot can't do (e.g. "book sessions"). Do NOT explain the limitation yourself — the app adds a fixed disclaimer.
+  - On the answering turn, start with one short acknowledgment sentence (no restating capabilities), then continue with the next single interview question.
+  - Set goalSupported=null on every turn where the owner did not answer or change the goal.
+  - Leave ownerGoal null until the owner answers. Never invent a goal.
+  - When they later change the goal, apply the same mapping and ask for approval again if already reviewed.
+- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
+- When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one short acknowledgment sentence only (e.g. "Got it, thanks!") — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Try my bot / Make changes). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
+- If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
+- If they say approve / looks good / yes after a summary of an already-pending draft (or after a clarification that did not introduce a new change this turn), set approved=true. If "yes" is accepting an offered alternative that you are applying now, that is a draft update + readyForReview — set approved=false.
+- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, approved=false, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
 
 You MUST respond with a single JSON object only (no markdown fences):
 {
@@ -136,7 +162,8 @@ You MUST respond with a single JSON object only (no markdown fences):
   "draft": {
     "name": string|null,
     "whatWeDo": string|null,
-    "ownerGoal": string|null,
+    "ownerGoal": ${OWNER_GOAL_ENUM}|null,
+    "ownerGoalRequested": string|null,
     "services": [{"name": string, "price": string|null, "notes": string|null}],
     "hours": string|null,
     "locationOrArea": string|null,
@@ -152,6 +179,9 @@ You MUST respond with a single JSON object only (no markdown fences):
     "openingMessageReset": boolean
   },
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
+  "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
+  "goalSupported": boolean|null,
+  "goalUnsupportedPart": string|null,
   "readyForReview": boolean,
   "approved": boolean
 }
@@ -161,7 +191,8 @@ Merge new facts into draft — keep previous draft values unless the owner chang
 Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
 commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
 informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
-ownerGoal must stay null until the owner clarifies their desired outcome; never invent it.
+If the owner says to skip FAQ or has no common questions, leave commonQuestions as it is — do not invent entries.
+ownerGoal must be one of the supported values, or null until the owner answers the goal question; never invent it.
 unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.
 responseLength and priceDisclosure must be one of the allowed enum values or null — never invent other policies.
 When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).
@@ -179,6 +210,24 @@ function parseJsonResponse(content) {
     text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
   }
   return JSON.parse(text);
+}
+
+/**
+ * Replace the model's questions with `question`, keeping only the text before
+ * its first question (acknowledgment, summary) so the turn asks one thing.
+ * Text after that question is dropped: it is usually a follow-up to it.
+ */
+export function withSingleQuestion(text, question) {
+  const lines = [];
+  for (const line of String(text || '').split(/\n/)) {
+    const sentences = line.match(/[^.!?。]+[.!?。]*\s*/g) || [];
+    const firstQ = sentences.findIndex((s) => /\?\s*$/.test(s));
+    const before = (firstQ === -1 ? sentences : sentences.slice(0, firstQ)).join('').trim();
+    lines.push(before);
+    if (firstQ !== -1) break;
+  }
+  const kept = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return kept ? `${kept}\n\n${question}` : question;
 }
 
 /** True once the owner has answered the intake question (array, possibly empty). */
@@ -207,6 +256,9 @@ export function reconcileDraft(draft, currentDraft) {
     next.commonQuestions = normalizeCommonQuestions(next.commonQuestions);
   }
 
+  // App-owned: which required topics the app already asked (model never sets it)
+  next.askedTopics = Array.isArray(prev.askedTopics) ? [...prev.askedTopics] : [];
+
   // Preserve prior informationToCollect when model omits it or sends null after settled
   if (
     !Array.isArray(next.informationToCollect) &&
@@ -220,12 +272,13 @@ export function reconcileDraft(draft, currentDraft) {
     next.informationToCollect = null;
   }
 
-  // Preserve prior ownerGoal when model omits/nulls after it was set (null must not invent)
-  if ((next.ownerGoal == null || next.ownerGoal === '') && prev.ownerGoal) {
-    next.ownerGoal = prev.ownerGoal;
-  } else if (next.ownerGoal === undefined) {
-    next.ownerGoal = prev.ownerGoal ?? null;
-  }
+  // ownerGoal: supported values only; invalid/null/omit → keep previous (never invent)
+  next.ownerGoal =
+    normalizeOwnerGoal(next.ownerGoal) ?? normalizeOwnerGoal(prev.ownerGoal) ?? null;
+  next.ownerGoalRequested =
+    normalizeIdentityText(next.ownerGoalRequested) ??
+    normalizeIdentityText(prev.ownerGoalRequested) ??
+    null;
 
   // Tone: preserve when omitted / blanked after set
   if ((next.tone == null || next.tone === '') && prev.tone) {
@@ -353,7 +406,8 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const currentDraft = profile.draft || {
     name: profile.name,
     whatWeDo: profile.whatWeDo,
-    ownerGoal: profile.ownerGoal ?? null,
+    ownerGoal: normalizeOwnerGoal(profile.ownerGoal),
+    ownerGoalRequested: profile.ownerGoalRequested ?? null,
     services: profile.services,
     hours: profile.hours,
     locationOrArea: profile.locationOrArea,
@@ -370,18 +424,34 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     openingMessage: profile.openingMessage ?? null,
   };
 
-  const intakeSettled = hasAnsweredInformationToCollect(currentDraft);
+  const mergedForHint = mergeDraft(profile, currentDraft);
+  const hasName = !!(
+    mergedForHint.name && String(mergedForHint.name).trim()
+  );
+  const enoughBasics = hasEnoughForFirstBot(mergedForHint);
+  let enoughHint;
+  if (!hasName) {
+    enoughHint =
+      'Hint: business name is still required before readyForReview — ask for the business name (one question), or invite them to tell you about their business if basics are empty.';
+  } else if (enoughBasics) {
+    enoughHint =
+      'Hint: enough info may already exist for a first bot — set readyForReview=true unless something important needs clarifying (the app asks required topics itself).';
+  } else {
+    enoughHint = 'Hint: still gathering basics (need name plus what they do or at least one service).';
+  }
+  if (hasName && !normalizeOwnerGoal(currentDraft.ownerGoal)) {
+    enoughHint +=
+      '\nHint: ownerGoal is not set — unless the owner is correcting something or changing a setting, your next question should be the ownerGoal question. If the owner just answered it, map it to a supported goal as instructed, acknowledge briefly, and continue.';
+  }
+  const justAsked = topicJustAsked(buildHistory);
+  if (justAsked) enoughHint += `\nHint: ${justAsked.answerHint}`;
   const contextNote = [
     'Current draft profile JSON:',
     JSON.stringify(currentDraft, null, 2),
     profile.approvedAt
       ? `Last approved at: ${profile.approvedAt}`
       : 'Not yet approved.',
-    hasEnoughForFirstBot(mergeDraft(profile, currentDraft))
-      ? intakeSettled
-        ? 'Hint: enough info may already exist for a first bot — consider readyForReview if appropriate.'
-        : 'Hint: basics may be enough, but informationToCollect is still null — ask whether the bot should collect anything from the customer before readyForReview.'
-      : 'Hint: still gathering basics.',
+    enoughHint,
   ].join('\n');
 
   const messages = [
@@ -427,16 +497,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     readyForReview = true;
   }
 
-  // Application gate: cannot review/approve until owner answered intake collect question
-  const intakeAnswered = hasAnsweredInformationToCollect(draft);
-  let message = parsed.message || 'Tell me a bit more about your business.';
-  if ((readyForReview || approved) && !intakeAnswered) {
-    approved = false;
-    readyForReview = false;
-    if (!message.includes(INTAKE_GATE_QUESTION)) {
-      message = `${message.trim()}\n\n${INTAKE_GATE_QUESTION}`;
-    }
-  }
+  const message = parsed.message || 'Tell me a bit more about your business.';
 
   return {
     message,
@@ -444,15 +505,38 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     readyForReview,
     approved,
     configRequests: normalizeConfigRequests(parsed.configRequests),
+    askingTopic: typeof parsed.askingTopic === 'string' ? parsed.askingTopic : null,
+    goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
+    goalUnsupportedPart:
+      typeof parsed.goalUnsupportedPart === 'string' && parsed.goalUnsupportedPart.trim()
+        ? parsed.goalUnsupportedPart.trim()
+        : null,
     usage: completion.usage,
     source: 'real-llm',
   };
 }
 
-const REVIEW_FOOTER =
-  'Reply **approve** to create/update the customer bot, or tell me what to correct.';
 const REVIEW_REQUIRED_NOTE =
   'Before I apply anything, please review the current version below.';
+
+const REVIEW_FILLER =
+  /\b(review|summary|summari[sz]e|approv\w*|set up|setup|ready|prepare|here'?s what|below)\b|סיכום|לאישור|מוכן/i;
+
+/**
+ * Reduce model text on a review turn to one short acknowledgment sentence: no
+ * questions, no bullet/numbered lines, no "here's the summary / ready for
+ * review" filler (the app renders the summary and options).
+ */
+export function reviewAck(text) {
+  const sentences = String(text || '')
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^\s*([-*•]|#{1,6}|\d+[.)])\s+/.test(line))
+    .flatMap((line) => (line.match(/[^.!?。]+[.!?。]*\s*/g) || []).map((s) => s.trim()))
+    .filter((s) => s && !/\?\s*$/.test(s) && !/:\s*$/.test(s));
+  const kept = sentences.find((s) => !REVIEW_FILLER.test(s));
+  return kept || '';
+}
 
 /**
  * True when a short owner-approve phrase may apply the current draft.
@@ -477,10 +561,94 @@ export function shouldSoftApprove({ profile, draft, userMessage }) {
  * Settings-only edits to an approved business are presented for review even if
  * the model asked an unrelated question instead.
  *
+ * When presenting a review, returns presentReview=true with an acknowledgment-only
+ * message; the session layer appends the short summary and numbered menu.
+ *
  * @returns turn fields plus reviewedDraftKey to persist on the profile
  */
 export function applyReviewGate(profile, turn, userMessage) {
-  const draft = turn.draft;
+  const { turn: goalTurn, disclaimer } = applyGoalSupport(profile, turn, userMessage);
+  const out = gateTurn(profile, goalTurn, userMessage);
+  if (!disclaimer) return out;
+  return { ...out, message: replaceBeforeQuestion(out.message, disclaimer) };
+}
+
+/** Goal wording the bot can't do, and the phrase used in the disclaimer. */
+const UNSUPPORTED_GOAL_PATTERNS = [
+  [/\b(book|booking|appointments?|schedul\w*|reserv\w*)\b/i, 'book appointments'],
+  [/\b(sell|sales|selling|revenue|upsell\w*)\b/i, 'drive sales'],
+  [/\b(pay|payments?|charge|checkout)\b/i, 'take payments'],
+  [/\b(remind\w*|follow[- ]?ups?)\b/i, 'send reminders or follow-ups'],
+];
+
+/**
+ * Unsupported bot goal: store the fallback goal and return the fixed disclaimer
+ * (shown only on the turn the owner asked for something the bot can't do).
+ * Uses the model's goalSupported=false, or — when the goal was set or changed this
+ * turn — the owner's message matching unsupported wording.
+ */
+export function applyGoalSupport(profile, turn, userMessage) {
+  const prevGoal = normalizeOwnerGoal(profile?.draft?.ownerGoal ?? profile?.ownerGoal);
+  const goalSetNow =
+    normalizeOwnerGoal(turn?.draft?.ownerGoal) !== null &&
+    normalizeOwnerGoal(turn?.draft?.ownerGoal) !== prevGoal;
+  const matched = goalSetNow
+    ? UNSUPPORTED_GOAL_PATTERNS.find(([re]) => re.test(String(userMessage || '')))
+    : null;
+  if (turn?.goalSupported !== false && !matched) return { turn, disclaimer: null };
+  const what = turn.goalUnsupportedPart || matched?.[1] || 'do that';
+  return {
+    turn: { ...turn, draft: { ...(turn.draft || {}), ownerGoal: FALLBACK_OWNER_GOAL } },
+    disclaimer: `Right now the bot can answer customer questions and collect their details. It can't ${what} yet, so I set it to answer questions and collect details.`,
+  };
+}
+
+/**
+ * Replace the text before the first question sentence with `lead` (the model's
+ * own acknowledgment may restate the unsupported goal). No question → `lead` only.
+ */
+export function replaceBeforeQuestion(text, lead) {
+  const s = String(text || '').trim();
+  const q = s.indexOf('?');
+  if (q === -1) return lead;
+  const start =
+    Math.max(s.lastIndexOf('.', q), s.lastIndexOf('!', q), s.lastIndexOf('\n', q)) + 1;
+  return [lead, s.slice(start).trim()].filter(Boolean).join('\n\n');
+}
+
+function gateTurn(profile, turn, userMessage) {
+  const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
+  const draft = {
+    ...turn.draft,
+    askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
+  };
+
+  // Required topics: before the first review, the app asks each open topic itself.
+  const wantsReview =
+    !!turn.readyForReview ||
+    !!turn.approved ||
+    (isOwnerApproveMessage(userMessage) && hasEnoughForFirstBot(mergeDraft(profile, draft)));
+  const openTopic = wantsReview ? nextOpenTopic(profile, draft, priorAsked) : null;
+  const modelTopic = openTopic
+    ? null
+    : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
+  const askTopic = openTopic || modelTopic;
+  if (askTopic) {
+    const lead = openTopic ? reviewAck(turn.message) : turn.message;
+    return {
+      ...turn,
+      draft: {
+        ...draft,
+        askedTopics: [...new Set([...draft.askedTopics, askTopic.key])],
+      },
+      approved: false,
+      readyForReview: false,
+      presentReview: false,
+      message: withSingleQuestion(lead, askTopic.question),
+      reviewedDraftKey: null,
+    };
+  }
+
   const key = draftReviewKey(profile, draft);
   const reviewCurrent =
     !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
@@ -497,6 +665,7 @@ export function applyReviewGate(profile, turn, userMessage) {
       draft,
       approved: true,
       readyForReview: true,
+      presentReview: false,
       reviewedDraftKey: key,
     };
   }
@@ -507,7 +676,7 @@ export function applyReviewGate(profile, turn, userMessage) {
     readyForReview = true;
     // Bare approve of an already-pending (unchanged) draft → stock "please review".
     // "yes" that also applies an offered alternative changes the draft this turn —
-    // keep the model's pending-change preview; the summary still appends below.
+    // keep the model's acknowledgment; the app summary still appends below.
     const priorKey = profile.draft
       ? draftReviewKey(profile, profile.draft)
       : null;
@@ -521,12 +690,14 @@ export function applyReviewGate(profile, turn, userMessage) {
   }
 
   if (readyForReview && intakeAnswered) {
+    const ack = message === REVIEW_REQUIRED_NOTE ? message : reviewAck(message);
     return {
       ...turn,
       draft,
       approved: false,
       readyForReview: true,
-      message: `${message.trim()}\n\n---\n${formatSummary({ ...profile, draft })}\n---\n${REVIEW_FOOTER}`,
+      presentReview: true,
+      message: ack,
       reviewedDraftKey: key,
     };
   }
@@ -535,6 +706,7 @@ export function applyReviewGate(profile, turn, userMessage) {
     draft,
     approved: false,
     readyForReview,
+    presentReview: false,
     reviewedDraftKey: reviewCurrent ? key : null,
   };
 }

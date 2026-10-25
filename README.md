@@ -31,6 +31,8 @@ Terminal 2 — app:
 npm start
 ```
 
+For local development, `npm run dev` restarts the server when files under `src/` change. Edits to `.env` still need a manual restart.
+
 Open http://localhost:3080
 
 ## Commands in chat

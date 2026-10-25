@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
+    "dev": "node --watch --watch-preserve-output src/server.js",
     "spike": "node scripts/spike-flowise.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
     "test:nav": "node scripts/test-builder-nav.js",

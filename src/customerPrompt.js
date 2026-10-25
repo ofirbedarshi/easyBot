@@ -10,7 +10,17 @@ import {
   assistantIdentityView,
   effectiveBehavior,
   normalizeCommonQuestions,
+  normalizeOwnerGoal,
 } from './profile.js';
+
+/** BOT OBJECTIVE text per stored goal. Collecting is limited to the listed intake. */
+const OBJECTIVE_SENTENCES = {
+  answer_questions: 'Help customers by answering their questions from the approved facts.',
+  collect_details:
+    'When a customer shows interest, ask for the details in INFORMATION TO COLLECT (if any are listed).',
+  answer_and_collect:
+    'Answer customer questions from the approved facts, and when a customer shows interest, ask for the details in INFORMATION TO COLLECT (if any are listed).',
+};
 
 /**
  * Build the system message injected into the Flowise Conversation Chain.
@@ -59,13 +69,10 @@ export function buildCustomerSystemPrompt(profile) {
     : '(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)';
 
   const behavior = effectiveBehavior(profile);
-  const ownerGoal =
-    typeof profile.ownerGoal === 'string' && profile.ownerGoal.trim()
-      ? profile.ownerGoal.trim()
-      : null;
+  const ownerGoal = normalizeOwnerGoal(profile.ownerGoal);
   const objectiveBlock = ownerGoal
     ? `Use this only to guide conversational direction within approved facts, listed intake, and the behavior rules below:
-${ownerGoal}
+${OBJECTIVE_SENTENCES[ownerGoal]}
 
 It must NOT establish facts, policies, capabilities, promises, booking power, or permission to collect additional information.`
     : '(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)';
