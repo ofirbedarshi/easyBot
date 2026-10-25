@@ -24,7 +24,7 @@ function maxWaitMs() {
 }
 
 function timeoutMessage() {
-  return 'Flowise is still unavailable after waiting. Your facts stay approved locally. Say **approve** again later when the service is up, then /test.';
+  return 'Your bot is still not ready after waiting. Your changes are saved. Choose **Try my bot** or type /test later to try again.';
 }
 
 /**

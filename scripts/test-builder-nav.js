@@ -116,43 +116,21 @@ async function test(name, fn) {
   }
 }
 
-/** Onboarding → review → approve → success + menu, no infra details. */
-async function testApproveShowsMenu() {
+/** Typed "approve" after a review is an ordinary Builder turn: nothing is approved. */
+async function testTypedApproveIsBuilderTurn() {
   clean();
   const f = facts();
-  const { session } = makeSession([
-    { message: 'Here is a summary.', draft: f, readyForReview: true, approved: false },
-    { message: 'Great!', draft: f, readyForReview: true, approved: true },
+  const { session, calls } = makeSession([
+    { message: 'Thanks!', draft: f, readyForReview: true },
+    { message: 'Great!', draft: f, readyForReview: false, approved: true },
   ]);
-  await handleMessage(session, 'hi'); // wake → opening (content discarded)
+  await handleMessage(session, 'hi');
   await handleMessage(session, 'I run a yoga studio in Tel Aviv, private lessons');
   const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_synced');
-  assert.ok(r.reply.includes('Bot updated ✅'), r.reply);
-  assert.ok(r.reply.includes("You're in editing mode"), r.reply);
-  assert.ok(r.reply.includes(MENU_HEAD) && r.reply.includes(FOOTER), r.reply);
-  assert.ok(!/flowise|chatflow|cf-secret/i.test(r.reply), r.reply);
-  assert.equal(lastAssistant(session).nav, 'menu');
-}
-
-/** Sync not reachable → honest pending note, no success claim, no menu context. */
-async function testPendingSyncNoSuccess() {
-  clean();
-  const f = facts();
-  const { session } = makeSession(
-    [
-      { message: 'Summary', draft: f, readyForReview: true, approved: false },
-      { message: 'Ok', draft: f, readyForReview: true, approved: true },
-    ],
-    { flowiseUp: false }
-  );
-  await handleMessage(session, 'hi');
-  await handleMessage(session, 'I run a yoga studio');
-  const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_sync_pending');
-  assert.ok(!r.reply.includes('Bot updated'), r.reply);
-  assert.ok(!r.reply.includes(MENU_HEAD), r.reply);
-  assert.equal(menuActive(session.buildHistory), false);
+  assert.equal(r.event, 'build_turn');
+  assert.equal(calls.builder, 2);
+  assert.equal(calls.flowise, 0);
+  assert.equal(loadProfile(PROFILE).approvedAt, null);
 }
 
 /** Section views (2–6 after approval) are read-only and show real values; numbers after a section go to the Builder. */
@@ -160,7 +138,7 @@ async function testSectionRoutingReadOnly() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'ok', draft: facts(), readyForReview: false, approved: false },
+    { message: 'ok', draft: facts(), readyForReview: false },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi, I run a studio' });
   const before = readRaw();
@@ -201,7 +179,7 @@ async function testFreeTextAfterSection() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'Updated the hours', draft: { ...facts(), hours: 'Sun–Fri 8–14' }, readyForReview: true, approved: false },
+    { message: 'Updated the hours', draft: { ...facts(), hours: 'Sun–Fri 8–14' }, readyForReview: true },
   ]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
   await handleMessage(session, '4');
@@ -221,7 +199,7 @@ async function testNumberWithoutMenuContext() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'What is the new price?', draft: facts(), readyForReview: false, approved: false },
+    { message: 'What is the new price?', draft: facts(), readyForReview: false },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi' });
   await handleMessage(session, 'I want to change a price');
@@ -252,17 +230,19 @@ async function testSixAndEnd() {
   assert.equal(s5.event, 'menu_section');
 }
 
-/** Try my bot (7) keeps /test prerequisites: unsynced profile stays in BUILD with the existing reason. */
-async function testSixRespectsSyncGate() {
+/** Try my bot (7) and /test on an approved but unsynced profile retry the sync, then enter TEST. */
+async function testSixRetriesSync() {
   clean();
-  saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
-  const { session } = makeSession([{ message: 'x', draft: facts() }]);
+  saveProfile(approvedProfile({ flowiseSyncOk: false, chatflowId: null }), PROFILE);
+  const { session, calls } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
   const six = await handleMessage(session, '7');
-  const slash = await handleMessage(session, '/test');
-  assert.equal(six.ok, false);
-  assert.equal(session.mode, 'BUILD');
-  assert.equal(six.reply, slash.reply);
+  assert.equal(six.ok, true, six.reply);
+  assert.equal(six.event, 'enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(calls.flowise, 1);
+  assert.equal(loadProfile(PROFILE).flowiseSyncOk, true);
+  assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
 }
 
 /** Pending draft: section shows live vs pending; navigation keeps draft + review key. */
@@ -288,7 +268,7 @@ async function testPendingChangesPreserved() {
 async function testOnboardingPreserved() {
   clean();
   const { session, calls } = makeSession([
-    { message: 'Tell me about the business', draft: {}, readyForReview: false, approved: false },
+    { message: 'Tell me about the business', draft: {}, readyForReview: false },
   ]);
   const wake = await handleMessage(session, 'menu');
   assert.equal(wake.event, 'opening');
@@ -345,7 +325,7 @@ async function testFirstReviewTryApprovesAndTests() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
-    { message: 'Got it! Here is a summary:\n- Business Name: Studio Yoga\nReady to approve?', draft: f, readyForReview: true, approved: false },
+    { message: 'Got it! Here is a summary:\n- Business Name: Studio Yoga\nReady to approve?', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   const review = await handleMessage(session, 'I run Studio Yoga in Tel Aviv');
@@ -379,7 +359,7 @@ async function testMakeChangesShowsMenu() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
-    { message: 'Thanks!', draft: f, readyForReview: true, approved: false },
+    { message: 'Thanks!', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
@@ -403,7 +383,7 @@ async function testTryApprovesPendingEdit() {
   saveProfile(approvedProfile(), PROFILE);
   const pending = { ...f, hours: 'Sun–Fri 8–14' };
   const { session, calls } = makeSession([
-    { message: 'Updated the hours.', draft: pending, readyForReview: true, approved: false },
+    { message: 'Updated the hours.', draft: pending, readyForReview: true },
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const review = await handleMessage(session, 'Change hours to Sun–Fri 8–14');
@@ -418,15 +398,20 @@ async function testTryApprovesPendingEdit() {
   assert.equal(calls.flowise, 1);
 }
 
-/** Try my bot (7) with no pending review uses the normal /test path (refusal when unsynced). */
-async function testSixWithoutPendingReview() {
+/** Try my bot (7) with no pending review: sync retry still unreachable → stays in BUILD, marked pending. */
+async function testSixRetryUnreachable() {
   clean();
   saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
-  const { session } = makeSession([{ message: 'x', draft: facts() }]);
+  const { session } = makeSession([{ message: 'x', draft: facts() }], { flowiseUp: false });
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
   const six = await handleMessage(session, '7');
+  const slash = await handleMessage(session, '/test');
   assert.equal(six.ok, false);
   assert.equal(session.mode, 'BUILD');
+  assert.equal(six.reply, slash.reply);
+  assert.ok(six.reply.includes('Try my bot'), six.reply);
+  assert.ok(!/approve|flowise|sync/i.test(six.reply), six.reply);
+  assert.equal(loadProfile(PROFILE).flowiseSyncPending, true);
   assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
 }
 
@@ -435,7 +420,7 @@ async function testSectionsBeforeApprovalShowDraft() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
-    { message: 'Thanks!', draft: f, readyForReview: true, approved: false },
+    { message: 'Thanks!', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
@@ -593,13 +578,12 @@ async function testWorkerRespectsMode() {
 }
 
 async function main() {
-  await test('approve_shows_menu', testApproveShowsMenu);
-  await test('pending_sync_no_success', testPendingSyncNoSuccess);
+  await test('typed_approve_is_builder_turn', testTypedApproveIsBuilderTurn);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
   await test('free_text_after_section', testFreeTextAfterSection);
   await test('number_without_menu_context', testNumberWithoutMenuContext);
   await test('six_and_end', testSixAndEnd);
-  await test('six_respects_sync_gate', testSixRespectsSyncGate);
+  await test('six_retries_sync', testSixRetriesSync);
   await test('pending_changes_preserved', testPendingChangesPreserved);
   await test('onboarding_preserved', testOnboardingPreserved);
   await test('menu_labels', testMenuLabels);
@@ -607,7 +591,7 @@ async function main() {
   await test('first_review_try_approves_and_tests', testFirstReviewTryApprovesAndTests);
   await test('make_changes_shows_menu', testMakeChangesShowsMenu);
   await test('try_approves_pending_edit', testTryApprovesPendingEdit);
-  await test('six_without_pending_review', testSixWithoutPendingReview);
+  await test('six_retry_unreachable', testSixRetryUnreachable);
   await test('sections_before_approval_show_draft', testSectionsBeforeApprovalShowDraft);
   await test('try_sync_pending_stays_in_build', testTrySyncPendingStaysInBuild);
   await test('review_render_helpers', testReviewRenderHelpers);

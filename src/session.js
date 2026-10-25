@@ -453,21 +453,19 @@ async function approvePendingAndTest(session, profile, text) {
 
 async function enterTest(session) {
   const profile = await loadAsync(session);
-  if (!profile.approvedAt || !profile.chatflowId || !profile.flowiseSyncOk) {
+  const synced = () => profile.chatflowId && profile.flowiseSyncOk;
+  if (profile.approvedAt && !synced() && !profile.flowiseSyncPending) {
+    await syncApprovedProfile(session, profile);
+    await saveAsync(session, profile);
+  }
+  if (!profile.approvedAt || !synced()) {
     let reply;
     if (!profile.approvedAt) {
-      reply =
-        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
-    } else if (profile.flowiseSyncPending) {
-      reply =
-        'Still syncing to Flowise (it may be waking up). Wait for the ready message, then try /test again.';
-      wakeFlowiseFn(session)().catch(() => {});
-    } else if (!profile.flowiseSyncOk) {
-      reply =
-        'Approved facts are not synced to Flowise yet. Say **approve** again to retry sync, then /test.';
+      reply = 'Nothing is live yet. Finish the setup, then choose **Try my bot** on the review.';
     } else {
       reply =
-        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
+        'Your bot is still getting ready. I will message you when it is ready; then choose **Try my bot** or type /test.';
+      wakeFlowiseFn(session)().catch(() => {});
     }
     return {
       ok: false,
@@ -672,18 +670,6 @@ async function handleBuild(session, userMessage) {
   result = applyReviewGate(profile, result, userMessage);
   profile.draft = result.draft;
   profile.reviewedDraftKey = result.reviewedDraftKey;
-  let event = 'build_turn';
-  let syncNote = '';
-
-  if (result.approved) {
-    const sync = await approveDraft(session, profile);
-    syncNote = sync.syncNote;
-    event = sync.event;
-    if (sync.sourceSuffix) {
-      result.source = `${result.source}${sync.sourceSuffix}`;
-    }
-  }
-
   await saveAsync(session, profile);
 
   let reply;
@@ -693,8 +679,7 @@ async function handleBuild(session, userMessage) {
     reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
     nav = 'review';
   } else {
-    reply = result.message + syncNote;
-    if (event === 'approved_synced') nav = 'menu';
+    reply = result.message;
   }
 
   session.buildHistory.push(
@@ -707,9 +692,8 @@ async function handleBuild(session, userMessage) {
     ok: true,
     reply,
     source: result.source,
-    event,
+    event: 'build_turn',
     readyForReview: result.readyForReview,
-    approved: result.approved,
     ...(await getStateAsync(session)),
   };
 }
