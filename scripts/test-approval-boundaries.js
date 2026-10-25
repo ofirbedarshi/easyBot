@@ -1032,7 +1032,7 @@ async function testOtherFactsApprovePropagates() {
     review.reply.includes(`Other facts: ${facts[0]}; ${facts[1].replace(/\.$/, '')}`),
     'review card must list otherFacts'
   );
-  const section = renderSection(1, loadProfile(PROFILE), 'en');
+  const section = renderSection(1, loadProfile(PROFILE));
   assert.ok(section.includes('• Other facts:'), 'section 1 must list otherFacts');
   for (const f of facts) assert.ok(section.includes(`   - ${f}`));
 

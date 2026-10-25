@@ -54,17 +54,16 @@ assert.deepEqual(r.state.answers, {
   systemName: 'A booking app',
 });
 
-// Menu: item 1 only when requested; English label in Hebrew too
-assert.ok(!renderMenu('en').includes(LEAD_MENU_LABEL));
-assert.ok(renderMenu('en', { leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business\n`));
-assert.ok(renderMenu('he', { leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n`));
+// Menu: item 1 only when requested
+assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
+assert.ok(renderMenu({ leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business\n`));
 
 // Session flow (memory store)
 const store = createMemoryStore();
 const sender = 'whatsapp:+15550000001';
 const profile = { ...emptyProfile(), name: 'Test Studio', approvedAt: new Date().toISOString() };
 await store.saveProfile(sender, profile);
-const menuEntry = { role: 'assistant', content: renderMenu('en', { leadOption: true }), nav: 'menu' };
+const menuEntry = { role: 'assistant', content: renderMenu({ leadOption: true }), nav: 'menu' };
 await store.saveSession(sender, {
   mode: 'BUILD',
   buildHistory: [menuEntry],

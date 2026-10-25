@@ -23,7 +23,7 @@ export const REQUIRED_TOPICS = [
       normalizeCommonQuestions(draft?.commonQuestions).some((q) => q.answer.trim()),
     skippable: true,
     mentions:
-      /\b(common|frequent|usual(ly)?|typical(ly)?|often)\b.{0,40}\b(questions?|ask)|\bquestions?\b.{0,30}\bcustomers?\b.{0,20}\bask|שאלות\s*(נפוצות|ששואלים)/i,
+      /\b(common|frequent|usual(ly)?|typical(ly)?|often)\b.{0,40}\b(questions?|ask)|\bquestions?\b.{0,30}\bcustomers?\b.{0,20}\bask/i,
   },
   {
     key: 'informationToCollect',

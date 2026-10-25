@@ -6,7 +6,6 @@ import {
 } from './flowise.js';
 import { sendWhatsAppReply } from './twilio/send.js';
 import {
-  ownerLanguage,
   renderSyncDone,
   renderSyncSuccess,
   renderSyncSuccessInTest,
@@ -84,14 +83,13 @@ export function startFlowiseSyncWorker(store, opts = {}) {
       session = await store.loadSession(senderId);
     } catch (err) {
       console.warn('flowise sync session load failed:', err.message);
-      return renderSyncDone('en');
+      return renderSyncDone();
     }
     session.buildHistory = session.buildHistory || [];
-    const lang = ownerLanguage(session.buildHistory);
     const inTest = session.mode === 'TEST';
     const msg = inTest
-      ? renderSyncSuccessInTest(lang)
-      : renderSyncSuccess(lang, { leadOption: !leadSubmitted(session.leadIntake) });
+      ? renderSyncSuccessInTest()
+      : renderSyncSuccess({ leadOption: !leadSubmitted(session.leadIntake) });
     session.buildHistory.push(
       inTest
         ? { role: 'assistant', content: msg }

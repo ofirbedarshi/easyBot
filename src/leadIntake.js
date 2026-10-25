@@ -1,7 +1,7 @@
 /**
- * "Get this bot for my business" lead questionnaire. Fixed questions, no LLM,
- * English only. Separate from the Builder: never reads or writes the profile
- * draft, buildHistory, or Builder prompts.
+ * "Get this bot for my business" lead questionnaire. Fixed questions, no LLM.
+ * Separate from the Builder: never reads or writes the profile draft,
+ * buildHistory, or Builder prompts.
  *
  * session.leadIntake is null, an in-progress `{ step, answers }`, or
  * `{ submittedAt }` once a lead was saved (one lead per sender).

@@ -632,7 +632,7 @@ const REVIEW_REQUIRED_NOTE =
   'Before I apply anything, please review the current version below.';
 
 const REVIEW_FILLER =
-  /\b(review|summary|summari[sz]e|approv\w*|set up|setup|ready|prepare|here'?s what|below)\b|סיכום|לאישור|מוכן/i;
+  /\b(review|summary|summari[sz]e|approv\w*|set up|setup|ready|prepare|here'?s what|below)\b/i;
 
 /**
  * Reduce model text on a review turn to one short acknowledgment sentence: no

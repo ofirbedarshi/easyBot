@@ -26,7 +26,6 @@ import {
 import {
   isMenuRequest,
   menuActive,
-  ownerLanguage,
   parseMenuChoice,
   parseMenuItem,
   renderMenu,
@@ -246,10 +245,7 @@ async function syncApprovedProfile(session, profile) {
     console.log(`Flowise sync ok chatflow=${chatflowId}`);
     return {
       event: 'approved_synced',
-      syncNote: `\n\n${renderSyncSuccess(
-        ownerLanguage(session.buildHistory),
-        leadMenuOpts(session, profile)
-      )}`,
+      syncNote: `\n\n${renderSyncSuccess(leadMenuOpts(session, profile))}`,
       sourceSuffix: '+real-flowise-sync',
     };
   } catch (err) {
@@ -336,8 +332,7 @@ async function handleNavigation(session, text) {
     const pick = parseReviewChoice(text);
     if (pick === 'try') return tryMyBot(session, text);
     if (pick === 'change') {
-      const lang = ownerLanguage(session.buildHistory);
-      const reply = renderChangeMenu(lang, leadMenuOpts(session, await loadAsync(session)));
+      const reply = renderChangeMenu(leadMenuOpts(session, await loadAsync(session)));
       session.buildHistory.push({ role: 'user', content: text });
       session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
       return {
@@ -365,10 +360,9 @@ async function handleNavigation(session, text) {
   if (choice === 'lead') return beginLeadIntake(session);
   if (choice === 'try') return tryMyBot(session, text, profile);
 
-  const lang = ownerLanguage(session.buildHistory);
   const reply = wantsMenu
-    ? renderMenu(lang, leadMenuOpts(session, profile))
-    : renderSection(choice, profile, lang);
+    ? renderMenu(leadMenuOpts(session, profile))
+    : renderSection(choice, profile);
   session.buildHistory.push({ role: 'user', content: text });
   session.buildHistory.push({
     role: 'assistant',
@@ -429,9 +423,8 @@ async function approvePendingAndTest(session, profile, text) {
   await saveAsync(session, profile);
 
   if (sync.event === 'approved_synced') {
-    const lang = ownerLanguage(session.buildHistory);
     const testResult = await enterTest(session);
-    const reply = `${renderSyncedShort(lang)}\n\n${testResult.reply}`;
+    const reply = `${renderSyncedShort()}\n\n${testResult.reply}`;
     session.buildHistory.push({ role: 'assistant', content: reply });
     return {
       ...testResult,
@@ -499,10 +492,9 @@ async function enterTest(session) {
 
 async function enterBuild(session) {
   session.mode = 'BUILD';
-  const lang = ownerLanguage(session.buildHistory);
   const profile = await loadAsync(session);
   if (profile.approvedAt) {
-    const reply = renderReturnToEditing(lang, leadMenuOpts(session, profile));
+    const reply = renderReturnToEditing(leadMenuOpts(session, profile));
     session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
     return {
       ok: true,
@@ -512,7 +504,7 @@ async function enterBuild(session) {
       ...(await getStateAsync(session)),
     };
   }
-  const reply = renderSetupContinue(lang);
+  const reply = renderSetupContinue();
   return {
     ok: true,
     reply,
@@ -539,7 +531,7 @@ async function leadReply(session, reply, event) {
 async function beginLeadIntake(session) {
   if (leadSubmitted(session.leadIntake)) {
     const profile = await loadAsync(session);
-    const menu = renderMenu(ownerLanguage(session.buildHistory), leadMenuOpts(session, profile));
+    const menu = renderMenu(leadMenuOpts(session, profile));
     return leadReply(session, `${LEAD_ALREADY_SENT}\n\n${menu}`, 'lead_already_sent');
   }
   const { state, reply } = startLeadIntake();
@@ -548,11 +540,10 @@ async function beginLeadIntake(session) {
 }
 
 async function handleLeadIntake(session, text) {
-  const lang = ownerLanguage(session.buildHistory);
   if (isMenuRequest(text)) {
     cancelLeadIntake(session);
     const profile = await loadAsync(session);
-    return leadReply(session, renderMenu(lang, leadMenuOpts(session, profile)), 'lead_cancelled');
+    return leadReply(session, renderMenu(leadMenuOpts(session, profile)), 'lead_cancelled');
   }
   const step = stepLeadIntake(session.leadIntake, text);
   if (!step.done) {
@@ -572,7 +563,7 @@ async function handleLeadIntake(session, text) {
     session.lead = lead;
   }
   session.leadIntake = { submittedAt: lead.createdAt };
-  const menu = renderMenu(lang, leadMenuOpts(session, profile));
+  const menu = renderMenu(leadMenuOpts(session, profile));
   return leadReply(session, `${LEAD_THANKS}\n\n${menu}`, 'lead_saved');
 }
 
@@ -695,12 +686,11 @@ async function handleBuild(session, userMessage) {
 
   await saveAsync(session, profile);
 
-  const lang = ownerLanguage(session.buildHistory, userMessage);
   let reply;
   let nav = null;
   if (result.presentReview) {
     const ack = (result.message || '').trim();
-    reply = [ack, renderReview(profile, lang)].filter(Boolean).join('\n\n');
+    reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
     nav = 'review';
   } else {
     reply = result.message + syncNote;
