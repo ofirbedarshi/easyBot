@@ -102,7 +102,7 @@ Useful filters: `--text Flowise`, `--text inbound`, `--text Twilio`, `--path /we
 | User-visible / reply pattern | Likely cause | Next check |
 |---|---|---|
 | `Flowise is waking up` / `Still syncing` / `approved_sync_pending` note | Cold start — expected | Profile `flowiseSyncPending`; wait for ready WhatsApp; app logs `flowise sync ok` |
-| Ready WhatsApp: `Bot updated ✅` / `הבוט עודכן ✅` (+ editing menu in BUILD; no menu in TEST) | Sync worker succeeded | `flowiseSyncOk: true`; app logs `flowise sync ok … chatflow=` |
+| Ready WhatsApp: `Bot updated ✅` (+ editing menu in BUILD; no menu in TEST) | Sync worker succeeded | `flowiseSyncOk: true`; app logs `flowise sync ok … chatflow=` |
 | Give-up: `still unavailable after waiting` | Down > ~5 min | Flowise Render logs; pooler/`DATABASE_SSL_KEY_BASE64`; user **approve** again |
 | `Flowise … → 500` `getRunningExpressApp` / saveChatflow | Flowise app/DB broken | Flowise logs; pooler vs IPv6 direct host |
 | Old: `[Approved locally, but Flowise sync failed…]` + HTML | Pre-pending-sync deploy | Redeploy app; repair bloated history; `/reset` if needed |

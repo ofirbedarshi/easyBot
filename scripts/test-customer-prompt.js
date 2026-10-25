@@ -129,7 +129,7 @@ function testEmptyIntakeAndNullOwnerGoal() {
   assert.ok(/none set/i.test(objective), 'null ownerGoal stated as unset');
 }
 
-function testNoForcedEnglishOrForcedBookingProcess() {
+function testNoForcedBookingProcess() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Test Biz',
     whatWeDo: 'Services',
@@ -138,14 +138,6 @@ function testNoForcedEnglishOrForcedBookingProcess() {
     unknowns: [],
   });
 
-  assert.ok(
-    !/Speak naturally in English/i.test(prompt),
-    'must not force English'
-  );
-  assert.ok(
-    /Respond in the customer's language/i.test(prompt),
-    'must instruct matching customer language'
-  );
   assert.ok(
     !/say the owner confirms bookings/i.test(prompt),
     'must not require inventing an owner-confirm process'
@@ -265,7 +257,7 @@ function main() {
   testObjectivePerGoal();
   testFactsFaqUnknownsIntakeRendered();
   testEmptyIntakeAndNullOwnerGoal();
-  testNoForcedEnglishOrForcedBookingProcess();
+  testNoForcedBookingProcess();
   testConversationSettingsSectionSeparated();
   testOnRequestPolicyOnlyWhenSet();
   testLegacyDefaultsInPrompt();

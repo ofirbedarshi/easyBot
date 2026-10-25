@@ -19,127 +19,59 @@ import { LEAD_MENU_LABEL } from './leadIntake.js';
  */
 
 const STRINGS = {
-  he: {
-    menu: [
-      'פרטי העסק',
-      'תפקיד העוזר ואיסוף פרטים',
-      'שאלות ותשובות',
-      'סגנון והצגת מחירים',
-      'שם העוזר והודעת פתיחה',
-      'לנסות את הבוט',
-    ],
-    sections: [
-      'פרטי העסק',
-      'תפקיד העוזר ואיסוף פרטים',
-      'שאלות ותשובות',
-      'סגנון והצגת מחירים',
-      'שם העוזר והודעת פתיחה',
-    ],
-    menuFooter: 'אפשר לבחור מספר או פשוט לכתוב מה רוצים לשנות.',
-    synced: 'הבוט עודכן ✅\nאנחנו במצב עריכה. מה תרצה לעשות?',
-    syncedShort: 'הבוט עודכן ✅',
-    syncedInTest:
-      'הבוט עודכן ✅ ההודעות הבאות ימשיכו לעבור לבוט הלקוחות. כדי לחזור למצב עריכה כתוב /end.',
-    returned: 'חזרנו למצב עריכה. מה תרצה לעשות?',
-    setupContinue: 'אנחנו עדיין בהגדרה הראשונית. ספר לי עוד על העסק.',
-    ask: 'מה תרצה לשנות?',
-    current: 'כרגע:',
-    live: 'פעיל כרגע:',
-    pending: 'שינוי ממתין לאישור (לא פעיל עד שתאשר):',
-    was: 'היה',
-    notSet: '(לא הוגדר)',
-    none: '(אין)',
-    defaultMark: '(ברירת מחדל)',
-    fields: {
-      name: 'שם העסק',
-      whatWeDo: 'מה העסק עושה',
-      services: 'שירותים',
-      hours: 'שעות',
-      locationOrArea: 'מיקום / אזור',
-      unknowns: 'עדיין לא הוחלט',
-      ownerGoal: 'מטרת הבוט',
-      informationToCollect: 'פרטים לאסוף מהלקוח',
-      intakeNotAnswered: '(עוד לא נקבע)',
-      commonQuestions: 'שאלות ותשובות',
-      q: 'ש',
-      a: 'ת',
-      noAnswer: '(אין תשובה שמורה — הבוט לא ימציא)',
-      tone: 'סגנון',
-      responseLength: 'אורך תשובות',
-      priceDisclosure: 'מחירים',
-      assistantName: 'שם העוזר',
-      noName: '(לא הוגדר — בלי שם)',
-      openingMessage: 'הודעת פתיחה',
-      defaultOpening: (biz) =>
-        `(ברירת מחדל) היכרות קצרה כעוזר הדיגיטלי של ${biz || 'העסק'}`,
-    },
-    defaultTone: 'ידידותי, ברור ומקצועי',
-    responseLengthLabels: { short: 'קצרות', standard: 'רגילות' },
-    priceDisclosureLabels: {
-      relevant: 'כשזה מועיל ורלוונטי',
-      on_request: 'רק כשהלקוח שואל על מחיר',
-    },
+  menu: [
+    'Edit business',
+    'Edit bot goal & customer details',
+    'Edit Q&A',
+    'Edit style & prices',
+    'Edit name & opening',
+    'Try my bot',
+  ],
+  sections: ['Business', 'Bot goal & customer details', 'Q&A', 'Style & prices', 'Name & opening'],
+  menuFooter: 'Pick a number or just write what you want to change.',
+  synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
+  syncedShort: 'Bot updated ✅',
+  syncedInTest:
+    'Bot updated ✅ Your next messages keep going to the customer bot. Type /end to return to editing mode.',
+  returned: 'Back in editing mode. What would you like to do?',
+  setupContinue: "We're still in first-time setup. Tell me more about your business.",
+  ask: 'What would you like to change?',
+  current: 'Current:',
+  live: 'Live now:',
+  pending: 'Pending change (not live until you approve):',
+  was: 'was',
+  notSet: '(not set)',
+  none: '(none)',
+  defaultMark: '(default)',
+  fields: {
+    name: 'Business name',
+    whatWeDo: 'What the business does',
+    services: 'Services',
+    hours: 'Hours',
+    locationOrArea: 'Location / area',
+    unknowns: 'Not decided yet',
+    ownerGoal: 'Bot goal',
+    informationToCollect: 'Details to collect from the customer',
+    intakeNotAnswered: '(not decided yet)',
+    commonQuestions: 'Questions and answers',
+    q: 'Q',
+    a: 'A',
+    noAnswer: '(no answer recorded — the bot will not invent one)',
+    tone: 'Style',
+    responseLength: 'Reply length',
+    priceDisclosure: 'Prices',
+    assistantName: 'Assistant name',
+    noName: '(not set — no name)',
+    openingMessage: 'Opening message',
+    defaultOpening: (biz) =>
+      `(default) short introduction as the digital assistant of ${biz || 'this business'}`,
   },
-  en: {
-    menu: [
-      'Edit business',
-      'Edit bot goal & customer details',
-      'Edit Q&A',
-      'Edit style & prices',
-      'Edit name & opening',
-      'Try my bot',
-    ],
-    sections: ['Business', 'Bot goal & customer details', 'Q&A', 'Style & prices', 'Name & opening'],
-    menuFooter: 'Pick a number or just write what you want to change.',
-    synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
-    syncedShort: 'Bot updated ✅',
-    syncedInTest:
-      'Bot updated ✅ Your next messages keep going to the customer bot. Type /end to return to editing mode.',
-    returned: 'Back in editing mode. What would you like to do?',
-    setupContinue: "We're still in first-time setup. Tell me more about your business.",
-    ask: 'What would you like to change?',
-    current: 'Current:',
-    live: 'Live now:',
-    pending: 'Pending change (not live until you approve):',
-    was: 'was',
-    notSet: '(not set)',
-    none: '(none)',
-    defaultMark: '(default)',
-    fields: {
-      name: 'Business name',
-      whatWeDo: 'What the business does',
-      services: 'Services',
-      hours: 'Hours',
-      locationOrArea: 'Location / area',
-      unknowns: 'Not decided yet',
-      ownerGoal: 'Bot goal',
-      informationToCollect: 'Details to collect from the customer',
-      intakeNotAnswered: '(not decided yet)',
-      commonQuestions: 'Questions and answers',
-      q: 'Q',
-      a: 'A',
-      noAnswer: '(no answer recorded — the bot will not invent one)',
-      tone: 'Style',
-      responseLength: 'Reply length',
-      priceDisclosure: 'Prices',
-      assistantName: 'Assistant name',
-      noName: '(not set — no name)',
-      openingMessage: 'Opening message',
-      defaultOpening: (biz) =>
-        `(default) short introduction as the digital assistant of ${biz || 'this business'}`,
-    },
-    defaultTone: null,
-    responseLengthLabels: { short: 'short', standard: 'standard' },
-    priceDisclosureLabels: {
-      relevant: 'when useful and relevant',
-      on_request: 'only when the customer asks about pricing',
-    },
+  responseLengthLabels: { short: 'short', standard: 'standard' },
+  priceDisclosureLabels: {
+    relevant: 'when useful and relevant',
+    on_request: 'only when the customer asks about pricing',
   },
 };
-
-function t(lang) {
-  return STRINGS[lang] || STRINGS.en;
-}
 
 const MENU_REQUESTS = new Set([
   'menu',
@@ -150,13 +82,6 @@ const MENU_REQUESTS = new Set([
   'back to menu',
   'back to the menu',
   'options',
-  'תפריט',
-  'התפריט',
-  'הצג תפריט',
-  'תראה תפריט',
-  'תפריט ראשי',
-  'חזרה לתפריט',
-  'לתפריט',
 ]);
 
 function normalizeShort(text) {
@@ -169,7 +94,7 @@ function normalizeShort(text) {
 
 /** Short, explicit navigation request (whitelist; longer phrasing goes to the Builder). */
 export function isMenuRequest(text) {
-  const s = normalizeShort(text).replace(/\s*(please|בבקשה)$/, '');
+  const s = normalizeShort(text).replace(/\s*please$/, '');
   return MENU_REQUESTS.has(s);
 }
 
@@ -205,37 +130,12 @@ export function menuActive(buildHistory) {
   return false;
 }
 
-const APPROVE_LIKE = /^(approve|looks good|lgtm|yes|ok|okay|מאשר|מאשרת|אישור|כן|אוקיי)\.?$/i;
-
 /**
- * Owner conversation language from Builder history (owner messages only).
- * Newest owner message with letters decides, skipping commands, approve
- * phrases, menu requests, and bare numbers. Hebrew letters >= Latin → 'he'.
+ * Editing menu. `leadOption` adds the lead item first, which shifts the other
+ * items down by one.
  */
-export function ownerLanguage(buildHistory, currentText = null) {
-  const owner = (Array.isArray(buildHistory) ? buildHistory : [])
-    .filter((m) => m?.role === 'user')
-    .map((m) => m.content);
-  if (currentText != null) owner.push(currentText);
-  for (let i = owner.length - 1; i >= 0; i -= 1) {
-    const s = String(owner[i] || '').trim();
-    if (!s || s.startsWith('/')) continue;
-    if (APPROVE_LIKE.test(s) || isMenuRequest(s) || parseMenuChoice(s)) continue;
-    if (parseReviewChoice(s)) continue;
-    const he = (s.match(/[\u05D0-\u05EA]/g) || []).length;
-    const latin = (s.match(/[A-Za-z]/g) || []).length;
-    if (!he && !latin) continue;
-    return he >= latin ? 'he' : 'en';
-  }
-  return 'en';
-}
-
-/**
- * Editing menu. `leadOption` adds the lead item first (English label in every
- * language), which shifts the other items down by one.
- */
-export function renderMenu(lang, menuOpts) {
-  const s = t(lang);
+export function renderMenu(menuOpts) {
+  const s = STRINGS;
   const label = (item) =>
     item === 'lead' ? LEAD_MENU_LABEL : item === 'try' ? s.menu[5] : s.menu[item - 1];
   return [
@@ -245,32 +145,32 @@ export function renderMenu(lang, menuOpts) {
   ].join('\n');
 }
 
-export function renderSyncSuccess(lang, menuOpts) {
-  return `${t(lang).synced}\n\n${renderMenu(lang, menuOpts)}`;
+export function renderSyncSuccess(menuOpts) {
+  return `${STRINGS.synced}\n\n${renderMenu(menuOpts)}`;
 }
 
 /** Bare success line when the owner's mode is unknown (no mode claim, no menu). */
-export function renderSyncDone(lang) {
-  return t(lang).syncedShort || t(lang).synced.split('\n')[0];
+export function renderSyncDone() {
+  return STRINGS.syncedShort;
 }
 
 /** Sync finished while the owner is in TEST mode: no editing-mode claim, no menu. */
-export function renderSyncSuccessInTest(lang) {
-  return t(lang).syncedInTest;
+export function renderSyncSuccessInTest() {
+  return STRINGS.syncedInTest;
 }
 
 /** Short "Bot updated ✅" line (used before entering TEST after the Try my bot menu item). */
-export function renderSyncedShort(lang) {
-  return t(lang).syncedShort;
+export function renderSyncedShort() {
+  return STRINGS.syncedShort;
 }
 
 /** /end before anything is approved: no editing menu during first-time setup. */
-export function renderSetupContinue(lang) {
-  return t(lang).setupContinue;
+export function renderSetupContinue() {
+  return STRINGS.setupContinue;
 }
 
-export function renderReturnToEditing(lang, menuOpts) {
-  return `${t(lang).returned}\n\n${renderMenu(lang, menuOpts)}`;
+export function renderReturnToEditing(menuOpts) {
+  return `${STRINGS.returned}\n\n${renderMenu(menuOpts)}`;
 }
 
 function textOrNull(v) {
@@ -279,85 +179,42 @@ function textOrNull(v) {
 }
 
 const REVIEW = {
-  en: {
-    intro: (name) => `Here's your bot for ${name}:`,
-    introNoName: "Here's your bot:",
-    labels: {
-      business: 'Business',
-      services: 'Services',
-      area: 'Area',
-      hours: 'Hours',
-      unknowns: 'Not decided',
-      goal: 'Bot goal',
-      intake: 'Asks customers for',
-      faq: 'Q&A',
-      style: 'Style',
-      identity: 'Name & opening',
-    },
-    notSet: 'not set',
-    gap: 'not set (bot refers customers to you)',
-    none: 'none',
-    nothing: 'nothing',
-    notDecided: 'not decided yet',
-    faqCount: (n) => `${n} answer${n === 1 ? '' : 's'}`,
-    faqNone: 'none yet (bot refers customers to you)',
-    defaultValue: 'default',
-    shortReplies: 'short replies',
-    standardReplies: 'standard replies',
-    pricesOnRequest: 'prices only when asked',
-    pricesRelevant: 'prices when relevant',
-    customOpening: 'custom opening',
-    changesIntro: "Here's what will change:",
-    was: (v) => `(was: ${v})`,
-    updated: '(updated)',
-    optionsPrompt: 'What would you like to do next?',
-    options: ['Try my bot', 'Make changes'],
-    optionsFooter: '(or just tell me what to change 🙂)',
-    changeAsk: 'What would you like to change?',
+  intro: (name) => `Here's your bot for ${name}:`,
+  introNoName: "Here's your bot:",
+  labels: {
+    business: 'Business',
+    services: 'Services',
+    area: 'Area',
+    hours: 'Hours',
+    unknowns: 'Not decided',
+    goal: 'Bot goal',
+    intake: 'Asks customers for',
+    faq: 'Q&A',
+    style: 'Style',
+    identity: 'Name & opening',
   },
-  he: {
-    intro: (name) => `זה הבוט שלך עבור ${name}:`,
-    introNoName: 'זה הבוט שלך:',
-    labels: {
-      business: 'העסק',
-      services: 'שירותים',
-      area: 'אזור',
-      hours: 'שעות',
-      unknowns: 'לא הוחלט',
-      goal: 'מטרת הבוט',
-      intake: 'מבקש מהלקוחות',
-      faq: 'שאלות ותשובות',
-      style: 'סגנון',
-      identity: 'שם ופתיחה',
-    },
-    notSet: 'לא הוגדר',
-    gap: 'לא הוגדר (הבוט יפנה אליך)',
-    none: 'אין',
-    nothing: 'כלום',
-    notDecided: 'עוד לא נקבע',
-    faqCount: (n) => `${n} תשובות`,
-    faqNone: 'אין עדיין (הבוט יפנה אליך)',
-    defaultValue: 'ברירת מחדל',
-    shortReplies: 'תשובות קצרות',
-    standardReplies: 'תשובות רגילות',
-    pricesOnRequest: 'מחירים רק כשמבקשים',
-    pricesRelevant: 'מחירים כשרלוונטי',
-    customOpening: 'פתיחה מותאמת',
-    changesIntro: 'אלה השינויים:',
-    was: (v) => `(היה: ${v})`,
-    updated: '(עודכן)',
-    optionsPrompt: 'מה תרצה לעשות עכשיו?',
-    options: ['לנסות את הבוט', 'לעשות שינויים'],
-    optionsFooter: 'אפשר לענות 1 או 2, או פשוט לכתוב מה לשנות.',
-    changeAsk: 'מה תרצה לשנות?',
-  },
+  notSet: 'not set',
+  gap: 'not set (bot refers customers to you)',
+  none: 'none',
+  nothing: 'nothing',
+  notDecided: 'not decided yet',
+  faqCount: (n) => `${n} answer${n === 1 ? '' : 's'}`,
+  faqNone: 'none yet (bot refers customers to you)',
+  defaultValue: 'default',
+  shortReplies: 'short replies',
+  standardReplies: 'standard replies',
+  pricesOnRequest: 'prices only when asked',
+  pricesRelevant: 'prices when relevant',
+  customOpening: 'custom opening',
+  changesIntro: "Here's what will change:",
+  was: (v) => `(was: ${v})`,
+  updated: '(updated)',
+  optionsPrompt: 'What would you like to do next?',
+  options: ['Try my bot', 'Make changes'],
+  optionsFooter: '(or just tell me what to change 🙂)',
+  changeAsk: 'What would you like to change?',
 };
 
-function r(lang) {
-  return REVIEW[lang] || REVIEW.en;
-}
-
-/** Same label in every owner language. */
 const OTHER_FACTS_LABEL = 'Other facts';
 
 const SUMMARY_MAX = 80;
@@ -376,8 +233,8 @@ function brief(text) {
  * (the five edit items). `full` holds the underlying data so the changes view can
  * detect edits that the trimmed `value` hides.
  */
-export function summaryLines(p, lang) {
-  const R = r(lang);
+export function summaryLines(p) {
+  const R = REVIEW;
   const L = R.labels;
   const out = [];
   // `was` is the value shown as "(was: …)" in the changes view (no gap note).
@@ -446,11 +303,11 @@ export function summaryLines(p, lang) {
   return out;
 }
 
-function changeLines(profile, merged, lang) {
-  const R = r(lang);
-  const prev = new Map(summaryLines(profile, lang).map((l) => [l.id, l]));
+function changeLines(profile, merged) {
+  const R = REVIEW;
+  const prev = new Map(summaryLines(profile).map((l) => [l.id, l]));
   const lines = [];
-  for (const line of summaryLines(merged, lang)) {
+  for (const line of summaryLines(merged)) {
     const was = prev.get(line.id);
     if (was && was.full === line.full) continue;
     const suffix = !was ? '' : was.value === line.value ? ` ${R.updated}` : ` ${R.was(was.was)}`;
@@ -460,8 +317,8 @@ function changeLines(profile, merged, lang) {
 }
 
 /** Two review options (1 Try my bot, 2 Make changes). */
-export function renderReviewOptions(lang) {
-  const R = r(lang);
+export function renderReviewOptions() {
+  const R = REVIEW;
   return [
     R.optionsPrompt,
     ...R.options.map((label, i) => `${i + 1}. ${label}`),
@@ -475,29 +332,29 @@ export function renderReviewOptions(lang) {
  * (gaps shown), then two options. When already approved and the draft differs
  * from live, shows only the changed lines with their previous value.
  */
-export function renderReview(profile, lang) {
-  const R = r(lang);
+export function renderReview(profile) {
+  const R = REVIEW;
   const draft = profile?.draft;
   const merged = draft ? mergeDraft(profile, draft) : profile || {};
   const parts = [];
   if (profile?.approvedAt && draft && draftDiffersFromLive(profile, draft)) {
-    parts.push([R.changesIntro, '', ...changeLines(profile, merged, lang)].join('\n'));
+    parts.push([R.changesIntro, '', ...changeLines(profile, merged)].join('\n'));
   } else {
     const name = textOrNull(merged.name);
     parts.push(name ? R.intro(name) : R.introNoName);
-    parts.push(summaryLines(merged, lang).map((l) => `${l.label}: ${l.value}`).join('\n'));
+    parts.push(summaryLines(merged).map((l) => `${l.label}: ${l.value}`).join('\n'));
   }
-  parts.push(renderReviewOptions(lang));
+  parts.push(renderReviewOptions());
   return parts.join('\n\n');
 }
 
 /** "Make changes" reply: ask, then the full editing menu. */
-export function renderChangeMenu(lang, menuOpts) {
-  return `${r(lang).changeAsk}\n\n${renderMenu(lang, menuOpts)}`;
+export function renderChangeMenu(menuOpts) {
+  return `${REVIEW.changeAsk}\n\n${renderMenu(menuOpts)}`;
 }
 
-const REVIEW_TRY = new Set(['try my bot', 'try', 'try it', 'לנסות את הבוט', 'לנסות']);
-const REVIEW_CHANGE = new Set(['make changes', 'change', 'changes', 'לעשות שינויים', 'שינויים']);
+const REVIEW_TRY = new Set(['try my bot', 'try', 'try it']);
+const REVIEW_CHANGE = new Set(['make changes', 'change', 'changes']);
 
 /** 1 / "Try my bot" → 'try'; 2 / "Make changes" → 'change'; else null. */
 export function parseReviewChoice(text) {
@@ -518,8 +375,8 @@ export function reviewActive(buildHistory) {
   return false;
 }
 
-function sectionLines(section, p, lang) {
-  const s = t(lang);
+function sectionLines(section, p) {
+  const s = STRINGS;
   const f = s.fields;
   const val = (v) => (v == null || v === '' ? s.notSet : String(v));
   const lines = [];
@@ -571,7 +428,7 @@ function sectionLines(section, p, lang) {
   } else if (section === 4) {
     const eff = effectiveBehavior(p);
     const toneSet = typeof p.tone === 'string' && p.tone.trim();
-    const tone = toneSet ? p.tone.trim() : `${s.defaultTone || eff.tone} ${s.defaultMark}`;
+    const tone = toneSet ? p.tone.trim() : `${eff.tone} ${s.defaultMark}`;
     const lenSet = normalizeResponseLength(p.responseLength);
     const priceSet = normalizePriceDisclosure(p.priceDisclosure);
     const len = s.responseLengthLabels[eff.responseLength];
@@ -596,20 +453,18 @@ function sectionLines(section, p, lang) {
  * approval, shows live values; when an unapproved draft changes this section,
  * shows live and pending separately.
  */
-export function renderSection(section, profile, lang) {
-  const s = t(lang);
+export function renderSection(section, profile) {
+  const s = STRINGS;
   const title = s.sections[section - 1];
   const draft = profile?.draft;
   if (!profile?.approvedAt) {
     const view = draft ? mergeDraft(profile, draft) : profile;
-    return [title, s.current, ...sectionLines(section, view, lang), '', s.ask].join(
-      '\n'
-    );
+    return [title, s.current, ...sectionLines(section, view), '', s.ask].join('\n');
   }
-  const live = sectionLines(section, profile, lang);
+  const live = sectionLines(section, profile);
   let pending = null;
   if (draft && draftDiffersFromLive(profile, draft)) {
-    const p = sectionLines(section, mergeDraft(profile, draft), lang);
+    const p = sectionLines(section, mergeDraft(profile, draft));
     if (p.join('\n') !== live.join('\n')) pending = p;
   }
   const parts = [title];
