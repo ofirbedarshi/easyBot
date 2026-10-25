@@ -1,0 +1,12 @@
+# Code-only graph: JavaScript under src/, scripts/, and test/.
+# graphify also honors .gitignore (graphify-out/ is already ignored).
+
+# Ignore every other top-level path (docs, public/, data/, supabase/, …).
+/*
+!/src/
+!/scripts/
+!/test/
+
+# Non-JS inside the allowed trees (fixtures, this rebuild script).
+*.json
+scripts/graphify-build.sh

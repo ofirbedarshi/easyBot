@@ -11,5 +11,5 @@ data/test-results/*.json
 .env.render
 supabase/.temp/
 
-# graphify knowledge graph output (rebuild with: graphify update .)
+# graphify knowledge graph output (rebuild with: scripts/graphify-build.sh)
 graphify-out/

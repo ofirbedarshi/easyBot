@@ -12,9 +12,11 @@ This project has a graphify knowledge graph at graphify-out/.
 
 This applies to YOU and to every subagent you spawn. Include this rule explicitly in every subagent prompt that involves code exploration. Do not skip graphify because files are "already known" or because you are executing a plan — the graph surfaces cross-file dependencies and INFERRED edges that grep and Read cannot find.
 
+If `graphify-out/graph.json` is missing, run `scripts/graphify-build.sh` first (installs the CLI on demand; hard-coded `--code-only` and `--no-label`; no API cost). Then query.
+
 Only use Read/Grep/Glob directly when:
 1. graphify has already oriented you and you need to modify or debug specific lines
-2. `graphify-out/graph.json` does not exist yet
+2. the build script failed or graphify is still unavailable
 
 - If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review when query/path/explain do not surface enough context
