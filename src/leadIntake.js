@@ -8,8 +8,6 @@
  */
 
 export const LEAD_MENU_LABEL = 'Get this bot for my business';
-export const LEAD_MENU_NUMBER = 7;
-
 export const LEAD_THANKS = "Thanks! We'll get back to you soon.";
 export const LEAD_ALREADY_SENT = "You've already sent your request. We'll get back to you soon.";
 

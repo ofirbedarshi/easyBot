@@ -28,6 +28,13 @@ const STRINGS = {
       'שם העוזר והודעת פתיחה',
       'לנסות את הבוט',
     ],
+    sections: [
+      'פרטי העסק',
+      'תפקיד העוזר ואיסוף פרטים',
+      'שאלות ותשובות',
+      'סגנון והצגת מחירים',
+      'שם העוזר והודעת פתיחה',
+    ],
     menuFooter: 'אפשר לבחור מספר או פשוט לכתוב מה רוצים לשנות.',
     synced: 'הבוט עודכן ✅\nאנחנו במצב עריכה. מה תרצה לעשות?',
     syncedShort: 'הבוט עודכן ✅',
@@ -75,13 +82,14 @@ const STRINGS = {
   },
   en: {
     menu: [
-      'Business',
-      'Bot goal & customer details',
-      'Q&A',
-      'Style & prices',
-      'Name & opening',
+      'Edit business',
+      'Edit bot goal & customer details',
+      'Edit Q&A',
+      'Edit style & prices',
+      'Edit name & opening',
       'Try my bot',
     ],
+    sections: ['Business', 'Bot goal & customer details', 'Q&A', 'Style & prices', 'Name & opening'],
     menuFooter: 'Pick a number or just write what you want to change.',
     synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
     syncedShort: 'Bot updated ✅',
@@ -172,6 +180,22 @@ export function parseMenuChoice(text, max = 6) {
   return n >= 1 && n <= max ? n : null;
 }
 
+/**
+ * Ordered editing-menu items: 'lead', sections 1–5 (numbers), 'try'.
+ * Rendering and number parsing both use this list, so a picked number always
+ * maps to the item shown at that position.
+ */
+export function menuItems({ leadOption = false } = {}) {
+  return [...(leadOption ? ['lead'] : []), 1, 2, 3, 4, 5, 'try'];
+}
+
+/** Bare menu number → item from `menuItems(menuOpts)`, else null. */
+export function parseMenuItem(text, menuOpts) {
+  const items = menuItems(menuOpts);
+  const n = parseMenuChoice(text, items.length);
+  return n == null ? null : items[n - 1];
+}
+
 /** True when the latest assistant Builder entry was a menu. */
 export function menuActive(buildHistory) {
   const list = Array.isArray(buildHistory) ? buildHistory : [];
@@ -207,13 +231,18 @@ export function ownerLanguage(buildHistory, currentText = null) {
 }
 
 /**
- * Editing menu. `leadOption` appends item 7 (English label in every language);
- * it is last, so hiding it never renumbers the other items.
+ * Editing menu. `leadOption` adds the lead item first (English label in every
+ * language), which shifts the other items down by one.
  */
-export function renderMenu(lang, { leadOption = false } = {}) {
+export function renderMenu(lang, menuOpts) {
   const s = t(lang);
-  const items = leadOption ? [...s.menu, LEAD_MENU_LABEL] : s.menu;
-  return [...items.map((label, i) => `${i + 1}. ${label}`), '', s.menuFooter].join('\n');
+  const label = (item) =>
+    item === 'lead' ? LEAD_MENU_LABEL : item === 'try' ? s.menu[5] : s.menu[item - 1];
+  return [
+    ...menuItems(menuOpts).map((item, i) => `${i + 1}. ${label(item)}`),
+    '',
+    s.menuFooter,
+  ].join('\n');
 }
 
 export function renderSyncSuccess(lang, menuOpts) {
@@ -230,7 +259,7 @@ export function renderSyncSuccessInTest(lang) {
   return t(lang).syncedInTest;
 }
 
-/** Short "Bot updated ✅" line (used before entering TEST after menu option 6). */
+/** Short "Bot updated ✅" line (used before entering TEST after the Try my bot menu item). */
 export function renderSyncedShort(lang) {
   return t(lang).syncedShort;
 }
@@ -341,7 +370,7 @@ function brief(text) {
 
 /**
  * Review summary: one `Label: value` line per item, in editing-menu order
- * (sections 1–5). `full` holds the underlying data so the changes view can
+ * (the five edit items). `full` holds the underlying data so the changes view can
  * detect edits that the trimmed `value` hides.
  */
 export function summaryLines(p, lang) {
@@ -558,7 +587,7 @@ function sectionLines(section, p, lang) {
  */
 export function renderSection(section, profile, lang) {
   const s = t(lang);
-  const title = `${section}. ${s.menu[section - 1]}`;
+  const title = s.sections[section - 1];
   const draft = profile?.draft;
   if (!profile?.approvedAt) {
     const view = draft ? mergeDraft(profile, draft) : profile;
