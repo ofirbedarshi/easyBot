@@ -103,25 +103,20 @@ async function test(name, fn) {
   }
 }
 
-/** Onboarding → review → approve → success + menu; the bot is live at once. */
-async function testApproveShowsMenu() {
+/** Typed "approve" after a review is an ordinary Builder turn: nothing is approved. */
+async function testTypedApproveIsBuilderTurn() {
   clean();
   const f = facts();
-  const { session } = makeSession([
-    { message: 'Here is a summary.', draft: f, readyForReview: true, approved: false },
-    { message: 'Great!', draft: f, readyForReview: true, approved: true },
+  const { session, calls } = makeSession([
+    { message: 'Thanks!', draft: f, readyForReview: true },
+    { message: 'Great!', draft: f, readyForReview: false, approved: true },
   ]);
-  await handleMessage(session, 'hi'); // wake → opening (content discarded)
+  await handleMessage(session, 'hi');
   await handleMessage(session, 'I run a yoga studio in Tel Aviv, private lessons');
   const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_live');
-  assert.ok(r.reply.includes('Bot updated ✅'), r.reply);
-  assert.ok(r.reply.includes("You're in editing mode"), r.reply);
-  assert.ok(r.reply.includes(MENU_HEAD) && r.reply.includes(FOOTER), r.reply);
-  assert.equal(lastAssistant(session).nav, 'menu');
-  assert.ok(loadProfile(PROFILE).approvedAt);
-  const t = await handleMessage(session, '/test');
-  assert.equal(t.event, 'enter_test');
+  assert.equal(r.event, 'build_turn');
+  assert.equal(calls.builder, 2);
+  assert.equal(loadProfile(PROFILE).approvedAt, null);
 }
 
 /** Section views (2–6 after approval) are read-only and show real values; numbers after a section go to the Builder. */
@@ -129,7 +124,7 @@ async function testSectionRoutingReadOnly() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'ok', draft: facts(), readyForReview: false, approved: false },
+    { message: 'ok', draft: facts(), readyForReview: false },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi, I run a studio' });
   const before = readRaw();
@@ -170,7 +165,7 @@ async function testFreeTextAfterSection() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'Updated the hours', draft: { ...facts(), hours: 'Sun–Fri 8–14' }, readyForReview: true, approved: false },
+    { message: 'Updated the hours', draft: { ...facts(), hours: 'Sun–Fri 8–14' }, readyForReview: true },
   ]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
   await handleMessage(session, '4');
@@ -190,7 +185,7 @@ async function testNumberWithoutMenuContext() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'What is the new price?', draft: facts(), readyForReview: false, approved: false },
+    { message: 'What is the new price?', draft: facts(), readyForReview: false },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi' });
   await handleMessage(session, 'I want to change a price');
@@ -221,6 +216,19 @@ async function testSixAndEnd() {
   assert.equal(s5.event, 'menu_section');
 }
 
+/** Try my bot (7) on an already-approved profile enters TEST immediately. */
+async function testSixEntersTestWhenApproved() {
+  clean();
+  saveProfile(approvedProfile(), PROFILE);
+  const { session } = makeSession([{ message: 'x', draft: facts() }]);
+  session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
+  const six = await handleMessage(session, '7');
+  assert.equal(six.ok, true, six.reply);
+  assert.equal(six.event, 'enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
+}
+
 /** Pending draft: section shows live vs pending; navigation keeps draft + review key. */
 async function testPendingChangesPreserved() {
   clean();
@@ -244,7 +252,7 @@ async function testPendingChangesPreserved() {
 async function testOnboardingPreserved() {
   clean();
   const { session, calls } = makeSession([
-    { message: 'Tell me about the business', draft: {}, readyForReview: false, approved: false },
+    { message: 'Tell me about the business', draft: {}, readyForReview: false },
   ]);
   const wake = await handleMessage(session, 'menu');
   assert.equal(wake.event, 'opening');
@@ -301,7 +309,7 @@ async function testFirstReviewTryApprovesAndTests() {
   clean();
   const f = facts();
   const { session } = makeSession([
-    { message: 'Got it! Here is a summary:\n- Business Name: Studio Yoga\nReady to approve?', draft: f, readyForReview: true, approved: false },
+    { message: 'Got it! Here is a summary:\n- Business Name: Studio Yoga\nReady to approve?', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   const review = await handleMessage(session, 'I run Studio Yoga in Tel Aviv');
@@ -333,7 +341,7 @@ async function testMakeChangesShowsMenu() {
   clean();
   const f = facts();
   const { session } = makeSession([
-    { message: 'Thanks!', draft: f, readyForReview: true, approved: false },
+    { message: 'Thanks!', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
@@ -347,7 +355,6 @@ async function testMakeChangesShowsMenu() {
   assert.equal(readRaw(), before, 'Make changes must not save');
   const six = await handleMessage(session, '6');
   assert.equal(six.event, 'approved_enter_test');
-  assert.ok(loadProfile(PROFILE).approvedAt);
 }
 
 /** Later pending edit: review lists only what changes; 1 applies it then enters TEST. */
@@ -357,7 +364,7 @@ async function testTryApprovesPendingEdit() {
   saveProfile(approvedProfile(), PROFILE);
   const pending = { ...f, hours: 'Sun–Fri 8–14' };
   const { session } = makeSession([
-    { message: 'Updated the hours.', draft: pending, readyForReview: true, approved: false },
+    { message: 'Updated the hours.', draft: pending, readyForReview: true },
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const review = await handleMessage(session, 'Change hours to Sun–Fri 8–14');
@@ -371,24 +378,11 @@ async function testTryApprovesPendingEdit() {
   assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
 }
 
-/** Try my bot (7) with no pending review uses the normal /test path; nothing is re-approved. */
-async function testSixWithoutPendingReview() {
-  clean();
-  saveProfile(approvedProfile(), PROFILE);
-  const { session } = makeSession([{ message: 'x', draft: facts() }]);
-  session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
-  const six = await handleMessage(session, '7');
-  assert.equal(six.event, 'enter_test');
-  assert.equal(session.mode, 'TEST');
-  assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
-}
-
-/** Before approval, Make changes → 1–5 show draft values and do not save. */
 async function testSectionsBeforeApprovalShowDraft() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
-    { message: 'Thanks!', draft: f, readyForReview: true, approved: false },
+    { message: 'Thanks!', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
@@ -402,7 +396,6 @@ async function testSectionsBeforeApprovalShowDraft() {
   assert.equal(loadProfile(PROFILE).approvedAt, null);
 }
 
-/** Review render: summary + options; empty intake wording; review phrase parsing. */
 async function testReviewRenderHelpers() {
   const p = { draft: { ...facts(), informationToCollect: [], tone: null, responseLength: null, priceDisclosure: null, assistantName: null } };
   const en = renderReview(p);
@@ -484,11 +477,12 @@ async function testMenuLayoutStates() {
 }
 
 async function main() {
-  await test('approve_shows_menu', testApproveShowsMenu);
+  await test('typed_approve_is_builder_turn', testTypedApproveIsBuilderTurn);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
   await test('free_text_after_section', testFreeTextAfterSection);
   await test('number_without_menu_context', testNumberWithoutMenuContext);
   await test('six_and_end', testSixAndEnd);
+  await test('six_enters_test_when_approved', testSixEntersTestWhenApproved);
   await test('pending_changes_preserved', testPendingChangesPreserved);
   await test('onboarding_preserved', testOnboardingPreserved);
   await test('menu_labels', testMenuLabels);
@@ -496,7 +490,6 @@ async function main() {
   await test('first_review_try_approves_and_tests', testFirstReviewTryApprovesAndTests);
   await test('make_changes_shows_menu', testMakeChangesShowsMenu);
   await test('try_approves_pending_edit', testTryApprovesPendingEdit);
-  await test('six_without_pending_review', testSixWithoutPendingReview);
   await test('sections_before_approval_show_draft', testSectionsBeforeApprovalShowDraft);
   await test('review_render_helpers', testReviewRenderHelpers);
   await test('menu_layout_states', testMenuLayoutStates);

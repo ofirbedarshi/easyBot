@@ -33,7 +33,6 @@ import {
   reviewActive,
   renderSetupContinue,
   renderSyncedShort,
-  renderSyncSuccess,
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
@@ -160,6 +159,9 @@ function stateFrom(session, profile) {
     testHistory: session.testHistory,
   };
 }
+
+const BOT_ERROR_REPLY =
+  "Sorry, your bot couldn't answer right now. Please try again in a moment.";
 
 /**
  * True when a presented review of the current draft is waiting to be applied
@@ -351,7 +353,7 @@ async function enterTest(session) {
   const profile = await loadAsync(session);
   if (!profile.approvedAt) {
     const reply =
-      'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
+      'Nothing is live yet. Finish the setup, then choose **Try my bot** on the review.';
     return {
       ok: false,
       reply,
@@ -473,7 +475,7 @@ async function handleTest(session, question) {
   } catch (err) {
     // Provider error text can echo a masked API key; keep it out of chat and logs.
     console.error('Business Bot reply failed:', err?.status || err?.code || err?.name || 'error');
-    reply = 'Business Bot error: no reply could be generated. Please send your message again.';
+    reply = BOT_ERROR_REPLY;
     source = 'error';
   }
 
@@ -522,15 +524,6 @@ async function handleBuild(session, userMessage) {
   result = applyReviewGate(profile, result, userMessage);
   profile.draft = result.draft;
   profile.reviewedDraftKey = result.reviewedDraftKey;
-  let event = 'build_turn';
-  let approvedNote = '';
-
-  if (result.approved) {
-    approveDraft(profile);
-    approvedNote = `\n\n${renderSyncSuccess(leadMenuOpts(session, profile))}`;
-    event = 'approved_live';
-  }
-
   await saveAsync(session, profile);
 
   let reply;
@@ -540,8 +533,7 @@ async function handleBuild(session, userMessage) {
     reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
     nav = 'review';
   } else {
-    reply = result.message + approvedNote;
-    if (event === 'approved_live') nav = 'menu';
+    reply = result.message;
   }
 
   session.buildHistory.push(
@@ -554,9 +546,8 @@ async function handleBuild(session, userMessage) {
     ok: true,
     reply,
     source: result.source,
-    event,
+    event: 'build_turn',
     readyForReview: result.readyForReview,
-    approved: result.approved,
     ...(await getStateAsync(session)),
   };
 }

@@ -1,6 +1,6 @@
 # easyBot — Builder + Business Bot demo
 
-AI Business Bot Builder: interview a business owner → approve facts → `/test` the Business Bot (OpenAI chat completions from the app). Browser UI locally; optional WhatsApp via Twilio on Render + Supabase.
+AI Business Bot Builder: interview a business owner → approve facts (review card → Try my bot) → `/test` the Business Bot (OpenAI chat completions from the app). Browser UI locally; optional WhatsApp via Twilio on Render + Supabase.
 
 ## Prerequisites
 

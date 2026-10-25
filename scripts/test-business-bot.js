@@ -191,7 +191,10 @@ async function testErrorTurnNotStored() {
   }
   assert.equal(r.ok, true);
   assert.equal(r.source, 'error');
-  assert.match(r.reply, /^Business Bot error:/);
+  assert.equal(
+    r.reply,
+    "Sorry, your bot couldn't answer right now. Please try again in a moment."
+  );
   assert.ok(!r.reply.includes('sk-secret'));
   assert.ok(!logged.join('\n').includes('sk-secret'));
   assert.deepEqual(session.testHistory, []);

@@ -23,9 +23,7 @@ import {
 import {
   applyReviewGate,
   enforceConfigRequests,
-  isOwnerApproveMessage,
   reconcileDraft,
-  shouldSoftApprove,
   withSingleQuestion,
 } from '../src/builder.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
@@ -99,10 +97,10 @@ async function handleMessage(session, text) {
   return result;
 }
 
-/** Change turn (app presents a review of the stub draft), then a bare approve. */
+/** Change turn (app presents a review of the stub draft), then "1. Try my bot". */
 async function reviewThenApprove(session) {
   await handleMessage(session, 'Please apply this change.');
-  return handleMessage(session, 'approve');
+  return handleMessage(session, '1');
 }
 
 /** Stub Builder that returns queued turns in order (last one repeats). */
@@ -133,7 +131,7 @@ function liveDraftWith(live, overrides) {
   };
 }
 
-/** Review gate 1+2: changed draft without a presented review cannot be approved; once presented, it can. */
+/** Review gate 1+2: typed "approve" is a Builder turn that can only present a review; Try my bot applies it. */
 async function testApproveRequiresPresentedReview() {
   clean();
   const live = baseApprovedLive();
@@ -145,8 +143,8 @@ async function testApproveRequiresPresentedReview() {
   const session = makeSession(
     queuedTurns([
       // Model updates the draft but presents no review
-      { message: 'Noted the new price.', draft: draft80, readyForReview: false, approved: false },
-      // Model (wrongly) claims approval on the bare approve
+      { message: 'Noted the new price.', draft: draft80, readyForReview: false },
+      // Typed "approve" is an ordinary Builder turn; extra model fields are ignored
       { message: 'Approved!', draft: draft80, readyForReview: true, approved: true },
     ]),
     liveMock
@@ -156,19 +154,18 @@ async function testApproveRequiresPresentedReview() {
   assert.equal(loadProfile(PROFILE).reviewedDraftKey, null);
 
   const r1 = await handleMessage(session, 'approve');
-  assert.equal(r1.approved, false);
+  assert.ok(!r1.approved);
   assert.equal(r1.event, 'build_turn');
-  assert.equal(liveMock.approvals.length, 0, 'no sync without a presented review');
+  assert.equal(liveMock.approvals.length, 0, 'no live approval without a presented review');
   assert.equal(loadProfile(PROFILE).services[0].price, '$70 / 60 min');
-  assert.match(r1.reply, /review the current version/);
   assert.match(r1.reply, /what will change:\n\nServices: Private lesson — \$80 \/ 60 min \(was: Private lesson — \$70 \/ 60 min\)/);
   assert.match(r1.reply, /1\. Try my bot\n2\. Make changes/);
   assert.doesNotMatch(withoutOptionsPrompt(r1.reply), /\?/);
   assert.ok(loadProfile(PROFILE).reviewedDraftKey, 'review presented → key stored');
 
-  const r2 = await handleMessage(session, 'approve');
+  const r2 = await handleMessage(session, '1');
   assert.equal(r2.approved, true);
-  assert.equal(r2.event, 'approved_live');
+  assert.equal(r2.event, 'approved_enter_test');
   assert.equal(liveMock.approvals.length, 1);
   assert.equal(liveMock.approvals[0].services[0].price, '$80 / 60 min');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
@@ -189,7 +186,7 @@ async function testEditAfterReviewRequiresNewReview() {
   });
   const session = makeSession(
     queuedTurns([
-      { message: 'Here is the change.', draft: draft80, readyForReview: true, approved: false },
+      { message: 'Here is the change.', draft: draft80, readyForReview: true },
       { message: 'Updated to $90 and approved.', draft: draft90, readyForReview: true, approved: true },
       { message: 'Approved.', draft: draft90, readyForReview: true, approved: true },
     ]),
@@ -202,14 +199,14 @@ async function testEditAfterReviewRequiresNewReview() {
   assert.ok(key80);
 
   const r2 = await handleMessage(session, 'Actually make it $90 — approve.');
-  assert.equal(r2.approved, false, 'edit after review must not approve');
+  assert.ok(!r2.approved, 'edit after review must not approve');
   assert.equal(liveMock.approvals.length, 0);
   assert.equal(loadProfile(PROFILE).services[0].price, '$70 / 60 min');
   assert.match(r2.reply, /what will change[\s\S]*\$90 \/ 60 min/);
   assert.notEqual(loadProfile(PROFILE).reviewedDraftKey, key80);
 
-  const r3 = await handleMessage(session, 'approve');
-  assert.equal(r3.event, 'approved_live');
+  const r3 = await handleMessage(session, '1');
+  assert.equal(r3.event, 'approved_enter_test');
   assert.equal(liveMock.approvals[0].services[0].price, '$90 / 60 min');
   console.log('PASS edit_after_review_requires_new_review');
 }
@@ -240,7 +237,6 @@ async function testDraftEditLeavesLiveUnchanged() {
       priceDisclosure: null,
     },
     readyForReview: true,
-    approved: false,
     source: 'stub-builder',
   }), liveMock);
 
@@ -289,13 +285,12 @@ async function testReapproveUpdatesLiveBot() {
       tone: 'friendly',
     },
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
-  assert.equal(r.event, 'approved_live');
+  assert.equal(r.event, 'approved_enter_test');
   assert.equal(liveMock.approvals.length, 1, 're-approve must make the update live');
 
   const sent = liveMock.approvals[0];
@@ -361,14 +356,9 @@ async function testIntakeGateBlocksApprove() {
       tone: 'warm',
     },
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
-  // Stub returns approved+ready but app gates on intake; builder soft-guard runs inside
-  // real runBuilderTurn — here we stub the whole turn, so simulate gate in stub like app:
-  // Actually handleBuild trusts result.approved from stub. Intake gate is inside runBuilderTurn.
-  // For handler-level test of intake, stub must return what real runBuilderTurn would after gate.
   session.deps.runBuilderTurn = async () => ({
     message:
       'Looks ready.\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.',
@@ -384,15 +374,14 @@ async function testIntakeGateBlocksApprove() {
       unknowns: [],
       tone: 'warm',
     },
-    readyForReview: false,
-    approved: false,
+    readyForReview: true,
     source: 'stub-builder',
   });
 
   // Required topics are asked by the app in order: FAQ first, then intake.
-  const r = await handleMessage(session, 'approve');
+  const r = await handleMessage(session, 'That is everything.');
   assert.equal(r.ok, true);
-  assert.equal(r.approved, false);
+  assert.ok(!r.approved);
   assert.equal(r.event, 'build_turn');
   assert.equal(liveMock.approvals.length, 0);
   assert.equal(loadProfile(PROFILE).approvedAt, null);
@@ -401,13 +390,13 @@ async function testIntakeGateBlocksApprove() {
 
   // Owner skips FAQ → settled (skippable); intake asked next, still no approval.
   const r2 = await handleMessage(session, 'skip');
-  assert.equal(r2.approved, false);
+  assert.ok(!r2.approved);
   assert.match(r2.reply, /collect any information/i);
   assert.ok(!/questions do customers usually ask/i.test(r2.reply), 'FAQ asked once');
 
   // Intake still null after the owner replied → intake asked again (not skippable).
   const r3 = await handleMessage(session, 'hmm');
-  assert.equal(r3.approved, false);
+  assert.ok(!r3.approved);
   assert.match(r3.reply, /collect any information/i);
 
   // Intake answered → review presented, not approved yet.
@@ -422,11 +411,10 @@ async function testIntakeGateBlocksApprove() {
       unknowns: [],
     },
     readyForReview: true,
-    approved: false,
     source: 'stub-builder',
   });
   const r4 = await handleMessage(session, 'none');
-  assert.equal(r4.approved, false);
+  assert.ok(!r4.approved);
   assert.match(r4.reply, /Try my bot/);
   assert.equal(liveMock.approvals.length, 0);
   console.log('PASS required_topics_gate_blocks_approve');
@@ -512,7 +500,7 @@ function testRequiredTopicsGate() {
     commonQuestions: [],
     informationToCollect: [],
   };
-  const turn = { message: 'Got it, thanks!', draft: facts, readyForReview: true, approved: false };
+  const turn = { message: 'Got it, thanks!', draft: facts, readyForReview: true };
 
   // FAQ never asked → asked now, recorded, no review.
   const a = applyReviewGate(emptyProfile(), turn, 'no');
@@ -615,16 +603,15 @@ async function testNullOwnerGoalDoesNotWipeLive() {
       tone: 'friendly',
     },
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
+  // Null ownerGoal merges to the live config: nothing to approve, Try my bot just tests.
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
-  assert.equal(r.event, 'approved_live');
-  const disk = loadProfile(PROFILE);
-  assert.equal(disk.ownerGoal, 'answer_and_collect');
-  assert.equal(liveMock.approvals[0].ownerGoal, disk.ownerGoal);
+  assert.equal(r.event, 'enter_test');
+  assert.equal(liveMock.approvals.length, 0);
+  assert.equal(loadProfile(PROFILE).ownerGoal, 'answer_and_collect');
   console.log('PASS null_owner_goal_does_not_wipe_live');
 }
 
@@ -671,7 +658,6 @@ async function testBehaviorDraftIsolatesLivePrompt() {
       priceDisclosure: 'on_request',
     },
     readyForReview: true,
-    approved: false,
     source: 'stub-builder',
   }), liveMock);
 
@@ -728,13 +714,12 @@ async function testBehaviorApprovePropagatesToLivePrompt() {
       priceDisclosure: 'on_request',
     },
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
-  assert.equal(r.event, 'approved_live');
+  assert.equal(r.event, 'approved_enter_test');
   assert.equal(liveMock.approvals.length, 1);
 
   const sent = liveMock.approvals[0];
@@ -846,13 +831,12 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
     message: 'Updated tone only — approve when ready.',
     draft: reconciled,
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
-  assert.equal(r.event, 'approved_live');
+  assert.equal(r.event, 'approved_enter_test');
   const disk = loadProfile(PROFILE);
   assert.equal(disk.priceDisclosure, 'on_request');
   assert.equal(disk.responseLength, 'short');
@@ -939,7 +923,6 @@ async function testIdentityDraftIsolatesLive() {
       profile.draft
     ),
     readyForReview: false,
-    approved: false,
     source: 'stub-builder',
   }), liveMock);
 
@@ -978,12 +961,11 @@ async function testIdentityApprovePropagates() {
       profile.draft
     ),
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
 
   const r = await reviewThenApprove(session);
-  assert.equal(r.event, 'approved_live');
+  assert.equal(r.event, 'approved_enter_test');
   assert.equal(liveMock.approvals.length, 1);
   assert.equal(liveMock.approvals[0].assistantName, 'Maya');
   assert.equal(liveMock.approvals[0].openingMessage, MAYA_OPENING);
@@ -1014,7 +996,6 @@ async function testOtherFactsApprovePropagates() {
       otherFacts: facts,
     },
     readyForReview: true,
-    approved: false,
     source: 'stub-builder',
   }), liveMock);
 
@@ -1027,8 +1008,8 @@ async function testOtherFactsApprovePropagates() {
   assert.ok(section.includes('• Other facts:'), 'section 1 must list otherFacts');
   for (const f of facts) assert.ok(section.includes(`   - ${f}`));
 
-  const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_live');
+  const r = await handleMessage(session, '1');
+  assert.equal(r.event, 'approved_enter_test');
   const disk = loadProfile(PROFILE);
   assert.deepEqual(disk.otherFacts, facts);
   assert.deepEqual(liveMock.approvals[0].otherFacts, facts);
@@ -1067,7 +1048,6 @@ async function testOpeningOnlyEditPreservesName() {
     message: 'Opening updated.',
     draft: reconciled,
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
   await reviewThenApprove(session);
@@ -1119,11 +1099,10 @@ async function testIdentityResetRestoresDefault() {
     message: 'Approved.',
     draft: laterDraft,
     readyForReview: true,
-    approved: true,
     source: 'stub-builder',
   }), liveMock);
   const r = await reviewThenApprove(session);
-  assert.equal(r.event, 'approved_live');
+  assert.equal(r.event, 'approved_enter_test');
   const disk = loadProfile(PROFILE);
   assert.equal(disk.assistantName, null);
   assert.equal(disk.openingMessage, null);
@@ -1169,23 +1148,13 @@ async function testLegacyIdentityDefaults() {
   console.log('PASS legacy_identity_defaults');
 }
 
-function testIsOwnerApproveMessage() {
-  assert.equal(isOwnerApproveMessage('approve'), true);
-  assert.equal(isOwnerApproveMessage('Looks good'), true);
-  assert.equal(isOwnerApproveMessage('yes'), true);
-  assert.equal(isOwnerApproveMessage('ok'), true);
-  assert.equal(isOwnerApproveMessage('yes, but make it warmer'), false);
-  assert.equal(isOwnerApproveMessage('approve the price change to $80'), false);
-  console.log('PASS is_owner_approve_message');
-}
-
 /**
- * Soft-approve honesty:
- * 1) pending draft already reviewed + "approve" → soft-approve
- * 2) "yes" that also introduces a new draft change this turn → no approve; draft kept
- * 3) first-time (no approvedAt) after a presented review → approve works
+ * Typed approval words are ordinary Builder turns:
+ * 1) "approve" after a review applies nothing; Try my bot does
+ * 2) "yes" that accepts an alternative updates the draft and presents a review; no approve
+ * 3) first-time (no approvedAt) after a presented review → Try my bot approves
  */
-async function testSoftApproveNoNewChangeThisTurn() {
+async function testTypedApproveIsBuilderTurn() {
   clean();
   const live = baseApprovedLive();
   live.priceDisclosure = 'on_request';
@@ -1201,37 +1170,33 @@ async function testSoftApproveNoNewChangeThisTurn() {
         message: 'Proposed: prices when useful and relevant.',
         draft: draftRelevant,
         readyForReview: true,
-        approved: false,
       },
-      // Bare approve of the already-reviewed draft
+      // Typed "approve" of the already-reviewed draft
       {
         message: 'Approved.',
         draft: draftRelevant,
         readyForReview: true,
-        approved: false,
       },
     ]),
     liveMock
   );
 
   const r1 = await handleMessage(session, 'Switch to mentioning prices when relevant.');
-  assert.equal(r1.approved, false);
+  assert.ok(!r1.approved);
   assert.ok(loadProfile(PROFILE).reviewedDraftKey);
   assert.equal(loadProfile(PROFILE).draft.priceDisclosure, 'relevant');
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'on_request');
 
-  const softOk = shouldSoftApprove({
-    profile: loadProfile(PROFILE),
-    draft: draftRelevant,
-    userMessage: 'approve',
-  });
-  assert.equal(softOk, true, 'reviewed pending draft + approve → soft-approve');
+  const typed = await handleMessage(session, 'approve');
+  assert.equal(typed.event, 'build_turn');
+  assert.equal(liveMock.approvals.length, 0, 'typed approve never makes the bot live');
+  assert.equal(loadProfile(PROFILE).priceDisclosure, 'on_request');
 
-  const r2 = await handleMessage(session, 'approve');
+  const r2 = await handleMessage(session, '1');
   assert.equal(r2.approved, true);
-  assert.equal(r2.event, 'approved_live');
+  assert.equal(r2.event, 'approved_enter_test');
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  console.log('PASS soft_approve_pending_then_approve');
+  console.log('PASS typed_approve_after_review_applies_nothing');
 
   // --- (2) "yes" with a new change this turn does not approve; draft kept ---
   clean();
@@ -1246,13 +1211,12 @@ async function testSoftApproveNoNewChangeThisTurn() {
         message: 'That every-reply policy is not supported. Closest is relevant — want that?',
         draft: liveDraftWith(live2, { priceDisclosure: 'on_request' }),
         readyForReview: false,
-        approved: false,
       },
       {
         message: 'Proposed relevant price disclosure — approve when ready.',
         draft: draftRelevant,
         readyForReview: true,
-        approved: true, // model wrongly marks approved
+        approved: true, // ignored: only Try my bot approves
       },
     ]),
     liveMock2
@@ -1260,7 +1224,7 @@ async function testSoftApproveNoNewChangeThisTurn() {
 
   await handleMessage(session2, 'Put the price in every reply.');
   const rYes = await handleMessage(session2, 'yes');
-  assert.equal(rYes.approved, false, 'yes + new change must not approve');
+  assert.ok(!rYes.approved, 'yes + new change must not approve');
   assert.equal(liveMock2.approvals.length, 0);
   const diskYes = loadProfile(PROFILE);
   assert.equal(diskYes.priceDisclosure, 'on_request', 'live unchanged');
@@ -1271,21 +1235,7 @@ async function testSoftApproveNoNewChangeThisTurn() {
     /what will change:\n\nStyle: friendly, prices when relevant \(was: friendly, prices only when asked\)/,
     'shows the pending change when yes applies a new draft change'
   );
-  assert.doesNotMatch(
-    rYes.reply,
-    /^Before I apply anything/m,
-    'does not replace preview with stock note when draft changed'
-  );
-  assert.equal(
-    shouldSoftApprove({
-      profile: { ...diskYes, reviewedDraftKey: null },
-      draft: draftRelevant,
-      userMessage: 'yes',
-    }),
-    false,
-    'no prior review → soft-approve false'
-  );
-  console.log('PASS soft_approve_yes_with_new_change_keeps_draft');
+  console.log('PASS typed_yes_with_new_change_keeps_draft');
 
   // --- (3) first-time approval (no approvedAt) after presented review ---
   clean();
@@ -1309,28 +1259,26 @@ async function testSoftApproveNoNewChangeThisTurn() {
         message: 'Here is your first bot summary.',
         draft: first.draft,
         readyForReview: true,
-        approved: false,
       },
       {
         message: 'Creating your bot.',
         draft: first.draft,
         readyForReview: true,
-        approved: false,
       },
     ]),
     liveMock3
   );
 
   const rFirstReview = await handleMessage(session3, 'Looks ready.');
-  assert.equal(rFirstReview.approved, false);
+  assert.ok(!rFirstReview.approved);
   assert.ok(loadProfile(PROFILE).reviewedDraftKey);
   assert.equal(loadProfile(PROFILE).approvedAt, null);
 
-  const rFirstApprove = await handleMessage(session3, 'approve');
+  const rFirstApprove = await handleMessage(session3, '1');
   assert.equal(rFirstApprove.approved, true);
-  assert.equal(rFirstApprove.event, 'approved_live');
+  assert.equal(rFirstApprove.event, 'approved_enter_test');
   assert.ok(loadProfile(PROFILE).approvedAt);
-  console.log('PASS soft_approve_first_time_after_review');
+  console.log('PASS try_my_bot_first_time_after_review');
 }
 
 /** Unsupported/ambiguous config requests cannot change the draft, whatever the field. */
@@ -1431,14 +1379,13 @@ async function main() {
   await testBehaviorOnlyMergePreservesFacts();
   await testApproveRequiresPresentedReview();
   await testEditAfterReviewRequiresNewReview();
-  await testSoftApproveNoNewChangeThisTurn();
+  await testTypedApproveIsBuilderTurn();
   await testIdentityDraftIsolatesLive();
   await testIdentityApprovePropagates();
   await testOtherFactsApprovePropagates();
   await testOpeningOnlyEditPreservesName();
   await testIdentityResetRestoresDefault();
   await testLegacyIdentityDefaults();
-  testIsOwnerApproveMessage();
   clean();
   console.log('\nAll approval-boundary tests passed.');
 }

@@ -276,7 +276,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   sa2.mode = 'BUILD';
   const blocked = await handleMessage(sa2, '/test');
   assert.equal(blocked.ok, false);
-  assert.ok(/approve/i.test(blocked.reply));
+  assert.ok(/not live|Try my bot/i.test(blocked.reply));
   ok('/test blocked when nothing is approved');
 }
 
