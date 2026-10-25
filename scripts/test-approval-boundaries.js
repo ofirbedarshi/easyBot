@@ -30,6 +30,7 @@ import {
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import { buildFlowData } from '../src/flowise.js';
 import { createSession, handleMessage } from '../src/session.js';
+import { renderSection } from '../src/ownerNav.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROFILE = testProfilePath('approval-boundaries');
@@ -1003,6 +1004,50 @@ async function testIdentityApprovePropagates() {
   console.log('PASS identity_approve_propagates');
 }
 
+/** otherFacts in the draft are shown for review and reach the live profile and customer prompt. */
+async function testOtherFactsApprovePropagates() {
+  clean();
+  const live = baseApprovedLive();
+  live.approvedAt = null;
+  live.chatflowId = null;
+  live.flowiseSyncOk = false;
+  live.flowiseSyncedAt = null;
+  saveProfile(live, PROFILE);
+  const facts = ['Fact A applies on weekdays only.', 'Fact B has no exceptions.'];
+  const flowiseMock = { calls: [] };
+  const session = makeSession(async () => ({
+    message: 'Here is your draft.',
+    draft: {
+      ...live.draft,
+      commonQuestions: [{ question: 'Do you offer gift cards?', answer: 'No.' }],
+      otherFacts: facts,
+    },
+    readyForReview: true,
+    approved: false,
+    source: 'stub-builder',
+  }), flowiseMock);
+
+  const review = await handleMessage(session, 'Please apply this change.');
+  assert.ok(
+    review.reply.includes(`Other facts: ${facts[0]}; ${facts[1].replace(/\.$/, '')}`),
+    'review card must list otherFacts'
+  );
+  const section = renderSection(1, loadProfile(PROFILE), 'en');
+  assert.ok(section.includes('• Other facts:'), 'section 1 must list otherFacts');
+  for (const f of facts) assert.ok(section.includes(`   - ${f}`));
+
+  const r = await handleMessage(session, 'approve');
+  assert.equal(r.event, 'approved_synced');
+  const disk = loadProfile(PROFILE);
+  assert.deepEqual(disk.otherFacts, facts);
+  assert.deepEqual(flowiseMock.calls[0].otherFacts, facts);
+  const sys = systemPromptSentTo(flowiseMock);
+  assert.equal(sys, buildCustomerSystemPrompt(disk));
+  assert.match(sys, /Other business facts and policies:/);
+  for (const f of facts) assert.ok(sys.includes(`- ${f}`));
+  console.log('PASS other_facts_approve_propagates');
+}
+
 /** Opening-only edit keeps assistantName and every other setting / fact. */
 async function testOpeningOnlyEditPreservesName() {
   clean();
@@ -1399,6 +1444,7 @@ async function main() {
   await testSoftApproveNoNewChangeThisTurn();
   await testIdentityDraftIsolatesLive();
   await testIdentityApprovePropagates();
+  await testOtherFactsApprovePropagates();
   await testOpeningOnlyEditPreservesName();
   await testIdentityResetRestoresDefault();
   await testLegacyIdentityDefaults();
