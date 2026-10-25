@@ -32,7 +32,7 @@ const STRINGS = {
   synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
   syncedShort: 'Bot updated ✅',
   syncedInTest:
-    'Bot updated ✅ Your next messages keep going to the customer bot. Type /end to return to editing mode.',
+    'Bot updated ✅ Your next messages go to your bot as if you were a customer. Type /end to return to editing mode.',
   returned: 'Back in editing mode. What would you like to do?',
   setupContinue: "We're still in first-time setup. Tell me more about your business.",
   ask: 'What would you like to change?',
