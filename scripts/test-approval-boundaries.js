@@ -72,7 +72,7 @@ function baseApprovedLive() {
 }
 
 function makeSession(stubTurn, flowiseMock) {
-  return createSession({
+  const session = createSession({
     profilePath: PROFILE,
     deps: {
       runBuilderTurn: stubTurn,
@@ -84,6 +84,9 @@ function makeSession(stubTurn, flowiseMock) {
       },
     },
   });
+  // Past the wake/opening turn so stubs exercise Builder turns.
+  session.buildHistory.push({ role: 'assistant', content: '(opened)' });
+  return session;
 }
 
 /** Change turn (app presents a review of the stub draft), then a bare approve. */

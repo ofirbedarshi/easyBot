@@ -115,6 +115,7 @@ async function testHebrewApproveShowsMenu() {
     { message: 'הנה סיכום.', draft: f, readyForReview: true, approved: false },
     { message: 'מעולה!', draft: f, readyForReview: true, approved: true },
   ]);
+  await handleMessage(session, 'hi'); // wake → opening (content discarded)
   await handleMessage(session, 'יש לי סטודיו ליוגה בתל אביב, שיעורים פרטיים');
   const r = await handleMessage(session, 'approve');
   assert.equal(r.event, 'approved_synced');
@@ -136,6 +137,7 @@ async function testPendingSyncNoSuccess() {
     ],
     { flowiseUp: false }
   );
+  await handleMessage(session, 'hi');
   await handleMessage(session, 'יש לי סטודיו ליוגה');
   const r = await handleMessage(session, 'approve');
   assert.equal(r.event, 'approved_sync_pending');
@@ -207,6 +209,7 @@ async function testNumberWithoutMenuContext() {
   const { session, calls } = makeSession([
     { message: 'מה המחיר החדש?', draft: facts(), readyForReview: false, approved: false },
   ]);
+  session.buildHistory.push({ role: 'user', content: 'שלום' });
   await handleMessage(session, 'אני רוצה לשנות מחיר');
   await handleMessage(session, '3');
   assert.equal(calls.builder, 2);
@@ -273,6 +276,9 @@ async function testOnboardingPreserved() {
   const { session, calls } = makeSession([
     { message: 'ספר לי על העסק', draft: {}, readyForReview: false, approved: false },
   ]);
+  const wake = await handleMessage(session, 'תפריט');
+  assert.equal(wake.event, 'opening');
+  assert.equal(calls.builder, 0, 'first message only wakes; discarded');
   await handleMessage(session, 'תפריט');
   assert.equal(calls.builder, 1, 'menu request before approval goes to the Builder');
   const end = await handleMessage(session, '/end');

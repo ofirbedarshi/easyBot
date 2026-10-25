@@ -1,7 +1,6 @@
 import {
   createSenderSession,
   handleMessage,
-  bootstrapSession,
   persistSenderSession,
 } from '../session.js';
 import {
@@ -80,12 +79,6 @@ async function processRow(store, row) {
     }
 
     const session = await createSenderSession(store, senderId);
-    // First message ever: ensure opening line exists
-    if (!session.buildHistory.length && session.mode === 'BUILD') {
-      bootstrapSession(session);
-      await persistSenderSession(session);
-    }
-
     const result = await handleMessage(session, length.text);
     await persistSenderSession(session);
 

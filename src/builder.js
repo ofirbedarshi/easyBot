@@ -542,7 +542,7 @@ export function applyReviewGate(profile, turn, userMessage) {
 export function openingMessage() {
   return {
     message:
-      "Hi! Think of me as a new teammate learning how your business handles customer questions. Tell me what you do and what you want this customer bot to achieve — I'll ask a few smart follow-ups. When we have enough, I'll show a summary to approve, then you can type /test to try it as a customer.",
+      "Hi! 👋 So glad you’re here.\nI’m here to help you build a smart assistant for your business that can answer customers even when you’re busy.✨\nYou’re one of the first to try the product, so you might still come across a few rough edges.\nReady to get started? Tell me a little about your business 😊",
     source: 'app',
   };
 }

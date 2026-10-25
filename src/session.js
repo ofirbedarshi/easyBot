@@ -250,12 +250,10 @@ export async function handleMessage(session, text, options = {}) {
     session.testHistory = [];
     session.mode = 'BUILD';
     session.testSessionId = `test-${Date.now()}`;
-    const open = openingMessage();
-    session.buildHistory.push({ role: 'assistant', content: open.message });
     return {
       ok: true,
-      reply: open.message,
-      source: open.source,
+      reply: 'Session cleared. Send any message to start again.',
+      source: 'app',
       event: 'reset',
       ...(await getStateAsync(session)),
     };
@@ -264,6 +262,20 @@ export async function handleMessage(session, text, options = {}) {
   if (session.mode === 'TEST') {
     return handleTest(session, trimmed, options.flowiseSessionId);
   }
+
+  // First inbound in BUILD only wakes the bot — discard content, send opening.
+  if (session.buildHistory.length === 0) {
+    const open = openingMessage();
+    session.buildHistory.push({ role: 'assistant', content: open.message });
+    return {
+      ok: true,
+      reply: open.message,
+      source: open.source,
+      event: 'opening',
+      ...(await getStateAsync(session)),
+    };
+  }
+
   const nav = await handleNavigation(session, trimmed);
   if (nav) return nav;
   return handleBuild(session, trimmed);
@@ -527,17 +539,13 @@ async function handleBuild(session, userMessage) {
   };
 }
 
+/** Local UI start: empty chat until the owner’s first message wakes the opening. */
 export function bootstrapSession(session) {
-  const open = openingMessage();
-  if (session.buildHistory.length === 0) {
-    session.buildHistory.push({ role: 'assistant', content: open.message });
-  }
-  // Sync getState for file sessions; store sessions use histories only until persist
   if (session.store && session.senderId) {
     return {
       ok: true,
-      reply: open.message,
-      source: open.source,
+      reply: null,
+      source: 'app',
       mode: session.mode,
       buildHistory: session.buildHistory,
       testHistory: session.testHistory,
@@ -545,8 +553,8 @@ export function bootstrapSession(session) {
   }
   return {
     ok: true,
-    reply: open.message,
-    source: open.source,
+    reply: null,
+    source: 'app',
     ...getState(session),
   };
 }
