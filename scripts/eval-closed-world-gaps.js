@@ -70,6 +70,16 @@ const PROFILES = {
   },
 };
 
+const SCORE_BY_ID = {
+  missing_delivery: scoreMissingDelivery,
+  missing_vegan: scoreMissingVegan,
+  overstate_vegan: scoreOverstateVegan,
+  has_delivery: scoreHasDelivery,
+  has_vegan: scoreHasVegan,
+  has_price: scoreHasPrice,
+  has_gluten_faq: scoreHasGlutenFaq,
+};
+
 const CASES = [
   {
     id: 'missing_delivery',
@@ -122,21 +132,34 @@ const CASES = [
   },
 ];
 
+function isListedGap(text) {
+  return /not (listed|mentioned)|don'?t (have|mention) .{0,50}(listed|mentioned)|no .{0,24}(listed|mentioned)|don'?t have (information|details|info)\b|do not have (information|details|info)\b|can'?t confirm|cannot confirm|approved facts don'?t|don'?t have .{0,24}information/i.test(
+    text
+  );
+}
+
 function deniesDelivery(text) {
-  return /don'?t offer delivery|do not offer delivery|no delivery|we don'?t deliver|we do not deliver|cannot deliver|can'?t deliver|delivery is not|not able to deliver|don'?t (do|provide) delivery|we('re| are) not (set up to )?deliver/i.test(
+  if (isListedGap(text)) return false;
+  return /does not offer delivery|don'?t offer delivery|do not offer delivery|no delivery|we don'?t deliver|we do not deliver|cannot deliver|can'?t deliver|delivery is not|not able to deliver|don'?t (do|provide) delivery|we('re| are) not (set up to )?deliver/i.test(
     text
   );
 }
 
 function deniesVegan(text) {
-  return /no vegan|don'?t (have|offer) vegan|do not (have|offer) vegan|aren'?t vegan|not vegan|no\b[^.!?]{0,40}vegan option/i.test(
+  if (isListedGap(text) && !/available|as we use|so we (don'?t|do not|can'?t)/i.test(text)) {
+    return false;
+  }
+  return /no vegan|don'?t (have|offer) vegan|do not (have|offer) vegan|aren'?t vegan|we do not have vegan|not vegan|no\b[^.!?]{0,40}vegan option/i.test(
     text
   );
 }
 
 function isUnknownGap(text) {
-  return /don'?t know|do not know|not sure|i('m| am) not (sure|certain)|check with (the )?owner|ask (the )?owner|message (the )?owner|don'?t have that|do not have that|no (approved )?information|haven'?t been told|i('ll| will) (check|ask)/i.test(
-    text
+  return (
+    isListedGap(text) ||
+    /don'?t know|do not know|not sure|i('m| am) not (sure|certain)|check with (the )?owner|ask (the )?owner|message (the )?owner|don'?t have that|do not have that|no (approved )?information|haven'?t been told|i('ll| will) (check|ask)/i.test(
+      text
+    )
   );
 }
 
@@ -196,14 +219,16 @@ function scoreHasGlutenFaq(text) {
 }
 
 function parseArgs(argv) {
-  const args = { dump: null, baseline: null, live: false, models: MODELS };
+  const args = { dump: null, baseline: null, live: false, models: MODELS, rescore: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--dump-prompts') args.dump = argv[++i];
     else if (a === '--baseline') args.baseline = argv[++i];
     else if (a === '--live') args.live = true;
     else if (a === '--models') args.models = argv[++i].split(',');
+    else if (a === '--rescore') args.rescore = argv[++i];
   }
+  if (args.rescore) return args;
   if (!args.dump && !args.baseline && !args.live) {
     args.baseline = path.join(
       __dirname,
@@ -335,6 +360,19 @@ function summarize(rows, spend) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.rescore) {
+    const payload = JSON.parse(fs.readFileSync(args.rescore, 'utf8'));
+    const rows = (payload.rows || []).map((row) => {
+      const fn = SCORE_BY_ID[row.caseId];
+      if (!fn || !row.reply) return row;
+      const scored = fn(row.reply);
+      return { ...row, pass: scored.pass, tag: scored.tag };
+    });
+    const { text } = summarize(rows, payload.spend || 0);
+    console.log(text);
+    return;
+  }
+
   if (args.dump) {
     const payload = {
       capturedAt: new Date().toISOString(),
