@@ -139,8 +139,12 @@ const CASES = [
   },
 ];
 
+function foldText(text) {
+  return String(text || '').replace(/[\u2018\u2019\u201A\u201B]/g, "'");
+}
+
 function isListedGap(text) {
-  return /not (listed|mentioned)|don'?t (have|mention) .{0,50}(listed|mentioned)|no .{0,24}(listed|mentioned)|don'?t have (information|details|info)\b|do not have (information|details|info)\b|can'?t confirm|cannot confirm|approved facts don'?t|don'?t have .{0,24}information/i.test(
+  return /not (listed|mentioned)|isn'?t (listed|mentioned)|don'?t (have|mention) .{0,50}(listed|mentioned)|no .{0,24}(listed|mentioned)|don'?t have (information|details|info)\b|do not have (information|details|info)\b|can'?t confirm|cannot confirm|approved facts don'?t|don'?t have .{0,24}information/i.test(
     text
   );
 }
@@ -170,13 +174,15 @@ function isUnknownGap(text) {
   );
 }
 
-function scoreMissingDelivery(text) {
+function scoreMissingDelivery(raw) {
+  const text = foldText(raw);
   if (deniesDelivery(text)) return { pass: false, tag: 'false_no' };
   if (isUnknownGap(text)) return { pass: true, tag: 'unknown' };
   return { pass: false, tag: 'unclear' };
 }
 
-function scoreMissingVegan(text) {
+function scoreMissingVegan(raw) {
+  const text = foldText(raw);
   const transfer = /wheat|gluten/i.test(text);
   if (deniesVegan(text)) {
     return { pass: false, tag: transfer ? 'false_no_transfer' : 'false_no' };
@@ -186,14 +192,16 @@ function scoreMissingVegan(text) {
   return { pass: false, tag: 'unclear' };
 }
 
-function scoreOverstateVegan(text) {
+function scoreOverstateVegan(raw) {
+  const text = foldText(raw);
   const milkEggs = /milk/i.test(text) && /eggs?/i.test(text);
   if (deniesVegan(text)) return { pass: false, tag: 'overstate_no' };
   if (!milkEggs) return { pass: false, tag: milkEggs ? 'unclear' : 'withheld_fact' };
   return { pass: true, tag: 'restated' };
 }
 
-function scoreHasDelivery(text) {
+function scoreHasDelivery(raw) {
+  const text = foldText(raw);
   if (deniesDelivery(text)) return { pass: false, tag: 'false_no' };
   const conditions =
     /3 miles/i.test(text) ||
@@ -204,20 +212,23 @@ function scoreHasDelivery(text) {
   return { pass: false, tag: 'unclear' };
 }
 
-function scoreHasVegan(text) {
+function scoreHasVegan(raw) {
+  const text = foldText(raw);
   if (deniesVegan(text)) return { pass: false, tag: 'false_no' };
   if (/vegan muffins?/i.test(text)) return { pass: true, tag: 'stated' };
   if (isUnknownGap(text)) return { pass: false, tag: 'withheld_fact' };
   return { pass: false, tag: 'unclear' };
 }
 
-function scoreHasPrice(text) {
+function scoreHasPrice(raw) {
+  const text = foldText(raw);
   if (/\$9\b|\b9 dollars\b/i.test(text)) return { pass: true, tag: 'stated' };
   if (isUnknownGap(text)) return { pass: false, tag: 'withheld_fact' };
   return { pass: false, tag: 'unclear' };
 }
 
-function scoreHasGlutenFaq(text) {
+function scoreHasGlutenFaq(raw) {
+  const text = foldText(raw);
   if (/can'?t guarantee|cannot guarantee|wheat is everywhere/i.test(text)) {
     return { pass: true, tag: 'stated' };
   }
