@@ -39,6 +39,15 @@ import {
   renderSyncedShort,
   renderSyncSuccess,
 } from './ownerNav.js';
+import {
+  LEAD_ALREADY_SENT,
+  LEAD_MENU_NUMBER,
+  LEAD_THANKS,
+  leadInProgress,
+  leadSubmitted,
+  startLeadIntake,
+  stepLeadIntake,
+} from './leadIntake.js';
 
 function deps(session) {
   return session.deps || {};
@@ -83,6 +92,7 @@ export function createSession(profilePathOrOpts) {
     testHistory: [],
     testSessionId: `test-${Date.now()}`,
     profilePath: opts.profilePath || defaultProfilePath(),
+    leadIntake: null,
     store: null,
     senderId: null,
     deps: opts.deps || null,
@@ -99,6 +109,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     buildHistory: saved.buildHistory || [],
     testHistory: saved.testHistory || [],
     testSessionId: saved.testSessionId || `test-${Date.now()}`,
+    leadIntake: saved.leadIntake || null,
     profilePath: null,
     store,
     senderId,
@@ -235,7 +246,10 @@ async function syncApprovedProfile(session, profile) {
     console.log(`Flowise sync ok chatflow=${chatflowId}`);
     return {
       event: 'approved_synced',
-      syncNote: `\n\n${renderSyncSuccess(ownerLanguage(session.buildHistory))}`,
+      syncNote: `\n\n${renderSyncSuccess(
+        ownerLanguage(session.buildHistory),
+        leadMenuOpts(session, profile)
+      )}`,
       sourceSuffix: '+real-flowise-sync',
     };
   } catch (err) {
@@ -262,6 +276,7 @@ export async function handleMessage(session, text, options = {}) {
   }
 
   // Commands handled in app code — never by the LLM
+  if (['/test', '/end', '/reset'].includes(trimmed)) cancelLeadIntake(session);
   if (trimmed === '/test') {
     return enterTest(session);
   }
@@ -300,6 +315,8 @@ export async function handleMessage(session, text, options = {}) {
     };
   }
 
+  if (leadInProgress(session.leadIntake)) return handleLeadIntake(session, trimmed);
+
   const nav = await handleNavigation(session, trimmed);
   if (nav) return nav;
   return handleBuild(session, trimmed);
@@ -318,7 +335,7 @@ async function handleNavigation(session, text) {
     if (pick === 'try') return tryMyBot(session, text);
     if (pick === 'change') {
       const lang = ownerLanguage(session.buildHistory);
-      const reply = renderChangeMenu(lang);
+      const reply = renderChangeMenu(lang, leadMenuOpts(session, await loadAsync(session)));
       session.buildHistory.push({ role: 'user', content: text });
       session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
       return {
@@ -332,7 +349,9 @@ async function handleNavigation(session, text) {
   }
 
   const wantsMenu = isMenuRequest(text);
-  const choice = menuActive(session.buildHistory) ? parseMenuChoice(text) : null;
+  const choice = menuActive(session.buildHistory)
+    ? parseMenuChoice(text, LEAD_MENU_NUMBER)
+    : null;
   if (!wantsMenu && choice == null) return null;
   const profile = await loadAsync(session);
 
@@ -340,10 +359,16 @@ async function handleNavigation(session, text) {
   if (wantsMenu && !profile.approvedAt) return null;
   if (!profile.approvedAt && choice == null) return null;
 
+  if (choice === LEAD_MENU_NUMBER) {
+    if (!profile.approvedAt) return null;
+    return beginLeadIntake(session);
+  }
   if (choice === 6) return tryMyBot(session, text, profile);
 
   const lang = ownerLanguage(session.buildHistory);
-  const reply = wantsMenu ? renderMenu(lang) : renderSection(choice, profile, lang);
+  const reply = wantsMenu
+    ? renderMenu(lang, leadMenuOpts(session, profile))
+    : renderSection(choice, profile, lang);
   session.buildHistory.push({ role: 'user', content: text });
   session.buildHistory.push({
     role: 'assistant',
@@ -481,7 +506,7 @@ async function enterBuild(session) {
   const lang = ownerLanguage(session.buildHistory);
   const profile = await loadAsync(session);
   if (profile.approvedAt) {
-    const reply = renderReturnToEditing(lang);
+    const reply = renderReturnToEditing(lang, leadMenuOpts(session, profile));
     session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
     return {
       ok: true,
@@ -499,6 +524,60 @@ async function enterBuild(session) {
     event: 'enter_build',
     ...(await getStateAsync(session)),
   };
+}
+
+function leadMenuOpts(session, profile) {
+  return { leadOption: !!profile?.approvedAt && !leadSubmitted(session.leadIntake) };
+}
+
+/** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */
+function cancelLeadIntake(session) {
+  if (leadInProgress(session.leadIntake)) session.leadIntake = null;
+}
+
+/** Lead questionnaire turns never touch buildHistory, the profile, or the draft. */
+async function leadReply(session, reply, event) {
+  return { ok: true, reply, source: 'app', event, ...(await getStateAsync(session)) };
+}
+
+async function beginLeadIntake(session) {
+  if (leadSubmitted(session.leadIntake)) {
+    const profile = await loadAsync(session);
+    const menu = renderMenu(ownerLanguage(session.buildHistory), leadMenuOpts(session, profile));
+    return leadReply(session, `${LEAD_ALREADY_SENT}\n\n${menu}`, 'lead_already_sent');
+  }
+  const { state, reply } = startLeadIntake();
+  session.leadIntake = state;
+  return leadReply(session, reply, 'lead_question');
+}
+
+async function handleLeadIntake(session, text) {
+  const lang = ownerLanguage(session.buildHistory);
+  if (isMenuRequest(text)) {
+    cancelLeadIntake(session);
+    const profile = await loadAsync(session);
+    return leadReply(session, renderMenu(lang, leadMenuOpts(session, profile)), 'lead_cancelled');
+  }
+  const step = stepLeadIntake(session.leadIntake, text);
+  if (!step.done) {
+    session.leadIntake = step.state;
+    return leadReply(session, step.reply, 'lead_question');
+  }
+  const profile = await loadAsync(session);
+  const lead = {
+    senderId: session.senderId,
+    businessName: profile.name || profile.draft?.name || null,
+    answers: step.state.answers,
+    createdAt: new Date().toISOString(),
+  };
+  if (session.store && session.senderId) {
+    await session.store.saveLead(session.senderId, lead);
+  } else {
+    session.lead = lead;
+  }
+  session.leadIntake = { submittedAt: lead.createdAt };
+  const menu = renderMenu(lang, leadMenuOpts(session, profile));
+  return leadReply(session, `${LEAD_THANKS}\n\n${menu}`, 'lead_saved');
 }
 
 async function handleTest(session, question, flowiseSessionId) {

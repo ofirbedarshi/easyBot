@@ -10,6 +10,7 @@ import {
   normalizeResponseLength,
   OWNER_GOAL_LABELS,
 } from './profile.js';
+import { LEAD_MENU_LABEL } from './leadIntake.js';
 
 /**
  * App-rendered owner navigation: editing menu, section views, review summary,
@@ -164,10 +165,11 @@ export function isMenuRequest(text) {
   return MENU_REQUESTS.has(s);
 }
 
-/** Standalone 1–6 (optional trailing "." or ")"), else null. */
-export function parseMenuChoice(text) {
-  const m = /^\s*([1-6])\s*[.)]?\s*$/.exec(String(text || ''));
-  return m ? Number(m[1]) : null;
+/** Standalone 1–max (optional trailing "." or ")"), else null. */
+export function parseMenuChoice(text, max = 6) {
+  const m = /^\s*(\d)\s*[.)]?\s*$/.exec(String(text || ''));
+  const n = m ? Number(m[1]) : 0;
+  return n >= 1 && n <= max ? n : null;
 }
 
 /** True when the latest assistant Builder entry was a menu. */
@@ -204,15 +206,18 @@ export function ownerLanguage(buildHistory, currentText = null) {
   return 'en';
 }
 
-export function renderMenu(lang) {
+/**
+ * Editing menu. `leadOption` appends item 7 (English label in every language);
+ * it is last, so hiding it never renumbers the other items.
+ */
+export function renderMenu(lang, { leadOption = false } = {}) {
   const s = t(lang);
-  return [...s.menu.map((label, i) => `${i + 1}. ${label}`), '', s.menuFooter].join(
-    '\n'
-  );
+  const items = leadOption ? [...s.menu, LEAD_MENU_LABEL] : s.menu;
+  return [...items.map((label, i) => `${i + 1}. ${label}`), '', s.menuFooter].join('\n');
 }
 
-export function renderSyncSuccess(lang) {
-  return `${t(lang).synced}\n\n${renderMenu(lang)}`;
+export function renderSyncSuccess(lang, menuOpts) {
+  return `${t(lang).synced}\n\n${renderMenu(lang, menuOpts)}`;
 }
 
 /** Bare success line when the owner's mode is unknown (no mode claim, no menu). */
@@ -235,8 +240,8 @@ export function renderSetupContinue(lang) {
   return t(lang).setupContinue;
 }
 
-export function renderReturnToEditing(lang) {
-  return `${t(lang).returned}\n\n${renderMenu(lang)}`;
+export function renderReturnToEditing(lang, menuOpts) {
+  return `${t(lang).returned}\n\n${renderMenu(lang, menuOpts)}`;
 }
 
 function textOrNull(v) {
@@ -451,8 +456,8 @@ export function renderReview(profile, lang) {
 }
 
 /** "Make changes" reply: ask, then the full editing menu. */
-export function renderChangeMenu(lang) {
-  return `${r(lang).changeAsk}\n\n${renderMenu(lang)}`;
+export function renderChangeMenu(lang, menuOpts) {
+  return `${r(lang).changeAsk}\n\n${renderMenu(lang, menuOpts)}`;
 }
 
 const REVIEW_TRY = new Set(['try my bot', 'try', 'try it', 'לנסות את הבוט', 'לנסות']);

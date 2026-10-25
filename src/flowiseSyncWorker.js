@@ -11,6 +11,7 @@ import {
   renderSyncSuccess,
   renderSyncSuccessInTest,
 } from './ownerNav.js';
+import { leadSubmitted } from './leadIntake.js';
 
 const DEFAULT_POLL_MS = 15000;
 const DEFAULT_MAX_WAIT_MS = 5 * 60 * 1000;
@@ -88,7 +89,9 @@ export function startFlowiseSyncWorker(store, opts = {}) {
     session.buildHistory = session.buildHistory || [];
     const lang = ownerLanguage(session.buildHistory);
     const inTest = session.mode === 'TEST';
-    const msg = inTest ? renderSyncSuccessInTest(lang) : renderSyncSuccess(lang);
+    const msg = inTest
+      ? renderSyncSuccessInTest(lang)
+      : renderSyncSuccess(lang, { leadOption: !leadSubmitted(session.leadIntake) });
     session.buildHistory.push(
       inTest
         ? { role: 'assistant', content: msg }

@@ -12,7 +12,8 @@
     "test:nav": "node scripts/test-builder-nav.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
-    "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3"
+    "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3",
+    "test:lead": "node scripts/test-lead-intake.js"
   },
   "engines": {
     "node": ">=18.15.0"

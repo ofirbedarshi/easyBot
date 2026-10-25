@@ -13,6 +13,8 @@ export function createMemoryStore() {
   const bySid = new Map();
   /** @type {object[]} */
   const inbound = [];
+  /** @type {Map<string, object>} */
+  const leads = new Map();
   let nextId = 1;
 
   return {
@@ -28,6 +30,7 @@ export function createMemoryStore() {
           buildHistory: [],
           testHistory: [],
           testSessionId: `test-${Date.now()}`,
+          leadIntake: null,
         });
       }
     },
@@ -55,7 +58,14 @@ export function createMemoryStore() {
         buildHistory: structuredClone(session.buildHistory || []),
         testHistory: structuredClone(session.testHistory || []),
         testSessionId: session.testSessionId,
+        leadIntake: structuredClone(session.leadIntake ?? null),
       });
+    },
+
+    /** One lead per sender; a second save keeps the first. */
+    async saveLead(senderId, lead) {
+      await this.ensureSender(senderId);
+      if (!leads.has(senderId)) leads.set(senderId, structuredClone(lead));
     },
 
     /**
@@ -147,6 +157,7 @@ export function createMemoryStore() {
         profiles: Object.fromEntries(profiles),
         sessions: Object.fromEntries(sessions),
         inbound: inbound.map((r) => ({ ...r })),
+        leads: Object.fromEntries(leads),
       };
     },
   };
