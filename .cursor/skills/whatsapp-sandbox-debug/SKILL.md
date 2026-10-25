@@ -2,9 +2,9 @@
 name: whatsapp-sandbox-debug
 description: >-
   Connects to and debugs easyBot Twilio WhatsApp Sandbox conversations on
-  Render (webhook → Supabase queue → worker → Builder/Business Bot → Flowise).
+  Render (webhook → Supabase queue → worker → Builder/Business Bot → OpenAI).
   Use when the user mentions WhatsApp, Twilio Sandbox, sandbox chat, inbound
-  messages, Flowise sync failed, Builder context length, or asks to check /
+  messages, Business Bot errors, Builder context length, or asks to check /
   debug a WhatsApp conversation.
 ---
 
@@ -22,9 +22,8 @@ WhatsApp → Twilio → POST /webhooks/twilio/whatsapp (easybot-app)
   → inbound worker claims row → handleMessage (Builder or Business Bot)
   → sendWhatsAppReply (Messages API)
 
-Approve while Flowise asleep:
-  → approve locally + flowiseSyncPending
-  → wake ping + flowiseSyncWorker polls → sync → WhatsApp “ready /test”
+Approve → live at once (no sync step). /test → Business Bot = one OpenAI
+chat completion per message with the last 20 messages of test_history.
 ```
 
 State is **per WhatsApp `From`** in Supabase (`easybot_*`), not `data/business-profile.json`.
@@ -33,9 +32,8 @@ State is **per WhatsApp `From`** in Supabase (`easybot_*`), not `data/business-p
 |---|---|
 | Webhook | `src/twilio/webhook.js` |
 | Worker | `src/twilio/worker.js` |
-| Flowise pending sync | `src/flowiseSyncWorker.js` |
 | Session / `/test` `/end` `/reset` | `src/session.js` |
-| Flowise sync + predict + wake | `src/flowise.js` (`pingFlowise`, `wakeFlowise`) |
+| Business Bot reply (OpenAI) | `src/businessBot.js` |
 | Store | `src/store/supabaseStore.js` |
 
 ## Live endpoints
@@ -43,15 +41,14 @@ State is **per WhatsApp `From`** in Supabase (`easybot_*`), not `data/business-p
 | Service | URL / id |
 |---|---|
 | App | `https://easybot-app.onrender.com` — Render `srv-dbdlnqu7bikc73e2fuk0` |
-| Flowise | `https://easybot-flowise.onrender.com` — Render `srv-dbdlj6g473hc73cpnfb0` |
 | Webhook | `https://easybot-app.onrender.com/webhooks/twilio/whatsapp` |
-| Health | `GET …/api/health` (app), `GET …/api/v1/ping` (Flowise) |
+| Health | `GET …/api/health` |
 
-Free tier sleeps ~15m. **Wake both** before Sandbox tests (cold start ~1m).
+Free tier sleeps ~15m. **Wake the app** before Sandbox tests (cold start ~1m).
 
 ## Env (names only)
 
-App needs: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `PUBLIC_BASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `FLOWISE_URL`.
+App needs: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `PUBLIC_BASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY` (optional `OPENAI_MODEL`).
 
 Twilio Console webhook = `PUBLIC_BASE_URL` + `/webhooks/twilio/whatsapp` (POST). Signature fails if `PUBLIC_BASE_URL` ≠ exact HTTPS origin (no trailing slash).
 
@@ -63,10 +60,9 @@ Local `npm start` with Twilio configured can steal the Supabase queue from Rende
 
 ```bash
 curl -sS -m 120 https://easybot-app.onrender.com/api/health
-curl -sS -m 120 https://easybot-flowise.onrender.com/api/v1/ping
 ```
 
-Expect app JSON with `ok`, `twilioWebhook`, `supabase`. `flowise: false` is OK for Approve (pending sync + wake); `/test` waits until `flowiseSyncOk` or ready WhatsApp.
+Expect app JSON with `ok`, `openai`, `twilioWebhook`, `supabase`.
 
 ### 2. Latest conversation (Supabase)
 
@@ -83,7 +79,7 @@ for (const r of data) console.log(JSON.stringify({ t:r.created_at, status:r.stat
 EOF
 ```
 
-Also load `easybot_sessions` (`build_history`, `test_history`, `mode`) and `easybot_business_profiles.profile` (`approvedAt`, `chatflowId`, `flowiseSyncOk`, `flowiseSyncPending`, `flowiseSyncRequestedAt`).
+Also load `easybot_sessions` (`build_history`, `test_history`, `mode`) and `easybot_business_profiles.profile` (`approvedAt`, `draft`, `reviewedDraftKey`).
 
 Inbound columns: `id, message_sid, sender_id, body, status, error, reply_sid, reply_body, created_at, claimed_at, finished_at` — no `updated_at` / `processed_at`.
 
@@ -92,30 +88,26 @@ Inbound columns: `id, message_sid, sender_id, body, status, error, reply_sid, re
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 render logs -r srv-dbdlnqu7bikc73e2fuk0 -o text --confirm --limit 100
-render logs -r srv-dbdlj6g473hc73cpnfb0 -o text --confirm --limit 100
 ```
 
-Useful filters: `--text Flowise`, `--text inbound`, `--text Twilio`, `--path /webhooks/twilio/whatsapp`.
+Useful filters: `--text "Business Bot"`, `--text inbound`, `--text Twilio`, `--path /webhooks/twilio/whatsapp`.
 
 ### 4. Map reply text → cause
 
 | User-visible / reply pattern | Likely cause | Next check |
 |---|---|---|
-| `Flowise is waking up` / `Still syncing` / `approved_sync_pending` note | Cold start — expected | Profile `flowiseSyncPending`; wait for ready WhatsApp; app logs `flowise sync ok` |
-| Ready WhatsApp: `Bot updated ✅` (+ editing menu in BUILD; no menu in TEST) | Sync worker succeeded | `flowiseSyncOk: true`; app logs `flowise sync ok … chatflow=` |
-| Give-up: `still unavailable after waiting` | Down > ~5 min | Flowise Render logs; pooler/`DATABASE_SSL_KEY_BASE64`; user **approve** again |
-| `Flowise … → 500` `getRunningExpressApp` / saveChatflow | Flowise app/DB broken | Flowise logs; pooler vs IPv6 direct host |
-| Old: `[Approved locally, but Flowise sync failed…]` + HTML | Pre-pending-sync deploy | Redeploy app; repair bloated history; `/reset` if needed |
-| `Builder error: … maximum context length` | Bloated `build_history` (old HTML dump) | Truncate history; confirm `truncateFlowiseErrorBody` shipped |
+| `Bot updated ✅` (+ editing menu after **approve**; TEST line after Try my bot) | Approval saved; bot live | Profile `approvedAt` |
+| `Business Bot error: no reply could be generated…` | OpenAI call failed in TEST | App logs `Business Bot reply failed:` (status only); `OPENAI_API_KEY` / `OPENAI_MODEL` |
+| `Nothing approved yet…` on `/test` | No `approvedAt` | Finish review + **approve** |
+| `Builder error: … maximum context length` | Bloated `build_history` | Truncate history or `/reset` |
 | `Twilio signature rejected` / no reply at all | Bad token or `PUBLIC_BASE_URL` mismatch | App logs; Twilio webhook URL vs health `publicBaseUrl` |
 | `Sorry, something went wrong…` | Worker threw; row `status=failed` | `error` column + app logs for that `message_sid` |
 | Rate / length skips | Soft limits | `DEMO_MAX_*` env |
 
 ### 5. After fix
 
-1. Prefer waiting for sync-worker ready message over manual wake — but wake ping still helps debug.
-2. If history poisoned (legacy): `/reset` or shorten oversized assistant turn in `easybot_sessions`.
-3. `flowiseSyncOk: true` (or ready WhatsApp) before `/test`.
+1. If history is poisoned: `/reset` or shorten the oversized turn in `easybot_sessions`.
+2. `approvedAt` set before `/test`.
 
 ## Do not
 

@@ -1,12 +1,11 @@
 # easyBot — Builder + Business Bot demo
 
-AI Business Bot Builder: interview a business owner → approve facts → `/test` a Flowise customer chatbot. Browser UI locally; optional WhatsApp via Twilio on Render + Supabase.
+AI Business Bot Builder: interview a business owner → approve facts → `/test` the Business Bot (OpenAI chat completions from the app). Browser UI locally; optional WhatsApp via Twilio on Render + Supabase.
 
 ## Prerequisites
 
 - Node 18.15+ / 20+
 - OpenAI API key in `.env`
-- Flowise on port 3000 (local Docker or Render)
 - For WhatsApp: Supabase project `easybot`, Twilio credentials, Render (or local + tunnel)
 
 ## Setup
@@ -18,15 +17,6 @@ npm install
 
 ## Run locally
 
-Terminal 1 — Flowise (use **1.8.3**):
-
-```bash
-npm run flowise
-# or: docker compose up flowise
-```
-
-Terminal 2 — app:
-
 ```bash
 npm start
 ```
@@ -37,7 +27,7 @@ Open http://localhost:3080
 
 ## Commands in chat
 
-- `/test` — customer bot (Flowise); requires approved facts **and** successful Flowise sync
+- `/test` — Business Bot; requires approved facts (live as soon as you approve)
 - `/end` — back to Builder
 - `/reset` — clear profile for this session
 
@@ -59,17 +49,15 @@ Webhook: `POST /webhooks/twilio/whatsapp`
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Render / local `.env` |
 | `PUBLIC_BASE_URL` | Exact HTTPS origin of the app (e.g. `https://easybot-app.onrender.com`) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Render / local `.env` |
-| `FLOWISE_URL` | Flowise service URL |
 | Twilio Console → WhatsApp webhook | `https://<PUBLIC_BASE_URL>/webhooks/twilio/whatsapp` |
 
 See [.env.example](.env.example) for the full name list.
 
 ### Deploy (Render, no Vercel)
 
-- Blueprint: [render.yaml](render.yaml) — free web services `easybot-app` + `easybot-flowise`.
+- Blueprint: [render.yaml](render.yaml) — free web service `easybot-app`.
 - Push to `main` triggers deploys via GitHub Actions + Render Deploy Hooks (path-filtered). Setup: [DEPLOY.md](DEPLOY.md) § **GitHub Actions → Render deploy**.
 - Free tier spins down after ~15 minutes idle; cold start ~1 minute. Hit `/api/health` before Sandbox tests.
-- Flowise should use Supabase Postgres (`DATABASE_*` in Flowise service) — free Render has no persistent disk.
 
 ## CTO agent workflow
 
@@ -82,7 +70,8 @@ npm run test:approval         # deterministic approval boundaries (no network)
 npm run test:nav              # deterministic Builder editing-menu nav (no network)
 npm run test:customer-prompt  # deterministic customer-prompt structure checks
 npm run test:twilio           # MOCKED signature / dupe / isolation / order (no Twilio network)
-npm run spike                 # create Flowise chatflow + one prediction
+npm run test:lead             # deterministic lead questionnaire checks
+npm run test:business-bot     # Business Bot request shape + conversation memory (fake OpenAI)
 ```
 
 ### Test labels
@@ -98,4 +87,4 @@ npm run spike                 # create Flowise chatflow + one prediction
 - Browser profile: `data/business-profile.json`
 - Builder behavior: [BUILDER.md](BUILDER.md)
 - SQL: `supabase/migrations/`
-- Leave `FLOWISE_API_KEY` empty unless Flowise auth is enabled
+- Business Bot memory: the TEST conversation (`easybot_sessions.test_history`), last 40 messages kept, last 20 sent to the model; cleared on each `/test`

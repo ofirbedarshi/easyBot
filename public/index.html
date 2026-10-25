@@ -383,10 +383,7 @@
       try {
         const h = await fetch('/api/health').then((r) => r.json());
         status.textContent =
-          (h.openai ? 'OpenAI ready' : 'OpenAI key missing') +
-          ' · ' +
-          (h.flowise ? 'Flowise up' : 'Flowise down') +
-          ' · ' + h.flowiseUrl;
+          h.openai ? 'OpenAI ready' : 'OpenAI key missing';
       } catch {
         status.textContent = 'Server unreachable';
       }

@@ -208,7 +208,7 @@ responseLength and priceDisclosure must be one of the allowed enum values or nul
 When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).
 Keep previous assistantName and openingMessage in the draft unless the owner changed or explicitly reset them.`;
 
-function getClient() {
+export function getClient() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY missing — set it in .env');
   return new OpenAI({ apiKey: key });

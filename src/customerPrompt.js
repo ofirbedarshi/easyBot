@@ -23,7 +23,7 @@ const OBJECTIVE_SENTENCES = {
 };
 
 /**
- * Build the system message injected into the Flowise Conversation Chain.
+ * Build the Business Bot system message from the approved profile.
  */
 export function buildCustomerSystemPrompt(profile) {
   const facts = [];

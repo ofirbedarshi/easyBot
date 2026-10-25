@@ -1,16 +1,14 @@
 /**
  * Deterministic editing-menu navigation tests through real handleMessage
- * with stubbed Builder turns and mocked Flowise (no network).
+ * with stubbed Builder turns (no network).
  */
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
 import {
-  createSenderSession,
   createSession,
   handleMessage,
-  persistSenderSession,
 } from '../src/session.js';
 import {
   isMenuRequest,
@@ -23,8 +21,6 @@ import {
   renderReview,
   reviewActive,
 } from '../src/ownerNav.js';
-import { startFlowiseSyncWorker } from '../src/flowiseSyncWorker.js';
-import { createMemoryStore } from '../src/store/memoryStore.js';
 
 const PROFILE = testProfilePath('builder-nav');
 const MENU_HEAD = '2. Edit business';
@@ -69,16 +65,13 @@ function approvedProfile(overrides = {}) {
     ...emptyProfile(),
     ...f,
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-live',
-    flowiseSyncOk: true,
-    flowiseSyncedAt: '2026-01-01T00:00:00.000Z',
     draft: { ...f },
     ...overrides,
   };
 }
 
-function makeSession(turns, opts = {}) {
-  const calls = { builder: 0, flowise: 0 };
+function makeSession(turns) {
+  const calls = { builder: 0 };
   let i = 0;
   const session = createSession({
     profilePath: PROFILE,
@@ -88,12 +81,6 @@ function makeSession(turns, opts = {}) {
         const turn = turns[Math.min(i, turns.length - 1)];
         i += 1;
         return { source: 'stub-builder', ...turn };
-      },
-      pingFlowise: async () => opts.flowiseUp !== false,
-      wakeFlowise: async () => {},
-      createOrUpdateChatflow: async () => {
-        calls.flowise += 1;
-        return 'cf-secret-123';
       },
     },
   });
@@ -116,7 +103,7 @@ async function test(name, fn) {
   }
 }
 
-/** Onboarding → review → approve → success + menu, no infra details. */
+/** Onboarding → review → approve → success + menu; the bot is live at once. */
 async function testApproveShowsMenu() {
   clean();
   const f = facts();
@@ -127,32 +114,14 @@ async function testApproveShowsMenu() {
   await handleMessage(session, 'hi'); // wake → opening (content discarded)
   await handleMessage(session, 'I run a yoga studio in Tel Aviv, private lessons');
   const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_synced');
+  assert.equal(r.event, 'approved_live');
   assert.ok(r.reply.includes('Bot updated ✅'), r.reply);
   assert.ok(r.reply.includes("You're in editing mode"), r.reply);
   assert.ok(r.reply.includes(MENU_HEAD) && r.reply.includes(FOOTER), r.reply);
-  assert.ok(!/flowise|chatflow|cf-secret/i.test(r.reply), r.reply);
   assert.equal(lastAssistant(session).nav, 'menu');
-}
-
-/** Sync not reachable → honest pending note, no success claim, no menu context. */
-async function testPendingSyncNoSuccess() {
-  clean();
-  const f = facts();
-  const { session } = makeSession(
-    [
-      { message: 'Summary', draft: f, readyForReview: true, approved: false },
-      { message: 'Ok', draft: f, readyForReview: true, approved: true },
-    ],
-    { flowiseUp: false }
-  );
-  await handleMessage(session, 'hi');
-  await handleMessage(session, 'I run a yoga studio');
-  const r = await handleMessage(session, 'approve');
-  assert.equal(r.event, 'approved_sync_pending');
-  assert.ok(!r.reply.includes('Bot updated'), r.reply);
-  assert.ok(!r.reply.includes(MENU_HEAD), r.reply);
-  assert.equal(menuActive(session.buildHistory), false);
+  assert.ok(loadProfile(PROFILE).approvedAt);
+  const t = await handleMessage(session, '/test');
+  assert.equal(t.event, 'enter_test');
 }
 
 /** Section views (2–6 after approval) are read-only and show real values; numbers after a section go to the Builder. */
@@ -247,22 +216,9 @@ async function testSixAndEnd() {
   assert.equal(end.event, 'enter_build');
   assert.ok(end.reply.startsWith('Back in editing mode. What would you like to do?'), end.reply);
   assert.ok(end.reply.includes(MENU_HEAD));
-  assert.ok(!/BUILD mode|flowise/i.test(end.reply));
+  assert.ok(!/BUILD mode/.test(end.reply));
   const s5 = await handleMessage(session, '6');
   assert.equal(s5.event, 'menu_section');
-}
-
-/** Try my bot (7) keeps /test prerequisites: unsynced profile stays in BUILD with the existing reason. */
-async function testSixRespectsSyncGate() {
-  clean();
-  saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
-  const { session } = makeSession([{ message: 'x', draft: facts() }]);
-  session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
-  const six = await handleMessage(session, '7');
-  const slash = await handleMessage(session, '/test');
-  assert.equal(six.ok, false);
-  assert.equal(session.mode, 'BUILD');
-  assert.equal(six.reply, slash.reply);
 }
 
 /** Pending draft: section shows live vs pending; navigation keeps draft + review key. */
@@ -344,7 +300,7 @@ async function testMenuParseHelpers() {
 async function testFirstReviewTryApprovesAndTests() {
   clean();
   const f = facts();
-  const { session, calls } = makeSession([
+  const { session } = makeSession([
     { message: 'Got it! Here is a summary:\n- Business Name: Studio Yoga\nReady to approve?', draft: f, readyForReview: true, approved: false },
   ]);
   await handleMessage(session, 'hi');
@@ -370,15 +326,13 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.ok(tryIt.reply.includes('Bot updated ✅'), tryIt.reply);
   assert.ok(tryIt.reply.includes('TEST mode'), tryIt.reply);
   assert.ok(loadProfile(PROFILE).approvedAt);
-  assert.equal(loadProfile(PROFILE).flowiseSyncOk, true);
-  assert.equal(calls.flowise, 1);
 }
 
 /** "Make changes" shows the full editing menu; from there 6 still approves + tests. */
 async function testMakeChangesShowsMenu() {
   clean();
   const f = facts();
-  const { session, calls } = makeSession([
+  const { session } = makeSession([
     { message: 'Thanks!', draft: f, readyForReview: true, approved: false },
   ]);
   await handleMessage(session, 'hi');
@@ -393,7 +347,7 @@ async function testMakeChangesShowsMenu() {
   assert.equal(readRaw(), before, 'Make changes must not save');
   const six = await handleMessage(session, '6');
   assert.equal(six.event, 'approved_enter_test');
-  assert.equal(calls.flowise, 1);
+  assert.ok(loadProfile(PROFILE).approvedAt);
 }
 
 /** Later pending edit: review lists only what changes; 1 applies it then enters TEST. */
@@ -402,7 +356,7 @@ async function testTryApprovesPendingEdit() {
   const f = facts();
   saveProfile(approvedProfile(), PROFILE);
   const pending = { ...f, hours: 'Sun–Fri 8–14' };
-  const { session, calls } = makeSession([
+  const { session } = makeSession([
     { message: 'Updated the hours.', draft: pending, readyForReview: true, approved: false },
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
@@ -415,18 +369,17 @@ async function testTryApprovesPendingEdit() {
   assert.equal(tryIt.event, 'approved_enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
-  assert.equal(calls.flowise, 1);
 }
 
-/** Try my bot (7) with no pending review uses the normal /test path (refusal when unsynced). */
+/** Try my bot (7) with no pending review uses the normal /test path; nothing is re-approved. */
 async function testSixWithoutPendingReview() {
   clean();
-  saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
+  saveProfile(approvedProfile(), PROFILE);
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
   const six = await handleMessage(session, '7');
-  assert.equal(six.ok, false);
-  assert.equal(session.mode, 'BUILD');
+  assert.equal(six.event, 'enter_test');
+  assert.equal(session.mode, 'TEST');
   assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
 }
 
@@ -447,25 +400,6 @@ async function testSectionsBeforeApprovalShowDraft() {
   assert.equal(readRaw(), before, 'section view must not save');
   assert.equal(calls.builder, 1);
   assert.equal(loadProfile(PROFILE).approvedAt, null);
-}
-
-/** Sync pending on Try my bot: waking-up note, stay in BUILD. */
-async function testTrySyncPendingStaysInBuild() {
-  clean();
-  const f = facts();
-  const { session } = makeSession(
-    [{ message: 'Ready.', draft: f, readyForReview: true, approved: false }],
-    { flowiseUp: false }
-  );
-  await handleMessage(session, 'hi');
-  await handleMessage(session, 'I run Studio Yoga in Tel Aviv');
-  const tryIt = await handleMessage(session, '1');
-  assert.equal(tryIt.event, 'approved_sync_pending');
-  assert.equal(session.mode, 'BUILD');
-  assert.ok(tryIt.reply.includes('Try my bot'), tryIt.reply);
-  assert.ok(loadProfile(PROFILE).approvedAt);
-  assert.equal(loadProfile(PROFILE).flowiseSyncOk, false);
-  assert.equal(loadProfile(PROFILE).flowiseSyncPending, true);
 }
 
 /** Review render: summary + options; empty intake wording; review phrase parsing. */
@@ -549,57 +483,12 @@ async function testMenuLayoutStates() {
   assert.equal(withLead[6], '7. Try my bot');
 }
 
-/** Background worker: BUILD → success + menu context; TEST → no editing claim, no menu. */
-async function testWorkerRespectsMode() {
-  for (const mode of ['BUILD', 'TEST']) {
-    const store = createMemoryStore();
-    const sender = `web:nav-${mode}`;
-    const session = await createSenderSession(store, sender);
-    session.mode = mode;
-    session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
-    await persistSenderSession(session);
-    await store.saveProfile(sender, {
-      ...approvedProfile({ flowiseSyncOk: false, chatflowId: null }),
-      flowiseSyncPending: true,
-      flowiseSyncRequestedAt: new Date().toISOString(),
-    });
-    const runner = startFlowiseSyncWorker(store, {
-      intervalMs: 60000,
-      deps: {
-        pingFlowise: async () => true,
-        wakeFlowise: async () => {},
-        createOrUpdateChatflow: async () => 'cf-secret-456',
-      },
-    });
-    await runner.tick();
-    runner.stop();
-    const after = await store.loadSession(sender);
-    const last = after.buildHistory[after.buildHistory.length - 1];
-    const profile = await store.loadProfile(sender);
-    assert.equal(profile.flowiseSyncOk, true);
-    assert.ok(last.content.includes('Bot updated ✅'), last.content);
-    assert.ok(!/flowise|chatflow|cf-secret/i.test(last.content), last.content);
-    assert.equal(after.mode, mode);
-    if (mode === 'BUILD') {
-      assert.equal(last.nav, 'menu');
-      assert.ok(last.content.includes("You're in editing mode") && last.content.includes(MENU_HEAD));
-    } else {
-      assert.equal(last.nav, undefined);
-      assert.ok(!last.content.includes("You're in editing mode"), last.content);
-      assert.ok(!last.content.includes(MENU_HEAD), last.content);
-      assert.equal(menuActive(after.buildHistory), false);
-    }
-  }
-}
-
 async function main() {
   await test('approve_shows_menu', testApproveShowsMenu);
-  await test('pending_sync_no_success', testPendingSyncNoSuccess);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
   await test('free_text_after_section', testFreeTextAfterSection);
   await test('number_without_menu_context', testNumberWithoutMenuContext);
   await test('six_and_end', testSixAndEnd);
-  await test('six_respects_sync_gate', testSixRespectsSyncGate);
   await test('pending_changes_preserved', testPendingChangesPreserved);
   await test('onboarding_preserved', testOnboardingPreserved);
   await test('menu_labels', testMenuLabels);
@@ -609,9 +498,7 @@ async function main() {
   await test('try_approves_pending_edit', testTryApprovesPendingEdit);
   await test('six_without_pending_review', testSixWithoutPendingReview);
   await test('sections_before_approval_show_draft', testSectionsBeforeApprovalShowDraft);
-  await test('try_sync_pending_stays_in_build', testTrySyncPendingStaysInBuild);
   await test('review_render_helpers', testReviewRenderHelpers);
-  await test('worker_respects_mode', testWorkerRespectsMode);
   await test('menu_layout_states', testMenuLayoutStates);
   clean();
   const failed = results.filter((r) => !r.pass);

@@ -31,8 +31,6 @@ const STRINGS = {
   menuFooter: 'Pick a number or just write what you want to change.',
   synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
   syncedShort: 'Bot updated ✅',
-  syncedInTest:
-    'Bot updated ✅ Your next messages keep going to the customer bot. Type /end to return to editing mode.',
   returned: 'Back in editing mode. What would you like to do?',
   setupContinue: "We're still in first-time setup. Tell me more about your business.",
   ask: 'What would you like to change?',
@@ -147,16 +145,6 @@ export function renderMenu(menuOpts) {
 
 export function renderSyncSuccess(menuOpts) {
   return `${STRINGS.synced}\n\n${renderMenu(menuOpts)}`;
-}
-
-/** Bare success line when the owner's mode is unknown (no mode claim, no menu). */
-export function renderSyncDone() {
-  return STRINGS.syncedShort;
-}
-
-/** Sync finished while the owner is in TEST mode: no editing-mode claim, no menu. */
-export function renderSyncSuccessInTest() {
-  return STRINGS.syncedInTest;
 }
 
 /** Short "Bot updated ✅" line (used before entering TEST after the Try my bot menu item). */

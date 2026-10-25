@@ -16,13 +16,9 @@ import {
   openingMessage,
 } from './builder.js';
 import {
-  createOrUpdateChatflow as defaultCreateOrUpdateChatflow,
-  predict as defaultPredict,
-  pingFlowise as defaultPingFlowise,
-  wakeFlowise as defaultWakeFlowise,
-  truncateFlowiseErrorBody,
-  isFlowiseUnavailableError,
-} from './flowise.js';
+  businessBotReply as defaultBusinessBotReply,
+  BUSINESS_BOT_STORED_MESSAGES,
+} from './businessBot.js';
 import {
   isMenuRequest,
   menuActive,
@@ -56,20 +52,8 @@ function runBuilderTurnFn(session) {
   return deps(session).runBuilderTurn || defaultRunBuilderTurn;
 }
 
-function createOrUpdateChatflowFn(session) {
-  return deps(session).createOrUpdateChatflow || defaultCreateOrUpdateChatflow;
-}
-
-function pingFlowiseFn(session) {
-  return deps(session).pingFlowise || defaultPingFlowise;
-}
-
-function wakeFlowiseFn(session) {
-  return deps(session).wakeFlowise || defaultWakeFlowise;
-}
-
-function predictFn(session) {
-  return deps(session).predict || defaultPredict;
+function businessBotReplyFn(session) {
+  return deps(session).businessBotReply || defaultBusinessBotReply;
 }
 
 /**
@@ -135,13 +119,6 @@ async function loadAsync(session) {
   return loadProfile(session.profilePath);
 }
 
-function save(session, profile) {
-  if (session.store && session.senderId) {
-    throw new Error('Use saveAsync for store-backed sessions');
-  }
-  return saveProfile(profile, session.profilePath);
-}
-
 async function saveAsync(session, profile) {
   if (session.store && session.senderId) {
     return session.store.saveProfile(session.senderId, profile);
@@ -156,9 +133,7 @@ export function getState(session) {
       mode: session.mode,
       profile: {},
       summary: '',
-      hasChatflow: false,
       approvedAt: null,
-      flowiseSyncOk: false,
       buildHistory: session.buildHistory,
       testHistory: session.testHistory,
       async: true,
@@ -180,26 +155,11 @@ function stateFrom(session, profile) {
       ...profile,
     },
     summary: formatSummary(profile),
-    hasChatflow: !!profile.chatflowId,
     approvedAt: profile.approvedAt,
-    flowiseSyncOk: !!profile.flowiseSyncOk,
-    flowiseSyncedAt: profile.flowiseSyncedAt || null,
-    flowiseSyncPending: !!profile.flowiseSyncPending,
     buildHistory: session.buildHistory,
     testHistory: session.testHistory,
   };
 }
-
-function markFlowiseSyncPending(session, profile) {
-  profile.flowiseSyncOk = false;
-  profile.flowiseSyncPending = true;
-  profile.flowiseSyncRequestedAt = new Date().toISOString();
-  // Kick cold start without blocking the chat turn
-  wakeFlowiseFn(session)().catch(() => {});
-}
-
-const SYNC_PENDING_NOTE =
-  '\n\n[Approved. Flowise is waking up — syncing the customer bot usually takes 1–2 minutes. I will message you when it is ready; then choose Try my bot or type /test.]';
 
 /**
  * True when a presented review of the current draft is waiting to be applied
@@ -217,55 +177,10 @@ export function reviewPending(profile) {
 }
 
 /**
- * Sync chatflow now, or mark pending + wake if Flowise is down / errors.
- * @returns {Promise<{ event: string, syncNote: string, sourceSuffix?: string }>}
- */
-async function syncApprovedProfile(session, profile) {
-  // Start cold-start early; do not block Approve on full wake.
-  wakeFlowiseFn(session)().catch(() => {});
-
-  const reachable = await pingFlowiseFn(session)({
-    timeoutMs: Number(process.env.FLOWISE_PING_TIMEOUT_MS) || 5000,
-  });
-  if (!reachable) {
-    markFlowiseSyncPending(session, profile);
-    return {
-      event: 'approved_sync_pending',
-      syncNote: SYNC_PENDING_NOTE,
-    };
-  }
-
-  try {
-    const chatflowId = await createOrUpdateChatflowFn(session)(profile);
-    profile.chatflowId = chatflowId;
-    profile.flowiseSyncOk = true;
-    profile.flowiseSyncPending = false;
-    profile.flowiseSyncedAt = new Date().toISOString();
-    profile.flowiseSyncRequestedAt = null;
-    console.log(`Flowise sync ok chatflow=${chatflowId}`);
-    return {
-      event: 'approved_synced',
-      syncNote: `\n\n${renderSyncSuccess(leadMenuOpts(session, profile))}`,
-      sourceSuffix: '+real-flowise-sync',
-    };
-  } catch (err) {
-    // Stay pending; background worker retries. Keep note short (no HTML dump).
-    const short = truncateFlowiseErrorBody(err.message, 100);
-    console.warn('Flowise sync deferred (pending):', short);
-    markFlowiseSyncPending(session, profile);
-    return {
-      event: 'approved_sync_pending',
-      syncNote: SYNC_PENDING_NOTE,
-    };
-  }
-}
-
-/**
  * @param {ReturnType<typeof createSession>} session
  * @param {string} text
- * @param {{ flowiseSessionId?: string }} [options]
  */
-export async function handleMessage(session, text, options = {}) {
+export async function handleMessage(session, text) {
   const trimmed = (text || '').trim();
   if (!trimmed) {
     return { ok: false, error: 'Empty message', ...(await getStateAsync(session)) };
@@ -295,7 +210,7 @@ export async function handleMessage(session, text, options = {}) {
   }
 
   if (session.mode === 'TEST') {
-    return handleTest(session, trimmed, options.flowiseSessionId);
+    return handleTest(session, trimmed);
   }
 
   // First inbound in BUILD only wakes the bot — discard content, send opening.
@@ -386,10 +301,10 @@ async function tryMyBot(session, text, loaded = null) {
 }
 
 /**
- * Apply the reviewed draft to live fields and sync Flowise.
+ * Apply the reviewed draft to live fields; the Business Bot uses them at once.
  * Mutates `profile` in place; caller saves.
  */
-async function approveDraft(session, profile) {
+function approveDraft(profile) {
   const merged = mergeDraft(profile, profile.draft);
   Object.assign(profile, merged, {
     ownerGoal: merged.ownerGoal ?? null,
@@ -407,68 +322,36 @@ async function approveDraft(session, profile) {
     openingMessage: merged.openingMessage ?? null,
     draft: profile.draft,
     approvedAt: new Date().toISOString(),
-    flowiseSyncOk: false,
-    flowiseSyncPending: false,
-    flowiseSyncRequestedAt: null,
   });
-  return syncApprovedProfile(session, profile);
 }
 
 /**
- * Try my bot with a pending review: approve + sync, then enter TEST when ready.
+ * Try my bot with a pending review: approve, then enter TEST.
  */
 async function approvePendingAndTest(session, profile, text) {
   session.buildHistory.push({ role: 'user', content: text });
-  const sync = await approveDraft(session, profile);
+  approveDraft(profile);
   await saveAsync(session, profile);
 
-  if (sync.event === 'approved_synced') {
-    const testResult = await enterTest(session);
-    const reply = `${renderSyncedShort()}\n\n${testResult.reply}`;
-    session.buildHistory.push({ role: 'assistant', content: reply });
-    return {
-      ...testResult,
-      ok: true,
-      reply,
-      source: `app${sync.sourceSuffix || '+real-flowise-sync'}`,
-      event: 'approved_enter_test',
-      approved: true,
-      readyForReview: true,
-    };
-  }
-
-  // Sync pending — stay in BUILD; worker will show the menu when ready.
-  const reply = `Approved.${sync.syncNote}`;
+  const testResult = await enterTest(session);
+  const reply = `${renderSyncedShort()}\n\n${testResult.reply}`;
   session.buildHistory.push({ role: 'assistant', content: reply });
   return {
+    ...testResult,
     ok: true,
     reply,
     source: 'app',
-    event: sync.event,
+    event: 'approved_enter_test',
     approved: true,
     readyForReview: true,
-    ...(await getStateAsync(session)),
   };
 }
 
 async function enterTest(session) {
   const profile = await loadAsync(session);
-  if (!profile.approvedAt || !profile.chatflowId || !profile.flowiseSyncOk) {
-    let reply;
-    if (!profile.approvedAt) {
-      reply =
-        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
-    } else if (profile.flowiseSyncPending) {
-      reply =
-        'Still syncing to Flowise (it may be waking up). Wait for the ready message, then try /test again.';
-      wakeFlowiseFn(session)().catch(() => {});
-    } else if (!profile.flowiseSyncOk) {
-      reply =
-        'Approved facts are not synced to Flowise yet. Say **approve** again to retry sync, then /test.';
-    } else {
-      reply =
-        'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
-    }
+  if (!profile.approvedAt) {
+    const reply =
+      'Nothing approved yet. Finish the interview, review the summary, and say **approve** first. Then /test.';
     return {
       ok: false,
       reply,
@@ -567,7 +450,7 @@ async function handleLeadIntake(session, text) {
   return leadReply(session, `${LEAD_THANKS}\n\n${menu}`, 'lead_saved');
 }
 
-async function handleTest(session, question, flowiseSessionId) {
+async function handleTest(session, question) {
   const profile = await loadAsync(session);
   // TEST must never modify business facts
   const before = JSON.stringify({
@@ -576,55 +459,22 @@ async function handleTest(session, question, flowiseSessionId) {
     hours: profile.hours,
   });
 
-  const sid = flowiseSessionId || session.testSessionId;
   let reply;
-  let source = 'real-flowise';
+  let source = 'real-llm';
   try {
-    reply = await predictFn(session)(profile.chatflowId, question, sid);
-  } catch (err) {
-    const missing =
-      /not found/i.test(err.message) || /getChatflowById/i.test(err.message);
-    if (missing && profile.approvedAt) {
-      try {
-        console.warn(
-          'Flowise chatflow missing; recreating:',
-          profile.chatflowId,
-          err.message
-        );
-        profile.chatflowId = null;
-        profile.flowiseSyncOk = false;
-        const newId = await createOrUpdateChatflowFn(session)(profile);
-        profile.chatflowId = newId;
-        profile.flowiseSyncOk = true;
-        profile.flowiseSyncedAt = new Date().toISOString();
-        await saveAsync(session, profile);
-        reply = await predictFn(session)(newId, question, sid);
-        source = 'real-flowise';
-      } catch (recoverErr) {
-        if (isFlowiseUnavailableError(recoverErr)) {
-          wakeFlowiseFn(session)().catch(() => {});
-          reply =
-            'Flowise is waking up. Wait about a minute and send your question again.';
-        } else {
-          reply = `Flowise error: ${truncateFlowiseErrorBody(recoverErr.message)}`;
-        }
-        source = 'error';
-      }
-    } else if (isFlowiseUnavailableError(err)) {
-      wakeFlowiseFn(session)().catch(() => {});
-      reply =
-        'Flowise is waking up. Wait about a minute and send your question again.';
-      source = 'error';
-    } else {
-      reply = `Flowise error: ${truncateFlowiseErrorBody(err.message)}`;
-      source = 'error';
-    }
-  }
-
-  // Isolated Flowise ids (parallel customer probes) skip shared history to avoid races
-  if (!flowiseSessionId || flowiseSessionId === session.testSessionId) {
+    reply = await businessBotReplyFn(session)({
+      profile,
+      history: session.testHistory,
+      question,
+    });
     session.testHistory.push({ role: 'user', content: question });
     session.testHistory.push({ role: 'assistant', content: reply });
+    session.testHistory = session.testHistory.slice(-BUSINESS_BOT_STORED_MESSAGES);
+  } catch (err) {
+    // Provider error text can echo a masked API key; keep it out of chat and logs.
+    console.error('Business Bot reply failed:', err?.status || err?.code || err?.name || 'error');
+    reply = 'Business Bot error: no reply could be generated. Please send your message again.';
+    source = 'error';
   }
 
   const afterProfile = await loadAsync(session);
@@ -673,15 +523,12 @@ async function handleBuild(session, userMessage) {
   profile.draft = result.draft;
   profile.reviewedDraftKey = result.reviewedDraftKey;
   let event = 'build_turn';
-  let syncNote = '';
+  let approvedNote = '';
 
   if (result.approved) {
-    const sync = await approveDraft(session, profile);
-    syncNote = sync.syncNote;
-    event = sync.event;
-    if (sync.sourceSuffix) {
-      result.source = `${result.source}${sync.sourceSuffix}`;
-    }
+    approveDraft(profile);
+    approvedNote = `\n\n${renderSyncSuccess(leadMenuOpts(session, profile))}`;
+    event = 'approved_live';
   }
 
   await saveAsync(session, profile);
@@ -693,8 +540,8 @@ async function handleBuild(session, userMessage) {
     reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
     nav = 'review';
   } else {
-    reply = result.message + syncNote;
-    if (event === 'approved_synced') nav = 'menu';
+    reply = result.message + approvedNote;
+    if (event === 'approved_live') nav = 'menu';
   }
 
   session.buildHistory.push(
