@@ -1,5 +1,5 @@
 import { strict as assert } from 'assert';
-import { preserveFacts, applyFactOps } from '../src/builder.js';
+import { preserveFacts, applyFactOps, dropResolved } from '../src/builder.js';
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -62,6 +62,17 @@ test('dropped service, FAQ, and text fields are restored', () => {
   assert.equal(r.hours, 'full hours with exception');
 });
 
+test('unreported additive change (e.g. resolving an unknown) is kept', () => {
+  const r = preserveFacts(
+    { hours: 'Weekdays 8-6, Saturday 9-1', unknowns: [], services: [svc('Item A', '$5, per unit')] },
+    { hours: 'Weekdays 8-6', unknowns: ['Weekend hours undecided'], services: [svc('Item A', '$5')] },
+    []
+  );
+  assert.equal(r.hours, 'Weekdays 8-6, Saturday 9-1');
+  assert.equal(r.services[0].price, '$5, per unit');
+  assert.deepEqual(r.unknowns, []);
+});
+
 test('reported removal stays removed; reported text change kept', () => {
   const r = preserveFacts(
     { services: [svc('Item A', '$1')], hours: 'new hours' },
@@ -82,6 +93,12 @@ test('resolved unknown is not restored', () => {
     [{ field: 'services', item: 'Item A', action: 'change' }]
   );
   assert.deepEqual(r.unknowns, []);
+});
+
+test('resolvedUnknowns removes answered unknown even if model re-emits it', () => {
+  const stored = ['Topic X undecided', 'Topic Y undecided'];
+  assert.deepEqual(dropResolved([...stored], stored, [0]), ['Topic Y undecided']);
+  assert.deepEqual(dropResolved([...stored], stored, [9, 'x']), stored);
 });
 
 test('newFacts append; already-stored fact not duplicated', () => {

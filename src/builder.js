@@ -183,6 +183,7 @@ You MUST respond with a single JSON object only (no markdown fences):
   },
   "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"}],
   "factEdits": [{"index": number, "text": string|null}],
+  "resolvedUnknowns": [number],
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
   "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
@@ -191,7 +192,8 @@ You MUST respond with a single JSON object only (no markdown fences):
   "approved": boolean
 }
 ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes, however it is phrased. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit. Stored values not listed here are kept as they were, so never reword them.
-newFacts: otherFacts the owner states in the CURRENT message (not already stored). factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Both empty if none. unknowns holds only what the owner said is undecided — never a stated fact.
+newFacts: otherFacts the owner states in the CURRENT message (not already stored). factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Both empty if none.
+resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
 
 configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
@@ -255,6 +257,10 @@ export function isOwnerApproveMessage(text) {
 const sameKey = (a, b) =>
   String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 
+/** True when `next` still contains all of `prev`, i.e. the change only adds detail. */
+const extends_ = (next, prev) =>
+  String(next || '').toLowerCase().includes(String(prev || '').trim().toLowerCase());
+
 /** Loose identity for model-reported edit targets, which may abbreviate the stored key. */
 const overlaps = (a, b) => {
   const x = String(a || '').trim().toLowerCase();
@@ -264,10 +270,10 @@ const overlaps = (a, b) => {
 
 /**
  * Keep previously stored facts the model dropped or altered without the owner asking.
- * The model reports owner-requested changes in `ownerEdits`; any other difference from
- * the previous draft is reverted. Items are matched by identity (service name, FAQ
+ * The model reports owner-requested changes in `ownerEdits`; any other change that does
+ * not keep the whole previous value (i.e. is not purely additive) is reverted. Items are matched by identity (service name, FAQ
  * question) so an edited item replaces the old one instead of duplicating it.
- * `unknowns` are not guarded: the model removes them when the owner resolves them.
+ * `unknowns` are not guarded here; resolved ones are removed by dropResolved.
  * `otherFacts` are code-owned (see applyFactOps).
  * Relies on the model reporting edits; an unreported edit is reverted.
  */
@@ -290,7 +296,7 @@ export function preserveFacts(draft, currentDraft, ownerEdits) {
         continue;
       }
       const kept = { ...list[i] };
-      for (const k of valueKeys) if (old[k] && kept[k] !== old[k]) kept[k] = old[k];
+      for (const k of valueKeys) if (old[k] && !extends_(kept[k], old[k])) kept[k] = old[k];
       list[i] = kept;
     }
     next[field] = list;
@@ -299,9 +305,19 @@ export function preserveFacts(draft, currentDraft, ownerEdits) {
   guardList('commonQuestions', 'question', ['answer']);
 
   for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
-    if (prev[field] && next[field] !== prev[field] && !edited(field)) next[field] = prev[field];
+    if (prev[field] && !extends_(next[field], prev[field]) && !edited(field)) next[field] = prev[field];
   }
   return next;
+}
+
+/** Remove stored unknowns the model reported as answered (by index into the stored list). */
+export function dropResolved(unknowns, stored, resolved) {
+  const list = Array.isArray(unknowns) ? unknowns : [];
+  const prev = Array.isArray(stored) ? stored : [];
+  const gone = (Array.isArray(resolved) ? resolved : [])
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < prev.length)
+    .map((i) => prev[i]);
+  return list.filter((u) => !gone.some((g) => sameKey(g, u)));
 }
 
 /**
@@ -534,6 +550,8 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     JSON.stringify(draftForModel, null, 2),
     'Stored otherFacts (edit only via factEdits, by index):',
     storedFacts.length ? storedFacts.map((f, i) => `[${i}] ${f}`).join('\n') : '(none)',
+    'Stored unknowns (report answered ones in resolvedUnknowns, by index):',
+    currentDraft.unknowns?.length ? currentDraft.unknowns.map((u, i) => `[${i}] ${u}`).join('\n') : '(none)',
     profile.approvedAt
       ? `Last approved at: ${profile.approvedAt}`
       : 'Not yet approved.',
@@ -572,6 +590,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   const preserved = {
     ...guarded,
     otherFacts: applyFactOps(currentDraft.otherFacts, parsed.draft?.newFacts, parsed.factEdits),
+    unknowns: dropResolved(guarded.unknowns, currentDraft.unknowns, parsed.resolvedUnknowns),
   };
   
   const { draft, unresolved } = enforceConfigRequests(

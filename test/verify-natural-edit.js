@@ -6,7 +6,7 @@
  */
 import dotenv from 'dotenv';
 import { runBuilderTurn, openingMessage } from '../src/builder.js';
-import { emptyProfile, mergeDraft } from '../src/profile.js';
+import { emptyProfile, mergeDraft, businessFactsView } from '../src/profile.js';
 
 dotenv.config();
 
@@ -132,6 +132,20 @@ async function testNaturalEdit() {
     process.exit(1);
   }
   console.log('✓ Resolved unknown removed, earlier edit kept\n');
+
+  console.log('Turn 5-6: Owner states an off-schema fact, then corrects it naturally');
+  const factLines = () => JSON.stringify(businessFactsView(profile)).match(/[^"]*waterless[^"]*/gi) || [];
+  await say('Every wash uses fully waterless products.');
+  console.log('  waterless facts:', factLines());
+  await say('the products are mostly waterless, not fully — rims still get a water rinse');
+  console.log('  waterless facts:', factLines());
+  console.log('  Total tokens (6 turns):', tokens);
+  const lines = factLines();
+  if (lines.length !== 1 || /fully waterless/i.test(lines[0]) || !/mostly/i.test(lines[0])) {
+    console.error('✗ FAILED: fact correction duplicated or not applied', lines);
+    process.exit(1);
+  }
+  console.log('✓ Stored fact corrected in place, no duplicate\n');
   console.log('✓ Natural edit test PASSED');
 }
 
