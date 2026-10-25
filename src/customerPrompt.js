@@ -55,6 +55,13 @@ export function buildCustomerSystemPrompt(profile) {
       facts.push(`  A: ${item.answer}`);
     }
   }
+  
+  if (profile.otherFacts?.length) {
+    facts.push('Other business facts and policies:');
+    for (const fact of profile.otherFacts) {
+      facts.push(`- ${fact}`);
+    }
+  }
 
   const collect = Array.isArray(profile.informationToCollect)
     ? profile.informationToCollect

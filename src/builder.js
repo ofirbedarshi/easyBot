@@ -67,6 +67,11 @@ Discover when relevant (partial info is OK — do not force every category):
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
+- Other business facts (otherFacts): ANY customer-relevant fact, policy, condition, or caveat the owner states that does NOT fit the fields above. Store each statement close to the owner's wording, keeping all conditions, numbers, and qualifiers intact.
+  This includes: conditional policies (with distance/amount/time limits), ingredient or material statements, facility details, special requirements, handling rules, or any other factual statement about the business.
+  CAPTURE THESE WHENEVER STATED, regardless of which question you are currently asking.
+  DO NOT wait for a specific question about these topics.
+  DO NOT create sub-categories or separate fields — each fact is a standalone string.
 
 Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
@@ -113,6 +118,7 @@ ${PRICE_DISCLOSURE_LINES}
 Interview rules:
 - Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
 - Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
+- CAPTURE ALL FACTS: When the owner states ANY business fact, policy, condition, or caveat — store it immediately. Facts about services/prices/hours go into their fields. Facts that don't fit those fields (conditional policies, ingredient/material statements, facility details, special requirements, etc.) go into otherFacts as standalone strings, keeping the owner's wording and all conditions/numbers/qualifiers. Do not wait for a specific question about those topics — capture them whenever stated.
 - After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
 - When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
 - Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
@@ -170,6 +176,7 @@ You MUST respond with a single JSON object only (no markdown fences):
     "commonQuestions": [{"question": string, "answer": string}],
     "informationToCollect": [string]|null,
     "unknowns": [string],
+    "otherFacts": [string],
     "tone": string|null,
     "responseLength": ${RESPONSE_LENGTH_ENUM}|null,
     "priceDisclosure": ${PRICE_DISCLOSURE_ENUM}|null,
@@ -188,8 +195,9 @@ You MUST respond with a single JSON object only (no markdown fences):
 configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
-Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
+Use null for unknown text fields. services/commonQuestions/unknowns/otherFacts should be arrays (possibly empty).
 commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
+otherFacts must be strings, each a standalone statement close to the owner's wording.
 informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
 If the owner says to skip FAQ or has no common questions, leave commonQuestions as it is — do not invent entries.
 ownerGoal must be one of the supported values, or null until the owner answers the goal question; never invent it.
@@ -242,6 +250,96 @@ export function hasAnsweredInformationToCollect(draftOrProfile) {
 export function isOwnerApproveMessage(text) {
   const t = String(text || '').trim();
   return /^(approve|looks good|lgtm|yes\.?|ok\.?|okay\.?)$/i.test(t);
+}
+
+/**
+ * Preserve previously stored facts across Builder turns.
+ * Facts may only be removed/shortened if the owner asked to change them this turn.
+ * Otherwise, restore them from the previous draft.
+ * 
+ * Design: The model returns the complete draft each turn but may forget to re-emit
+ * facts from prior turns. This guard restores any facts that disappeared without
+ * an explicit owner request.
+ * 
+ * Limits: Cannot detect if the model wrongly claims the owner asked for a change.
+ * Owner corrections and deletions still work — the guard only restores unmentioned losses.
+ */
+export function preserveFacts(draft, currentDraft, userMessage) {
+  if (!currentDraft) return draft;
+  
+  const next = { ...draft };
+  const prev = currentDraft || {};
+  const msg = String(userMessage || '').toLowerCase();
+  
+  // Check if owner explicitly mentioned removing, changing, or updating specific facts
+  const ownerRequestedChange = (field) => {
+    if (!msg) return false;
+    // Common change phrases
+    const changePatterns = [
+      /change/i, /update/i, /edit/i, /fix/i, /correct/i, 
+      /remove/i, /delete/i, /drop/i, /not .* anymore/i,
+      /actually/i, /instead/i, /replace/i
+    ];
+    return changePatterns.some(p => p.test(msg));
+  };
+  
+  // For array fields, preserve previous entries unless owner message suggests changes
+  const arrayFields = ['services', 'commonQuestions', 'unknowns', 'otherFacts'];
+  
+  for (const field of arrayFields) {
+    const prevArray = Array.isArray(prev[field]) ? prev[field] : [];
+    const nextArray = Array.isArray(next[field]) ? next[field] : [];
+    
+    if (prevArray.length > 0 && !ownerRequestedChange(field)) {
+      // Check for missing items by comparing JSON representations
+      const nextJson = nextArray.map(item => JSON.stringify(item));
+      const missing = prevArray.filter(item => {
+        const itemJson = JSON.stringify(item);
+        return !nextJson.includes(itemJson);
+      });
+      
+      if (missing.length > 0) {
+        // Restore missing items
+        next[field] = [...nextArray, ...missing];
+      }
+    }
+  }
+  
+  // After restoring missing items, check for shortened strings within service items
+  if (Array.isArray(next.services) && next.services.length > 0 && 
+      Array.isArray(prev.services) && prev.services.length > 0 &&
+      !ownerRequestedChange('services')) {
+    next.services = next.services.map((service) => {
+      // Find matching service by name
+      const prevService = prev.services.find(p => p.name === service.name);
+      if (!prevService) return service;
+      
+      const result = { ...service };
+      
+      // Restore notes if they were dropped
+      if (prevService.notes && !service.notes) {
+        result.notes = prevService.notes;
+      }
+      
+      // Restore price details if shortened significantly (e.g. "start at" lost)
+      if (prevService.price && service.price && 
+          prevService.price.length > service.price.length + 10) {
+        result.price = prevService.price;
+      }
+      
+      return result;
+    });
+  }
+  
+  // For text fields, restore if they vanished
+  const textFields = ['name', 'whatWeDo', 'hours', 'locationOrArea'];
+  for (const field of textFields) {
+    if (prev[field] && !next[field] && !ownerRequestedChange(field)) {
+      next[field] = prev[field];
+    }
+  }
+  
+  return next;
 }
 
 /**
@@ -417,6 +515,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
         ? null
         : profile.informationToCollect,
     unknowns: profile.unknowns || [],
+    otherFacts: profile.otherFacts || [],
     tone: profile.tone,
     responseLength: profile.responseLength ?? null,
     priceDisclosure: profile.priceDisclosure ?? null,
@@ -481,8 +580,14 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     };
   }
 
+  // First reconcile to normalize enums and preserve settled fields
+  const reconciled = reconcileDraft(parsed.draft || currentDraft, currentDraft);
+  
+  // Then preserve facts that may have been dropped
+  const preserved = preserveFacts(reconciled, currentDraft, userMessage);
+  
   const { draft, unresolved } = enforceConfigRequests(
-    reconcileDraft(parsed.draft || currentDraft, currentDraft),
+    preserved,
     currentDraft,
     parsed.configRequests
   );

@@ -16,6 +16,14 @@ const TEXT_FACT_KEYS = [
   'locationOrArea',
 ];
 
+/** Array fact fields that should be preserved across turns. */
+const ARRAY_FACT_KEYS = [
+  'services',
+  'commonQuestions',
+  'unknowns',
+  'otherFacts',
+];
+
 /**
  * Bot goal (`ownerGoal`): only what the Business Bot can actually do.
  * Anything else the owner asks for is mapped to `answer_and_collect`.
@@ -320,6 +328,7 @@ export function businessFactsView(profile) {
         ? null
         : [],
     unknowns: Array.isArray(p.unknowns) ? p.unknowns : [],
+    otherFacts: Array.isArray(p.otherFacts) ? p.otherFacts : [],
   };
 }
 
@@ -362,6 +371,12 @@ export function emptyProfile() {
     informationToCollect: null,
     /** Explicit gaps the owner left undecided or unclarified (must stay unknown until approved). */
     unknowns: [],
+    /**
+     * Other business facts, policies, conditions, or caveats that don't fit other fields.
+     * Each entry is a standalone statement close to the owner's wording.
+     * Examples: delivery terms, allergen statements, kitchen practices, booking rules.
+     */
+    otherFacts: [],
     /** Free-text how the bot should sound. null = use DEFAULT_BEHAVIOR.tone. */
     tone: null,
     /**
@@ -476,6 +491,7 @@ export function mergeDraft(profile, draft) {
     next.informationToCollect = draft.informationToCollect;
   }
   if (Array.isArray(draft.unknowns)) next.unknowns = draft.unknowns;
+  if (Array.isArray(draft.otherFacts)) next.otherFacts = draft.otherFacts;
   return next;
 }
 
@@ -521,6 +537,9 @@ export function draftDiffersFromLive(profile, draft) {
     return true;
   }
   if (stableJson(merged.unknowns || []) !== stableJson(profile.unknowns || [])) {
+    return true;
+  }
+  if (stableJson(merged.otherFacts || []) !== stableJson(profile.otherFacts || [])) {
     return true;
   }
   return false;
@@ -584,6 +603,10 @@ function formatFactsBlock(profile) {
   if (profile.unknowns?.length) {
     lines.push('Explicitly unknown / undecided (bot must not invent these):');
     for (const u of profile.unknowns) lines.push(`  • ${u}`);
+  }
+  if (profile.otherFacts?.length) {
+    lines.push('Other business facts:');
+    for (const f of profile.otherFacts) lines.push(`  • ${f}`);
   }
 
   const storedTone = profile.tone;
