@@ -4,7 +4,7 @@
  * Verify delivery terms and nut-free statement are stored and used correctly
  */
 
-import { runBuilderTurn, openingMessage, applyReviewGate, shouldSoftApprove } from '../src/builder.js';
+import { runBuilderTurn, openingMessage, applyReviewGate } from '../src/builder.js';
 import { emptyProfile, mergeDraft, draftReviewKey } from '../src/profile.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import OpenAI from 'openai';
@@ -66,10 +66,7 @@ async function runBuild(messages, buildName) {
     // Message "1" when a review is already pending means "Try my bot"
     const reviewWasPending = profile.reviewedDraftKey && 
                             profile.reviewedDraftKey === draftReviewKey(profile, turn.draft);
-    const softApprove = shouldSoftApprove({ profile, draft: turn.draft, userMessage }) ||
-                        (userMessage === '1' && reviewWasPending);
-    
-    if (turn.approved || softApprove) {
+    if (userMessage === '1' && reviewWasPending) {
       const merged = mergeDraft(profile, turn.draft);
       Object.assign(profile, merged);
       profile.approvedAt = new Date().toISOString();

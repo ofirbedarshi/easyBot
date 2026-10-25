@@ -280,12 +280,17 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
     ...pa,
     flowiseSyncOk: false,
   });
-  const sa2 = await createSenderSession(store, a);
+  const flowiseDown = {
+    pingFlowise: async () => false,
+    wakeFlowise: async () => {},
+  };
+  const sa2 = await createSenderSession(store, a, { deps: flowiseDown });
   sa2.mode = 'BUILD';
   const blocked = await handleMessage(sa2, '/test');
   assert.equal(blocked.ok, false);
-  assert.ok(/sync/i.test(blocked.reply));
-  ok('/test blocked when flowiseSyncOk is false');
+  assert.ok(/not ready|getting ready/i.test(blocked.reply));
+  assert.equal((await store.loadProfile(a)).flowiseSyncPending, true);
+  ok('/test retries sync when flowiseSyncOk is false (stays blocked while unreachable)');
 
   // /test while pending sync — warmer copy + listPending
   await store.saveProfile(a, {
@@ -294,10 +299,10 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
     flowiseSyncPending: true,
     flowiseSyncRequestedAt: new Date().toISOString(),
   });
-  const sa3 = await createSenderSession(store, a);
+  const sa3 = await createSenderSession(store, a, { deps: flowiseDown });
   const pendingTest = await handleMessage(sa3, '/test');
   assert.equal(pendingTest.ok, false);
-  assert.ok(/waking|Still syncing/i.test(pendingTest.reply));
+  assert.ok(/getting ready/i.test(pendingTest.reply));
   const pendingList = await store.listPendingFlowiseSyncs();
   assert.ok(pendingList.some((p) => p.senderId === a));
   ok('/test pending copy + listPendingFlowiseSyncs');

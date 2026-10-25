@@ -3,7 +3,7 @@
  * Verification: New fictional business (non-bakery domain) with off-schema facts
  */
 
-import { runBuilderTurn, openingMessage, applyReviewGate, shouldSoftApprove } from '../src/builder.js';
+import { runBuilderTurn, openingMessage, applyReviewGate } from '../src/builder.js';
 import { emptyProfile, mergeDraft, draftReviewKey, businessFactsView } from '../src/profile.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import OpenAI from 'openai';
@@ -16,7 +16,7 @@ const MESSAGES = [
   "Open Mon-Sat 8am-6pm",
   "Common question: do you do interiors? Yes, full detail includes interior deep clean.",
   "Answer questions and collect their name, phone, vehicle type",
-  "looks good"
+  "1"
 ];
 
 const TEST_QUESTIONS = [
@@ -74,10 +74,8 @@ async function runBuild() {
     
     const reviewWasPending = profile.reviewedDraftKey && 
                             profile.reviewedDraftKey === draftReviewKey(profile, turn.draft);
-    const softApprove = shouldSoftApprove({ profile, draft: turn.draft, userMessage}) ||
-                        (userMessage === 'looks good' && reviewWasPending);
-    
-    if (turn.approved || softApprove) {
+    // "1" on a pending review means "Try my bot"
+    if (userMessage === '1' && reviewWasPending) {
       const merged = mergeDraft(profile, turn.draft);
       Object.assign(profile, merged);
       profile.approvedAt = new Date().toISOString();

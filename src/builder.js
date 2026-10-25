@@ -87,7 +87,7 @@ Whenever the owner asks the bot to behave a certain way or do something (style, 
 - "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
 - "unsupported": no field represents it exactly, or it is outside demo scope. Say plainly that it is not supported, offer the closest supported alternative by name, and ask whether to use it. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
 - Never say you "added", "will add", "set", or "noted" an unsupported or ambiguous request, and never list it in a summary.
-- After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft, readyForReview=true, approved=false.
+- After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft, readyForReview=true.
 List every such request from the owner's CURRENT message in "configRequests" (empty array if none). "request" must quote the owner's own words — never your rewording or your alternative. Classify what the owner literally asked: if it is broader than any supported value (e.g. "all the time", "every message", "always"), it is not "supported" just because a narrower value exists. A "supported" request never has an alternative; if you are offering one, the status is "ambiguous" or "unsupported".
 
 Conversation settings (behavior — not business facts):
@@ -155,8 +155,7 @@ ${OWNER_GOAL_LINES}
 - When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
 - When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one short acknowledgment sentence only (e.g. "Got it, thanks!") — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Try my bot / Make changes). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
 - If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
-- If they say approve / looks good / yes after a summary of an already-pending draft (or after a clarification that did not introduce a new change this turn), set approved=true. If "yes" is accepting an offered alternative that you are applying now, that is a draft update + readyForReview — set approved=false.
-- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, approved=false, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
+- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
 
 You MUST respond with a single JSON object only (no markdown fences):
 {
@@ -188,8 +187,7 @@ You MUST respond with a single JSON object only (no markdown fences):
   "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
   "goalUnsupportedPart": string|null,
-  "readyForReview": boolean,
-  "approved": boolean
+  "readyForReview": boolean
 }
 ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes, however it is phrased. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit. Stored values not listed here are kept as they were, so never reword them.
 newFacts: otherFacts the owner states in the CURRENT message (not already stored). factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Both empty if none.
@@ -243,15 +241,6 @@ export function withSingleQuestion(text, question) {
 /** True once the owner has answered the intake question (array, possibly empty). */
 export function hasAnsweredInformationToCollect(draftOrProfile) {
   return Array.isArray(draftOrProfile?.informationToCollect);
-}
-
-/**
- * Narrow owner-approve phrasing (exact short messages only).
- * Broader "yes, but change X" stays model-driven.
- */
-export function isOwnerApproveMessage(text) {
-  const t = String(text || '').trim();
-  return /^(approve|looks good|lgtm|yes\.?|ok\.?|okay\.?)$/i.test(t);
 }
 
 const sameKey = (a, b) =>
@@ -581,7 +570,6 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
       message: raw,
       draft: currentDraft,
       readyForReview: false,
-      approved: false,
     };
   }
 
@@ -599,15 +587,7 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     parsed.configRequests
   );
 
-  const mergedPreview = mergeDraft(profile, draft);
-
-  // Soft guard: if model marks approved without enough info, require review instead
-  let approved = !!parsed.approved && !unresolved.length;
-  let readyForReview = !!parsed.readyForReview && !unresolved.length;
-  if (approved && !hasEnoughForFirstBot(mergedPreview)) {
-    approved = false;
-    readyForReview = true;
-  }
+  const readyForReview = !!parsed.readyForReview && !unresolved.length;
 
   const message = parsed.message || 'Tell me a bit more about your business.';
 
@@ -615,7 +595,6 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     message,
     draft,
     readyForReview,
-    approved,
     configRequests: normalizeConfigRequests(parsed.configRequests),
     askingTopic: typeof parsed.askingTopic === 'string' ? parsed.askingTopic : null,
     goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
@@ -627,9 +606,6 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     source: 'real-llm',
   };
 }
-
-const REVIEW_REQUIRED_NOTE =
-  'Before I apply anything, please review the current version below.';
 
 const REVIEW_FILLER =
   /\b(review|summary|summari[sz]e|approv\w*|set up|setup|ready|prepare|here'?s what|below)\b/i;
@@ -651,27 +627,13 @@ export function reviewAck(text) {
 }
 
 /**
- * True when a short owner-approve phrase may apply the current draft.
- * Requires a prior presented review of exactly this draft (reviewedDraftKey).
- * A "yes" that also introduces a new draft change this turn will not match
- * the prior key, so soft-approve does not fire — the change stays pending.
- */
-export function shouldSoftApprove({ profile, draft, userMessage }) {
-  if (!isOwnerApproveMessage(userMessage)) return false;
-  if (!hasAnsweredInformationToCollect(draft)) return false;
-  if (!hasEnoughForFirstBot(mergeDraft(profile, draft))) return false;
-  const key = draftReviewKey(profile, draft);
-  return !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
-}
-
-/**
- * Application approval gate (runs after every Builder turn, real or stubbed).
- * Approval is accepted only when the app already presented a review of exactly
- * this draft (profile.reviewedDraftKey). Any later draft change invalidates it.
+ * Application review gate (runs after every Builder turn, real or stubbed).
+ * The Builder never approves: approval happens only when the owner picks
+ * "Try my bot" on a presented review of exactly this draft
+ * (profile.reviewedDraftKey). Any later draft change invalidates that review.
  * Always keeps the turn's draft (so accepting an offered alternative can update
- * the pending draft); soft-approve only fires when that draft was already reviewed.
- * Settings-only edits to an approved business are presented for review even if
- * the model asked an unrelated question instead.
+ * the pending draft). Settings-only edits to an approved business are presented
+ * for review even if the model asked an unrelated question instead.
  *
  * When presenting a review, returns presentReview=true with an acknowledgment-only
  * message; the session layer appends the short summary and numbered menu.
@@ -680,7 +642,7 @@ export function shouldSoftApprove({ profile, draft, userMessage }) {
  */
 export function applyReviewGate(profile, turn, userMessage) {
   const { turn: goalTurn, disclaimer } = applyGoalSupport(profile, turn, userMessage);
-  const out = gateTurn(profile, goalTurn, userMessage);
+  const out = gateTurn(profile, goalTurn);
   if (!disclaimer) return out;
   return { ...out, message: replaceBeforeQuestion(out.message, disclaimer) };
 }
@@ -728,7 +690,7 @@ export function replaceBeforeQuestion(text, lead) {
   return [lead, s.slice(start).trim()].filter(Boolean).join('\n\n');
 }
 
-function gateTurn(profile, turn, userMessage) {
+function gateTurn(profile, turn) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
   const draft = {
     ...turn.draft,
@@ -736,11 +698,7 @@ function gateTurn(profile, turn, userMessage) {
   };
 
   // Required topics: before the first review, the app asks each open topic itself.
-  const wantsReview =
-    !!turn.readyForReview ||
-    !!turn.approved ||
-    (isOwnerApproveMessage(userMessage) && hasEnoughForFirstBot(mergeDraft(profile, draft)));
-  const openTopic = wantsReview ? nextOpenTopic(profile, draft, priorAsked) : null;
+  const openTopic = turn.readyForReview ? nextOpenTopic(profile, draft, priorAsked) : null;
   const modelTopic = openTopic
     ? null
     : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
@@ -753,7 +711,6 @@ function gateTurn(profile, turn, userMessage) {
         ...draft,
         askedTopics: [...new Set([...draft.askedTopics, askTopic.key])],
       },
-      approved: false,
       readyForReview: false,
       presentReview: false,
       message: withSingleQuestion(lead, askTopic.question),
@@ -765,58 +722,24 @@ function gateTurn(profile, turn, userMessage) {
   const reviewCurrent =
     !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
   const intakeAnswered = hasAnsweredInformationToCollect(draft);
-  const enough = hasEnoughForFirstBot(mergeDraft(profile, draft));
-  const wantsApprove = !!turn.approved || isOwnerApproveMessage(userMessage);
-
-  // Soft-approve (short phrase) or model approved=true — both need a prior
-  // review of exactly this draft. A "yes" that also changes the draft this
-  // turn gets a new key and will not approve (see shouldSoftApprove).
-  if (wantsApprove && intakeAnswered && enough && reviewCurrent) {
-    return {
-      ...turn,
-      draft,
-      approved: true,
-      readyForReview: true,
-      presentReview: false,
-      reviewedDraftKey: key,
-    };
-  }
-
-  let message = turn.message;
   let readyForReview = !!turn.readyForReview;
-  if (wantsApprove && intakeAnswered && !reviewCurrent) {
-    readyForReview = true;
-    // Bare approve of an already-pending (unchanged) draft → stock "please review".
-    // "yes" that also applies an offered alternative changes the draft this turn —
-    // keep the model's acknowledgment; the app summary still appends below.
-    const priorKey = profile.draft
-      ? draftReviewKey(profile, profile.draft)
-      : null;
-    const draftChangedThisTurn = !priorKey || priorKey !== key;
-    if (!draftChangedThisTurn || !String(turn.message || '').trim()) {
-      message = REVIEW_REQUIRED_NOTE;
-    }
-  }
   if (intakeAnswered && profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
     readyForReview = true;
   }
 
   if (readyForReview && intakeAnswered) {
-    const ack = message === REVIEW_REQUIRED_NOTE ? message : reviewAck(message);
     return {
       ...turn,
       draft,
-      approved: false,
       readyForReview: true,
       presentReview: true,
-      message: ack,
+      message: reviewAck(turn.message),
       reviewedDraftKey: key,
     };
   }
   return {
     ...turn,
     draft,
-    approved: false,
     readyForReview,
     presentReview: false,
     reviewedDraftKey: reviewCurrent ? key : null,
