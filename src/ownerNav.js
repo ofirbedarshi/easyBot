@@ -357,6 +357,9 @@ function r(lang) {
   return REVIEW[lang] || REVIEW.en;
 }
 
+/** Same label in every owner language. */
+const OTHER_FACTS_LABEL = 'Other facts';
+
 const SUMMARY_MAX = 80;
 
 /** Trim to about SUMMARY_MAX chars at a word boundary; drop a trailing period. */
@@ -398,6 +401,10 @@ export function summaryLines(p, lang) {
   add('hours', L.hours, hours ? brief(hours) : R.gap, hours, hours ? brief(hours) : R.notSet);
   const unknowns = Array.isArray(p.unknowns) ? p.unknowns : [];
   if (unknowns.length) add('unknowns', L.unknowns, brief(unknowns.join('; ')), unknowns);
+  const otherFacts = Array.isArray(p.otherFacts) ? p.otherFacts : [];
+  if (otherFacts.length) {
+    add('otherFacts', OTHER_FACTS_LABEL, brief(otherFacts.join('; ')), otherFacts);
+  }
 
   const goal = normalizeOwnerGoal(p.ownerGoal);
   add('goal', L.goal, goal ? OWNER_GOAL_LABELS[goal] : R.notSet, goal);
@@ -534,6 +541,10 @@ function sectionLines(section, p, lang) {
     if (Array.isArray(p.unknowns) && p.unknowns.length) {
       lines.push(`• ${f.unknowns}:`);
       for (const u of p.unknowns) lines.push(`   - ${u}`);
+    }
+    if (Array.isArray(p.otherFacts) && p.otherFacts.length) {
+      lines.push(`• ${OTHER_FACTS_LABEL}:`);
+      for (const fact of p.otherFacts) lines.push(`   - ${fact}`);
     }
   } else if (section === 2) {
     const goal = normalizeOwnerGoal(p.ownerGoal);
