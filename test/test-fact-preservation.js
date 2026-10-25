@@ -1,295 +1,129 @@
 import { strict as assert } from 'assert';
-import { preserveFacts } from '../src/builder.js';
+import { preserveFacts, applyFactOps } from '../src/builder.js';
 
-console.log('Testing fact preservation logic with ownerEdits...\n');
+const tests = [];
+const test = (name, fn) => tests.push([name, fn]);
 
-// Test 1: Natural price edit without change keywords -> replaced, no duplicate
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Wash', price: '$50', notes: null }
-    ],
-    otherFacts: []
-  };
+const svc = (name, price, notes = null) => ({ name, price, notes });
 
-  const newDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Wash', price: '$60', notes: null }
-    ],
-    otherFacts: []
-  };
+test('price edit reported in ownerEdits replaces, no duplicate', () => {
+  const r = preserveFacts(
+    { services: [svc('Item A', '$60')] },
+    { services: [svc('Item A', '$50')] },
+    [{ field: 'services', item: 'Item A', action: 'change' }]
+  );
+  assert.deepEqual(r.services, [svc('Item A', '$60')]);
+});
 
-  // Model reports owner edited the service
-  const ownerEdits = [
-    { field: 'services', item: 'Wash', action: 'change' }
-  ];
+test('FAQ answer edit reported replaces, no duplicate', () => {
+  const q = 'Question one?';
+  const r = preserveFacts(
+    { commonQuestions: [{ question: q, answer: 'new' }] },
+    { commonQuestions: [{ question: q, answer: 'old' }] },
+    [{ field: 'commonQuestions', item: q, action: 'change' }]
+  );
+  assert.deepEqual(r.commonQuestions, [{ question: q, answer: 'new' }]);
+});
 
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
+test('unreported price shortening keeps previous price', () => {
+  const r = preserveFacts(
+    { services: [svc('Item A', '$10')] },
+    { services: [svc('Item A', 'from $10, condition X')] },
+    []
+  );
+  assert.deepEqual(r.services, [svc('Item A', 'from $10, condition X')]);
+});
 
-  assert.equal(result.services.length, 1, 'Should have exactly one service, not duplicate');
-  assert.equal(result.services[0].name, 'Wash');
-  assert.equal(result.services[0].price, '$60', 'Should keep new price');
-  
-  console.log('✓ Test 1: Natural price edit without keywords -> replaced, no duplicate');
+test('unreported rewording of notes/answer keeps original, no duplicate', () => {
+  const r = preserveFacts(
+    { services: [svc('Item A', '$1', 'reworded')], commonQuestions: [{ question: 'Q?', answer: 'short' }] },
+    { services: [svc('Item A', '$1', 'original')], commonQuestions: [{ question: 'Q?', answer: 'full answer' }] },
+    []
+  );
+  assert.deepEqual(r.services, [svc('Item A', '$1', 'original')]);
+  assert.deepEqual(r.commonQuestions, [{ question: 'Q?', answer: 'full answer' }]);
+});
+
+test('dropped service, FAQ, and text fields are restored', () => {
+  const r = preserveFacts(
+    { services: [svc('Item A', '$1')], commonQuestions: [], whatWeDo: null, hours: 'shortened' },
+    {
+      services: [svc('Item A', '$1'), svc('Item B', '$2', 'n')],
+      commonQuestions: [{ question: 'Q?', answer: 'A' }],
+      whatWeDo: 'desc',
+      hours: 'full hours with exception',
+    },
+    []
+  );
+  assert.equal(r.services.length, 2);
+  assert.deepEqual(r.services[1], svc('Item B', '$2', 'n'));
+  assert.equal(r.commonQuestions.length, 1);
+  assert.equal(r.whatWeDo, 'desc');
+  assert.equal(r.hours, 'full hours with exception');
+});
+
+test('reported removal stays removed; reported text change kept', () => {
+  const r = preserveFacts(
+    { services: [svc('Item A', '$1')], hours: 'new hours' },
+    { services: [svc('Item A', '$1'), svc('Item B', '$2')], hours: 'old hours' },
+    [
+      { field: 'services', item: 'Item B', action: 'remove' },
+      { field: 'hours', item: null, action: 'change' },
+    ]
+  );
+  assert.deepEqual(r.services, [svc('Item A', '$1')]);
+  assert.equal(r.hours, 'new hours');
+});
+
+test('resolved unknown is not restored', () => {
+  const r = preserveFacts(
+    { unknowns: [], services: [svc('Item A', '$5 per unit')] },
+    { unknowns: ['Whether price is per unit'], services: [svc('Item A', '$5')] },
+    [{ field: 'services', item: 'Item A', action: 'change' }]
+  );
+  assert.deepEqual(r.unknowns, []);
+});
+
+test('factOps: add appends, duplicate add ignored', () => {
+  assert.deepEqual(
+    applyFactOps(['Fact 1'], [{ op: 'add', text: 'Fact 2' }, { op: 'add', text: 'fact 1' }]),
+    ['Fact 1', 'Fact 2']
+  );
+});
+
+test('factOps: change replaces by index, no duplicate', () => {
+  assert.deepEqual(
+    applyFactOps(['Fact 1', 'Fact 2'], [{ op: 'change', index: 1, text: 'Fact 2 corrected' }]),
+    ['Fact 1', 'Fact 2 corrected']
+  );
+});
+
+test('factOps: remove by index', () => {
+  assert.deepEqual(applyFactOps(['Fact 1', 'Fact 2'], [{ op: 'remove', index: 0 }]), ['Fact 2']);
+});
+
+test('factOps: no ops keeps list intact; invalid ops ignored', () => {
+  assert.deepEqual(applyFactOps(['Fact 1'], undefined), ['Fact 1']);
+  assert.deepEqual(
+    applyFactOps(['Fact 1'], [{ op: 'remove', index: 5 }, { op: 'change', index: 0, text: '' }, { op: 'x' }]),
+    ['Fact 1']
+  );
+});
+
+test('no previous draft returns draft as-is', () => {
+  const d = { services: [svc('Item A', '$1')] };
+  assert.deepEqual(preserveFacts(d, null, []), d);
+});
+
+let failed = 0;
+for (const [name, fn] of tests) {
+  try {
+    fn();
+    console.log(`PASS ${name}`);
+  } catch (e) {
+    failed++;
+    console.log(`FAIL ${name}: ${e.message}`);
+  }
 }
-
-// Test 2: FAQ answer update -> replaced, no duplicate
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [],
-    commonQuestions: [
-      { question: 'Do you offer refunds?', answer: 'Yes, within 30 days' }
-    ],
-    otherFacts: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [],
-    commonQuestions: [
-      { question: 'Do you offer refunds?', answer: 'Yes, within 14 days with receipt' }
-    ],
-    otherFacts: []
-  };
-
-  const ownerEdits = [
-    { field: 'commonQuestions', item: 'refunds', action: 'change' }
-  ];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.commonQuestions.length, 1, 'Should have exactly one FAQ, not duplicate');
-  assert.equal(result.commonQuestions[0].answer, 'Yes, within 14 days with receipt', 'Should keep new answer');
-  
-  console.log('✓ Test 2: FAQ answer update -> replaced, no duplicate');
-}
-
-// Test 3: Model rewords a service without owner request -> no duplicate, original kept
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Deep Clean', price: '$100', notes: 'includes wax' }
-    ],
-    otherFacts: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Deep Clean', price: '$100', notes: 'with wax included' }
-    ],
-    otherFacts: []
-  };
-
-  // No ownerEdits - model just rephrased on its own
-  const ownerEdits = [];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.services.length, 1, 'Should have exactly one service, not duplicate');
-  assert.equal(result.services[0].notes, 'includes wax', 'Should keep original wording when no edit requested');
-  
-  console.log('✓ Test 3: Model rewords without owner request -> original kept, no duplicate');
-}
-
-// Test 4: Real fact drop without owner request -> restored
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Service A', price: '$10', notes: null },
-      { name: 'Service B', price: '$20', notes: 'with extras' }
-    ],
-    otherFacts: ['Delivery within 5 miles', 'Nut-free kitchen'],
-    unknowns: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Service A', price: '$10', notes: null }
-      // Service B missing - model forgot it
-    ],
-    otherFacts: ['Delivery within 5 miles'],
-    // nut-free fact missing - model forgot it
-    unknowns: []
-  };
-
-  // No ownerEdits - these are unintended drops
-  const ownerEdits = [];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.services.length, 2, 'Should restore missing service');
-  assert.equal(result.services[1].name, 'Service B');
-  assert.equal(result.services[1].notes, 'with extras');
-  assert.equal(result.otherFacts.length, 2, 'Should restore missing otherFact');
-  assert.ok(result.otherFacts.includes('Nut-free kitchen'));
-  
-  console.log('✓ Test 4: Real fact drops without owner request -> restored');
-}
-
-// Test 5: Explicit removal in ownerEdits -> stays removed
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Service A', price: '$10', notes: null },
-      { name: 'Service B', price: '$20', notes: null }
-    ],
-    otherFacts: ['Nut-free kitchen']
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Service A', price: '$10', notes: null }
-    ],
-    otherFacts: []
-  };
-
-  const ownerEdits = [
-    { field: 'services', item: 'Service B', action: 'remove' },
-    { field: 'otherFacts', item: 'nut-free', action: 'remove' }
-  ];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.services.length, 1, 'Should not restore explicitly removed service');
-  assert.equal(result.services[0].name, 'Service A');
-  assert.equal(result.otherFacts.length, 0, 'Should not restore explicitly removed fact');
-  
-  console.log('✓ Test 5: Explicit removal in ownerEdits -> stays removed');
-}
-
-// Test 6: New fact addition -> appended
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [],
-    otherFacts: ['Delivery within 5 miles'],
-    unknowns: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [],
-    otherFacts: ['Delivery within 5 miles', 'Parking available'],
-    unknowns: []
-  };
-
-  const ownerEdits = [
-    { field: 'otherFacts', item: 'parking', action: 'add' }
-  ];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.otherFacts.length, 2, 'Should have both facts');
-  assert.ok(result.otherFacts.includes('Delivery within 5 miles'));
-  assert.ok(result.otherFacts.includes('Parking available'));
-  
-  console.log('✓ Test 6: New fact addition -> appended');
-}
-
-// Test 7: Service notes dropped without edit -> restored
-{
-  const currentDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Custom cakes', price: '$65', notes: 'start at, require 5 days notice' }
-    ],
-    otherFacts: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    services: [
-      { name: 'Custom cakes', price: '$65', notes: null }
-    ],
-    otherFacts: []
-  };
-
-  const ownerEdits = [];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.services[0].notes, 'start at, require 5 days notice', 'Should restore dropped notes');
-  
-  console.log('✓ Test 7: Service notes dropped without edit -> restored');
-}
-
-// Test 8: Text fields dropped without edit -> restored
-{
-  const currentDraft = {
-    name: 'Test Business',
-    whatWeDo: 'We sell handmade crafts',
-    hours: 'Mon-Fri 9am-5pm',
-    services: [],
-    otherFacts: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    whatWeDo: null,
-    hours: null,
-    services: [],
-    otherFacts: []
-  };
-
-  const ownerEdits = [];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.whatWeDo, 'We sell handmade crafts', 'Should restore whatWeDo');
-  assert.equal(result.hours, 'Mon-Fri 9am-5pm', 'Should restore hours');
-  
-  console.log('✓ Test 8: Text fields dropped without edit -> restored');
-}
-
-// Test 9: Text field explicitly changed -> not restored
-{
-  const currentDraft = {
-    name: 'Test Business',
-    hours: 'Mon-Fri 9am-5pm',
-    services: [],
-    otherFacts: []
-  };
-
-  const newDraft = {
-    name: 'Test Business',
-    hours: 'Mon-Fri 9am-6pm',
-    services: [],
-    otherFacts: []
-  };
-
-  const ownerEdits = [
-    { field: 'hours', item: null, action: 'change' }
-  ];
-
-  const result = preserveFacts(newDraft, currentDraft, ownerEdits);
-
-  assert.equal(result.hours, 'Mon-Fri 9am-6pm', 'Should keep new hours when explicitly changed');
-  
-  console.log('✓ Test 9: Text field explicitly changed -> not restored');
-}
-
-// Test 10: No previous draft -> return as-is
-{
-  const newDraft = {
-    name: 'Test Business',
-    services: [{ name: 'Service A', price: '$10', notes: null }],
-    otherFacts: ['Fact 1']
-  };
-
-  const result = preserveFacts(newDraft, null, []);
-
-  assert.deepEqual(result, newDraft, 'Should return draft unchanged when no previous draft');
-  
-  console.log('✓ Test 10: No previous draft -> return as-is');
-}
-
-console.log('\n✓ All fact preservation tests passed!');
+console.log(`\n${tests.length - failed}/${tests.length} passed`);
+process.exit(failed ? 1 : 0);

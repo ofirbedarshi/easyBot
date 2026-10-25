@@ -67,11 +67,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
-- Other business facts (otherFacts): ANY customer-relevant fact, policy, condition, or caveat the owner states that does NOT fit the fields above. Store each statement close to the owner's wording, keeping all conditions, numbers, and qualifiers intact.
-  This includes: conditional policies (with distance/amount/time limits), ingredient or material statements, facility details, special requirements, handling rules, or any other factual statement about the business.
-  CAPTURE THESE WHENEVER STATED, regardless of which question you are currently asking.
-  DO NOT wait for a specific question about these topics.
-  DO NOT create sub-categories or separate fields — each fact is a standalone string.
+- Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. You change this list only through factOps (see below).
 
 Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
@@ -118,7 +114,7 @@ ${PRICE_DISCLOSURE_LINES}
 Interview rules:
 - Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
 - Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
-- CAPTURE ALL FACTS: When the owner states ANY business fact, policy, condition, or caveat — store it immediately. Facts about services/prices/hours go into their fields. Facts that don't fit those fields (conditional policies, ingredient/material statements, facility details, special requirements, etc.) go into otherFacts as standalone strings, keeping the owner's wording and all conditions/numbers/qualifiers. Do not wait for a specific question about those topics — capture them whenever stated.
+- Store every business fact the owner states in the same turn, whatever you are currently asking about: in its field if one fits, otherwise as an otherFacts "add" in factOps.
 - After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
 - When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
 - Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
@@ -176,7 +172,6 @@ You MUST respond with a single JSON object only (no markdown fences):
     "commonQuestions": [{"question": string, "answer": string}],
     "informationToCollect": [string]|null,
     "unknowns": [string],
-    "otherFacts": [string],
     "tone": string|null,
     "responseLength": ${RESPONSE_LENGTH_ENUM}|null,
     "priceDisclosure": ${PRICE_DISCLOSURE_ENUM}|null,
@@ -185,7 +180,8 @@ You MUST respond with a single JSON object only (no markdown fences):
     "assistantNameReset": boolean,
     "openingMessageReset": boolean
   },
-  "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"|"add"}],
+  "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"}],
+  "factOps": [{"op": "add"|"change"|"remove", "index": number|null, "text": string|null}],
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
   "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
@@ -193,24 +189,14 @@ You MUST respond with a single JSON object only (no markdown fences):
   "readyForReview": boolean,
   "approved": boolean
 }
-ownerEdits: List any facts the owner explicitly asked to change, remove, or add IN THEIR CURRENT MESSAGE ONLY.
-- field: the draft key affected (e.g. "services", "commonQuestions", "hours", "otherFacts").
-- item: for arrays, a short phrase identifying which item (service name, question start, fact keyword). For single-value fields, null.
-- action: "change" (owner updated an existing item), "remove" (owner deleted an item), or "add" (owner added a new item).
-Empty array if the owner only answered your question without requesting changes or if they acknowledged facts you gathered from their initial description.
-Examples:
-- "the wash is $60 now" on a service -> [{"field":"services","item":"wash","action":"change"}]
-- "remove the nut-free policy" -> [{"field":"otherFacts","item":"nut-free","action":"remove"}]
-- "add a FAQ about refunds" -> [{"field":"commonQuestions","item":"refunds","action":"add"}]
-- "change my hours to 9-6" -> [{"field":"hours","item":null,"action":"change"}]
-Owner providing initial facts in response to your questions is NOT an edit (they are NEW facts) -> ownerEdits=[].
+ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes, however it is phrased. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit. Stored values not listed here are kept as they were, so never reword them.
+factOps: changes to the stored otherFacts list shown in the context, from the owner's CURRENT message only. "add" with text = a new fact; "change" with index and text = the owner corrected that fact; "remove" with index = the owner withdrew that fact. Empty array if nothing changes.
 
 configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
 
 Merge new facts into draft — keep previous draft values unless the owner changed them.
-Use null for unknown text fields. services/commonQuestions/unknowns/otherFacts should be arrays (possibly empty).
+Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
 commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
-otherFacts must be strings, each a standalone statement close to the owner's wording.
 informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
 If the owner says to skip FAQ or has no common questions, leave commonQuestions as it is — do not invent entries.
 ownerGoal must be one of the supported values, or null until the owner answers the goal question; never invent it.
@@ -265,148 +251,79 @@ export function isOwnerApproveMessage(text) {
   return /^(approve|looks good|lgtm|yes\.?|ok\.?|okay\.?)$/i.test(t);
 }
 
+const sameKey = (a, b) =>
+  String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+/** Loose identity for model-reported edit targets, which may abbreviate the stored key. */
+const overlaps = (a, b) => {
+  const x = String(a || '').trim().toLowerCase();
+  const y = String(b || '').trim().toLowerCase();
+  return !!x && !!y && (x.includes(y) || y.includes(x));
+};
+
 /**
- * Preserve previously stored facts across Builder turns.
- * Facts may only be removed/shortened if the owner asked to change them this turn.
- * 
- * Design: Model returns explicit structured list of what owner asked to change/remove.
- * Code matches items by identity (services by name, FAQ by question) and restores
- * anything that disappeared without being in the edit list.
- * 
- * Limits: Relies on model correctly identifying owner edits. If model misses an edit,
- * old value may be restored (owner can re-edit). If model wrongly claims an edit,
- * guard won't restore (acceptable - model understood something as an edit).
+ * Keep previously stored facts the model dropped or altered without the owner asking.
+ * The model reports owner-requested changes in `ownerEdits`; any other difference from
+ * the previous draft is reverted. Items are matched by identity (service name, FAQ
+ * question) so an edited item replaces the old one instead of duplicating it.
+ * `unknowns` are not guarded: the model removes them when the owner resolves them.
+ * `otherFacts` are code-owned (see applyFactOps).
+ * Relies on the model reporting edits; an unreported edit is reverted.
  */
 export function preserveFacts(draft, currentDraft, ownerEdits) {
   if (!currentDraft) return draft;
-  
   const next = { ...draft };
-  const prev = currentDraft || {};
+  const prev = currentDraft;
   const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
-  
-  // Check if a field was explicitly edited by owner
-  const wasEdited = (field, itemIdentity = null) => {
-    return edits.some(edit => {
-      if (edit.field !== field) return false;
-      // For array fields, check if this specific item was edited
-      if (itemIdentity && edit.item) {
-        return edit.item.toLowerCase().includes(itemIdentity.toLowerCase()) ||
-               itemIdentity.toLowerCase().includes(edit.item.toLowerCase());
+  const edited = (field, item = null) =>
+    edits.some((e) => e && e.field === field && (item === null || !e.item || overlaps(e.item, item)));
+
+  const guardList = (field, key, valueKeys) => {
+    if (!Array.isArray(prev[field]) || !Array.isArray(next[field])) return;
+    const list = [...next[field]];
+    for (const old of prev[field]) {
+      if (!old || edited(field, old[key])) continue;
+      const i = list.findIndex((x) => x && sameKey(x[key], old[key]));
+      if (i === -1) {
+        list.push(old);
+        continue;
       }
-      return true; // Field-level edit
-    });
+      const kept = { ...list[i] };
+      for (const k of valueKeys) if (old[k] && kept[k] !== old[k]) kept[k] = old[k];
+      list[i] = kept;
+    }
+    next[field] = list;
   };
-  
-  // Helper to find matching item by identity
-  const findByIdentity = (array, item, identityKey) => {
-    if (!Array.isArray(array)) return null;
-    const identity = typeof item === 'string' ? item : item[identityKey];
-    if (!identity) return null;
-    
-    return array.find(existing => {
-      const existingIdentity = typeof existing === 'string' ? existing : existing[identityKey];
-      return existingIdentity && 
-             existingIdentity.toLowerCase().trim() === identity.toLowerCase().trim();
-    });
-  };
-  
-  // Services: match by name, restore if not edited
-  if (Array.isArray(prev.services) && Array.isArray(next.services)) {
-    const restored = [...next.services];
-    
-    for (const prevService of prev.services) {
-      const existingIndex = restored.findIndex(s => 
-        s.name && s.name.toLowerCase().trim() === prevService.name.toLowerCase().trim()
-      );
-      
-      if (existingIndex === -1) {
-        // Service completely missing and not edited -> restore
-        if (!wasEdited('services', prevService.name)) {
-          restored.push(prevService);
-        }
-      } else {
-        // Service exists - check if any fields were dropped/changed without edit
-        const existing = restored[existingIndex];
-        if (!wasEdited('services', prevService.name)) {
-          // No edit reported for this service - restore any dropped fields
-          if (prevService.notes && !existing.notes) {
-            restored[existingIndex] = { ...existing, notes: prevService.notes };
-          }
-          if (prevService.price && !existing.price) {
-            restored[existingIndex] = { ...existing, price: prevService.price };
-          }
-          // If notes changed (not just dropped), restore old value
-          if (prevService.notes && existing.notes && prevService.notes !== existing.notes) {
-            restored[existingIndex] = { ...existing, notes: prevService.notes };
-          }
-        }
-      }
-    }
-    
-    next.services = restored;
+  guardList('services', 'name', ['price', 'notes']);
+  guardList('commonQuestions', 'question', ['answer']);
+
+  for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
+    if (prev[field] && next[field] !== prev[field] && !edited(field)) next[field] = prev[field];
   }
-  
-  // Common questions: match by question, restore if not edited
-  if (Array.isArray(prev.commonQuestions) && Array.isArray(next.commonQuestions)) {
-    const restored = [...next.commonQuestions];
-    
-    for (const prevQ of prev.commonQuestions) {
-      const existingIndex = restored.findIndex(q => 
-        q.question && q.question.toLowerCase().trim() === prevQ.question.toLowerCase().trim()
-      );
-      
-      if (existingIndex === -1) {
-        // FAQ completely missing and not edited -> restore
-        if (!wasEdited('commonQuestions', prevQ.question)) {
-          restored.push(prevQ);
-        }
-      } else {
-        // FAQ exists - check if answer changed without edit
-        const existing = restored[existingIndex];
-        if (!wasEdited('commonQuestions', prevQ.question)) {
-          // No edit reported - restore old answer if it changed
-          if (prevQ.answer && existing.answer !== prevQ.answer) {
-            restored[existingIndex] = { ...existing, answer: prevQ.answer };
-          }
-        }
-      }
-    }
-    
-    next.commonQuestions = restored;
-  }
-  
-  // Other facts and unknowns: string arrays, harder to match by identity
-  // For these, restore anything from prev that's not in next and not explicitly removed
-  const stringArrayFields = ['otherFacts', 'unknowns'];
-  
-  for (const field of stringArrayFields) {
-    if (!Array.isArray(prev[field]) || !Array.isArray(next[field])) continue;
-    
-    const restored = [...next[field]];
-    
-    for (const prevItem of prev[field]) {
-      // Check if this exact item exists in next
-      const existsInNext = next[field].some(item => 
-        item.toLowerCase().trim() === prevItem.toLowerCase().trim()
-      );
-      
-      if (!existsInNext && !wasEdited(field, prevItem)) {
-        restored.push(prevItem);
-      }
-    }
-    
-    next[field] = restored;
-  }
-  
-  // Text fields: restore if vanished and not edited
-  const textFields = ['name', 'whatWeDo', 'hours', 'locationOrArea'];
-  for (const field of textFields) {
-    if (prev[field] && !next[field] && !wasEdited(field)) {
-      next[field] = prev[field];
-    }
-  }
-  
   return next;
+}
+
+/**
+ * Apply this turn's otherFacts operations to the stored list. The model never re-emits
+ * the list, so stored facts cannot silently disappear, shorten, or duplicate.
+ * Indexes refer to the list shown to the model this turn; invalid ops are ignored.
+ */
+export function applyFactOps(facts, ops) {
+  const list = Array.isArray(facts) ? [...facts] : [];
+  const removed = new Set();
+  const added = [];
+  for (const op of Array.isArray(ops) ? ops : []) {
+    const text = typeof op?.text === 'string' ? op.text.trim() : '';
+    const valid = Number.isInteger(op?.index) && op.index >= 0 && op.index < list.length;
+    if (op?.op === 'add' && text) {
+      if (!list.some((f) => sameKey(f, text)) && !added.some((f) => sameKey(f, text))) added.push(text);
+    } else if (op?.op === 'change' && valid && text) {
+      list[op.index] = text;
+    } else if (op?.op === 'remove' && valid) {
+      removed.add(op.index);
+    }
+  }
+  return [...list.filter((_, i) => !removed.has(i)), ...added];
 }
 
 /**
@@ -611,9 +528,12 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   }
   const justAsked = topicJustAsked(buildHistory);
   if (justAsked) enoughHint += `\nHint: ${justAsked.answerHint}`;
+  const { otherFacts: storedFacts = [], ...draftForModel } = currentDraft;
   const contextNote = [
     'Current draft profile JSON:',
-    JSON.stringify(currentDraft, null, 2),
+    JSON.stringify(draftForModel, null, 2),
+    'Stored otherFacts (change only via factOps, by index):',
+    storedFacts.length ? storedFacts.map((f, i) => `[${i}] ${f}`).join('\n') : '(none)',
     profile.approvedAt
       ? `Last approved at: ${profile.approvedAt}`
       : 'Not yet approved.',
@@ -647,11 +567,11 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
     };
   }
 
-  // First reconcile to normalize enums and preserve settled fields
   const reconciled = reconcileDraft(parsed.draft || currentDraft, currentDraft);
-  
-  // Then preserve facts that may have been dropped
-  const preserved = preserveFacts(reconciled, currentDraft, parsed.ownerEdits);
+  const preserved = {
+    ...preserveFacts(reconciled, currentDraft, parsed.ownerEdits),
+    otherFacts: applyFactOps(currentDraft.otherFacts, parsed.factOps),
+  };
   
   const { draft, unresolved } = enforceConfigRequests(
     preserved,

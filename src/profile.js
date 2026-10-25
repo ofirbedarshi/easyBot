@@ -16,14 +16,6 @@ const TEXT_FACT_KEYS = [
   'locationOrArea',
 ];
 
-/** Array fact fields that should be preserved across turns. */
-const ARRAY_FACT_KEYS = [
-  'services',
-  'commonQuestions',
-  'unknowns',
-  'otherFacts',
-];
-
 /**
  * Bot goal (`ownerGoal`): only what the Business Bot can actually do.
  * Anything else the owner asks for is mapped to `answer_and_collect`.
@@ -371,11 +363,7 @@ export function emptyProfile() {
     informationToCollect: null,
     /** Explicit gaps the owner left undecided or unclarified (must stay unknown until approved). */
     unknowns: [],
-    /**
-     * Other business facts, policies, conditions, or caveats that don't fit other fields.
-     * Each entry is a standalone statement close to the owner's wording.
-     * Examples: delivery terms, allergen statements, kitchen practices, booking rules.
-     */
+    /** Owner-stated facts, policies, or caveats that fit no other field, close to the owner's wording. */
     otherFacts: [],
     /** Free-text how the bot should sound. null = use DEFAULT_BEHAVIOR.tone. */
     tone: null,
