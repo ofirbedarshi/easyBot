@@ -397,20 +397,16 @@ async function tryMyBot(session, text, loaded = null) {
  */
 async function approveDraft(session, profile) {
   const merged = mergeDraft(profile, profile.draft);
-  Object.assign(profile, {
-    name: merged.name,
-    whatWeDo: merged.whatWeDo,
+  Object.assign(profile, merged, {
     ownerGoal: merged.ownerGoal ?? null,
     ownerGoalRequested: merged.ownerGoalRequested ?? null,
     services: merged.services || [],
-    hours: merged.hours,
-    locationOrArea: merged.locationOrArea,
     commonQuestions: merged.commonQuestions || [],
     informationToCollect: Array.isArray(merged.informationToCollect)
       ? merged.informationToCollect
       : [],
     unknowns: merged.unknowns || [],
-    tone: merged.tone,
+    otherFacts: Array.isArray(merged.otherFacts) ? merged.otherFacts : [],
     responseLength: merged.responseLength ?? null,
     priceDisclosure: merged.priceDisclosure ?? null,
     assistantName: merged.assistantName ?? null,
