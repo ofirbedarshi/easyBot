@@ -537,7 +537,7 @@ export async function runBuilderTurn({
   mode = 'delta',
 } = {}) {
   const client = getClient();
-  const model = modelOverride || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = modelOverride || process.env.OPENAI_BUILDER_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
   const legacy = mode === 'legacy';
 
   const currentDraft = profile.draft || {
