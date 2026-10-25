@@ -28,13 +28,12 @@ import {
   topicJustAsked,
   topicModelAsked,
 } from './builderTopics.js';
+import { builderResponseFormat } from './builderSchema.js';
+import { legacyBuilderSystem } from './builderPromptLegacy.js';
 
 export const OWNER_GOAL_QUESTION =
   "What's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.";
 
-const RESPONSE_LENGTH_ENUM = RESPONSE_LENGTH_VALUES.map((v) => `"${v}"`).join('|');
-const PRICE_DISCLOSURE_ENUM = PRICE_DISCLOSURE_VALUES.map((v) => `"${v}"`).join('|');
-const OWNER_GOAL_ENUM = OWNER_GOAL_VALUES.map((v) => `"${v}"`).join('|');
 const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
   (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
 ).join('\n');
@@ -67,7 +66,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
-- Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in draft.newFacts and edit stored ones only via factEdits.
+- Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in newFacts and edit stored ones only via factEdits.
 
 Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
@@ -114,7 +113,7 @@ ${PRICE_DISCLOSURE_LINES}
 Interview rules:
 - Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
 - Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
-- Store every business fact the owner states in the same turn, whatever you are currently asking about: in its field if one fits, otherwise in draft.newFacts.
+- Store every business fact the owner states in the same turn, whatever you are currently asking about: in its field if one fits, otherwise in newFacts.
 - After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
 - When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
 - Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
@@ -157,59 +156,123 @@ ${OWNER_GOAL_LINES}
 - If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
 - If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
 
-You MUST respond with a single JSON object only (no markdown fences):
-{
-  "message": "what to show the owner (natural language)",
-  "draft": {
-    "name": string|null,
-    "whatWeDo": string|null,
-    "ownerGoal": ${OWNER_GOAL_ENUM}|null,
-    "ownerGoalRequested": string|null,
-    "services": [{"name": string, "price": string|null, "notes": string|null}],
-    "hours": string|null,
-    "locationOrArea": string|null,
-    "commonQuestions": [{"question": string, "answer": string}],
-    "informationToCollect": [string]|null,
-    "unknowns": [string],
-    "newFacts": [string],
-    "tone": string|null,
-    "responseLength": ${RESPONSE_LENGTH_ENUM}|null,
-    "priceDisclosure": ${PRICE_DISCLOSURE_ENUM}|null,
-    "assistantName": string|null,
-    "openingMessage": string|null,
-    "assistantNameReset": boolean,
-    "openingMessageReset": boolean
-  },
-  "ownerEdits": [{"field": string, "item": string|null, "action": "change"|"remove"}],
-  "factEdits": [{"index": number, "text": string|null}],
-  "resolvedUnknowns": [number],
-  "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
-  "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
-  "goalSupported": boolean|null,
-  "goalUnsupportedPart": string|null,
-  "readyForReview": boolean
-}
-ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes, however it is phrased. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit. Stored values not listed here are kept as they were, so never reword them.
-newFacts: otherFacts the owner states in the CURRENT message (not already stored). factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Both empty if none.
+You MUST respond with a single JSON object matching the schema (all keys required; no markdown fences).
+draft is a delta: null means unchanged this turn (reset flags: false unless the owner asked to clear that identity field). Do not re-emit unchanged text or unchanged list items. Code keeps previous values and merges.
+- services / commonQuestions: only new or changed items this turn (empty array if none). Removals and non-additive edits also go in ownerEdits.
+- unknowns: only NEW undecided items this turn (empty array if none). Drop answered ones via resolvedUnknowns.
+- informationToCollect: the full list if the owner answered or changed it this turn; null if they did not.
+- newFacts (top-level, not inside draft): otherFacts the owner states this turn that are not already stored (empty array if none).
+ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit.
+factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
-
-configRequests.field: the draft key the request is about (e.g. "tone", "priceDisclosure", "openingMessage", "commonQuestions"), or null if no field fits.
-
-Merge new facts into draft — keep previous draft values unless the owner changed them.
-Use null for unknown text fields. services/commonQuestions/unknowns should be arrays (possibly empty).
-commonQuestions must be objects with question and answer (not bare topic strings). Prefer a full answer whenever the owner gave one.
-informationToCollect must stay null until the owner answers the collect question; then it must be an array (empty if none).
-If the owner says to skip FAQ or has no common questions, leave commonQuestions as it is — do not invent entries.
-ownerGoal must be one of the supported values, or null until the owner answers the goal question; never invent it.
-unknowns must preserve explicit undecided topics even if they are easy to omit from a short summary.
-responseLength and priceDisclosure must be one of the allowed enum values or null — never invent other policies.
-When the owner changes only tone or length, keep the previous priceDisclosure value in the draft (do not clear it).
-Keep previous assistantName and openingMessage in the draft unless the owner changed or explicitly reset them.`;
+configRequests, askingTopic, goalSupported, goalUnsupportedPart, readyForReview: as specified above. Arrays empty if none.
+commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
+informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
+ownerGoal is one of the supported values, or null until the owner answers; never invent it.
+responseLength and priceDisclosure are an allowed enum value or null.`;
 
 export function getClient() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY missing — set it in .env');
   return new OpenAI({ apiKey: key });
+}
+
+/** Lowest efforts to try when a model rejects temperature / a given effort. */
+export const BUILDER_REASONING_EFFORTS = ['none', 'minimal', 'low'];
+const REASONING_COMPLETION_CAP = 4000;
+const chatParamCache = new Map();
+
+export function resetBuilderChatParamCache() {
+  chatParamCache.clear();
+}
+
+function apiErrorText(err) {
+  return [
+    err?.message,
+    err?.error?.message,
+    err?.code,
+    err?.error?.code,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Initial Chat Completions body for a Builder turn (classic models keep temperature). */
+export function builderChatParams({ model, messages, response_format, temperature = 0.4 }) {
+  return { model, messages, response_format, temperature };
+}
+
+/**
+ * Adjust a Chat Completions body after a 4xx. Returns a new body or null if
+ * the error is not a known parameter incompatibility.
+ */
+export function adjustChatParamsOnError(params, err) {
+  const msg = apiErrorText(err);
+  const next = { ...params };
+  let changed = false;
+
+  if (/temperature|top_p|top_logprobs|logprobs|presence_penalty|frequency_penalty/i.test(msg)) {
+    if ('temperature' in next) {
+      delete next.temperature;
+      changed = true;
+    }
+    if (!next.reasoning_effort) {
+      next.reasoning_effort = BUILDER_REASONING_EFFORTS[0];
+      changed = true;
+    }
+    if (next.max_completion_tokens == null) {
+      next.max_completion_tokens = REASONING_COMPLETION_CAP;
+      changed = true;
+    }
+  }
+
+  if (/max_tokens/i.test(msg) && !/max_completion_tokens/i.test(msg)) {
+    delete next.max_tokens;
+    next.max_completion_tokens = next.max_completion_tokens ?? REASONING_COMPLETION_CAP;
+    changed = true;
+  }
+
+  if (/reasoning_effort|reasoning\.effort/i.test(msg)) {
+    const cur = next.reasoning_effort || BUILDER_REASONING_EFFORTS[0];
+    const i = BUILDER_REASONING_EFFORTS.indexOf(cur);
+    const nxt = BUILDER_REASONING_EFFORTS[i + 1];
+    if (nxt) {
+      next.reasoning_effort = nxt;
+      delete next.temperature;
+      next.max_completion_tokens = next.max_completion_tokens ?? REASONING_COMPLETION_CAP;
+      changed = true;
+    }
+  }
+
+  return changed ? next : null;
+}
+
+async function createBuilderCompletion(client, base) {
+  let params = chatParamCache.has(base.model)
+    ? { ...chatParamCache.get(base.model), messages: base.messages, response_format: base.response_format }
+    : builderChatParams(base);
+
+  let lastErr;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const completion = await client.chat.completions.create(params);
+      const stored = { ...params };
+      delete stored.messages;
+      chatParamCache.set(base.model, stored);
+      return { completion, params };
+    } catch (err) {
+      lastErr = err;
+      const next = adjustChatParamsOnError(params, err);
+      if (!next) break;
+      params = { ...next, messages: base.messages, response_format: base.response_format };
+    }
+  }
+  throw lastErr;
+}
+
+function reasoningTokensFromUsage(usage) {
+  const n = usage?.completion_tokens_details?.reasoning_tokens;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function parseJsonResponse(content) {
@@ -329,6 +392,84 @@ export function applyFactOps(facts, newFacts, edits) {
     if (text && !next.some((x) => sameKey(x, text))) next.push(text);
   }
   return next;
+}
+
+const DELTA_TEXT_KEYS = [
+  'name',
+  'whatWeDo',
+  'ownerGoal',
+  'ownerGoalRequested',
+  'hours',
+  'locationOrArea',
+  'tone',
+  'responseLength',
+  'priceDisclosure',
+];
+
+/**
+ * Merge a schema-enforced draft delta into the stored draft.
+ * Null / omitted scalars mean unchanged. Arrays that are present replace the
+ * model's view of that list (services / commonQuestions are then merged by
+ * preserveFacts). unknowns are append-only here; dropResolved removes answered ones.
+ */
+export function applyDraftDelta(delta, currentDraft) {
+  const d = delta && typeof delta === 'object' ? delta : {};
+  const prev = currentDraft || {};
+  const next = { ...prev };
+
+  for (const key of DELTA_TEXT_KEYS) {
+    if (d[key] != null && d[key] !== '') next[key] = d[key];
+  }
+  if (Array.isArray(d.services)) next.services = d.services;
+  if (Array.isArray(d.commonQuestions)) next.commonQuestions = d.commonQuestions;
+  if (Array.isArray(d.informationToCollect)) next.informationToCollect = d.informationToCollect;
+  if (Array.isArray(d.unknowns)) {
+    const list = Array.isArray(prev.unknowns) ? [...prev.unknowns] : [];
+    for (const u of d.unknowns) {
+      const text = typeof u === 'string' ? u.trim() : '';
+      if (text && !list.some((x) => sameKey(x, text))) list.push(text);
+    }
+    next.unknowns = list;
+  }
+  for (const key of IDENTITY_KEYS) {
+    const flag = identityResetFlag(key);
+    if (d[flag] === true) {
+      next[key] = null;
+      next[flag] = true;
+    } else if (d[key] != null && d[key] !== '') {
+      next[key] = d[key];
+      next[flag] = false;
+    }
+  }
+  return next;
+}
+
+/**
+ * Apply one Builder model JSON object to the stored draft.
+ * `mode: 'delta'` (production): top-level newFacts, null draft fields unchanged.
+ * `mode: 'legacy'`: full draft snapshot, newFacts inside draft (pre-schema path).
+ */
+export function applyBuilderModelOutput(parsed, currentDraft, { mode = 'delta' } = {}) {
+  const incoming = parsed?.draft && typeof parsed.draft === 'object' ? parsed.draft : {};
+  const newFacts = mode === 'legacy' ? incoming.newFacts : parsed?.newFacts;
+  const draftIn =
+    mode === 'legacy'
+      ? parsed?.draft && typeof parsed.draft === 'object'
+        ? parsed.draft
+        : currentDraft
+      : applyDraftDelta(incoming, currentDraft);
+
+  const reconciled = reconcileDraft(draftIn || currentDraft, currentDraft);
+  const { newFacts: _dropped, ...guarded } = preserveFacts(
+    reconciled,
+    currentDraft,
+    parsed?.ownerEdits
+  );
+  return {
+    ...guarded,
+    otherFacts: applyFactOps(currentDraft?.otherFacts, newFacts, parsed?.factEdits),
+    unknowns: dropResolved(guarded.unknowns, currentDraft?.unknowns, parsed?.resolvedUnknowns),
+  };
 }
 
 /**
@@ -486,9 +627,16 @@ export function enforceConfigRequests(draft, currentDraft, configRequests) {
   return { draft: next, unresolved };
 }
 
-export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
+export async function runBuilderTurn({
+  buildHistory,
+  profile,
+  userMessage,
+  model: modelOverride,
+  mode = 'delta',
+} = {}) {
   const client = getClient();
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = modelOverride || process.env.OPENAI_BUILDER_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+  const legacy = mode === 'legacy';
 
   const currentDraft = profile.draft || {
     name: profile.name,
@@ -548,39 +696,39 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
   ].join('\n');
 
   const messages = [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: legacy ? legacyBuilderSystem() : SYSTEM },
     { role: 'system', content: contextNote },
     ...buildHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: userMessage },
   ];
 
-  const completion = await client.chat.completions.create({
+  const started = Date.now();
+  const { completion, params: requestParams } = await createBuilderCompletion(client, {
     model,
-    temperature: 0.4,
-    response_format: { type: 'json_object' },
     messages,
+    response_format: legacy ? { type: 'json_object' } : builderResponseFormat(),
   });
+  const latencyMs = Date.now() - started;
 
-  const raw = completion.choices[0]?.message?.content || '{}';
+  const choice = completion.choices[0]?.message;
+  const raw = choice?.content || '{}';
   let parsed;
   try {
+    if (choice?.refusal) throw new Error('refusal');
     parsed = parseJsonResponse(raw);
   } catch {
     parsed = {
-      message: raw,
+      message: raw && !choice?.refusal ? raw : 'Tell me a bit more about your business.',
       draft: currentDraft,
+      newFacts: [],
       readyForReview: false,
     };
   }
 
-  const reconciled = reconcileDraft(parsed.draft || currentDraft, currentDraft);
-  const { newFacts, ...guarded } = preserveFacts(reconciled, currentDraft, parsed.ownerEdits);
-  const preserved = {
-    ...guarded,
-    otherFacts: applyFactOps(currentDraft.otherFacts, parsed.draft?.newFacts, parsed.factEdits),
-    unknowns: dropResolved(guarded.unknowns, currentDraft.unknowns, parsed.resolvedUnknowns),
-  };
-  
+  const preserved = applyBuilderModelOutput(parsed, currentDraft, {
+    mode: legacy ? 'legacy' : 'delta',
+  });
+
   const { draft, unresolved } = enforceConfigRequests(
     preserved,
     currentDraft,
@@ -603,6 +751,10 @@ export async function runBuilderTurn({ buildHistory, profile, userMessage }) {
         ? parsed.goalUnsupportedPart.trim()
         : null,
     usage: completion.usage,
+    latencyMs,
+    modelJson: parsed,
+    reasoningEffort: requestParams.reasoning_effort ?? null,
+    reasoningTokens: reasoningTokensFromUsage(completion.usage),
     source: 'real-llm',
   };
 }
