@@ -7,7 +7,7 @@
  *   node scripts/eval-closed-world-gaps.js [--baseline <file>] [--live]
  *
  * Default: compare --baseline (frozen current-prompt strings) vs live
- * buildCustomerSystemPrompt. Models: gpt-4o-mini, gpt-4.1-mini, gpt-4o.
+ * buildCustomerSystemPrompt. Models default to gpt-4o-mini / 4.1-mini / 4o.
  */
 import 'dotenv/config';
 import fs from 'fs';
@@ -15,19 +15,26 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
+import {
+  cachedChatCompletionShape,
+  createChatCompletion,
+  reasoningTokensFromUsage,
+} from '../src/openaiChat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HARD_CAP_USD = 1.0;
+const DEFAULT_CAP_USD = 1.0;
 const RUNS = 3;
-const TEMPERATURE = 0;
-const CONCURRENCY = 3;
+const CONCURRENCY = 2;
 
 const PRICES = {
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
   'gpt-4.1-mini': { input: 0.4, output: 1.6 },
   'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-5-mini': { input: 0.25, output: 2 },
+  'gpt-6-sol': { input: 2, output: 10 },
+  'gpt-6-luna': { input: 0.1, output: 0.5 },
 };
-const MODELS = Object.keys(PRICES);
+const MODELS = ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o'];
 
 const BASE = {
   name: "Rosa's Bakery",
@@ -219,7 +226,14 @@ function scoreHasGlutenFaq(text) {
 }
 
 function parseArgs(argv) {
-  const args = { dump: null, baseline: null, live: false, models: MODELS, rescore: null };
+  const args = {
+    dump: null,
+    baseline: null,
+    live: false,
+    models: MODELS,
+    rescore: null,
+    cap: DEFAULT_CAP_USD,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--dump-prompts') args.dump = argv[++i];
@@ -227,6 +241,7 @@ function parseArgs(argv) {
     else if (a === '--live') args.live = true;
     else if (a === '--models') args.models = argv[++i].split(',');
     else if (a === '--rescore') args.rescore = argv[++i];
+    else if (a === '--cap') args.cap = Number(argv[++i]);
   }
   if (args.rescore) return args;
   if (!args.dump && !args.baseline && !args.live) {
@@ -328,10 +343,17 @@ function summarize(rows, spend) {
   }
 
   const lines = [];
-  lines.push('variant\tmodel\tfalse_no\tfacts_ok\tmedian_ms\t$/reply');
+  lines.push('variant\tmodel\tgap_fails\tfacts_ok\tmedian_ms\t$/reply\teffort\treasoning_tok_med\tgap_fail_cases');
   for (const g of groups.values()) {
     const falseNo = g.gap.filter((r) => !r.pass).length;
     const factsOk = g.facts.filter((r) => r.pass).length;
+    const failedCases = [
+      ...new Set(g.gap.filter((r) => !r.pass).map((r) => r.caseId)),
+    ];
+    const efforts = [
+      ...new Set(g.gap.concat(g.facts).map((r) => r.effort).filter(Boolean)),
+    ];
+    const reasoning = g.gap.concat(g.facts).map((r) => r.reasoningTokens || 0);
     lines.push(
       [
         g.variant,
@@ -340,6 +362,9 @@ function summarize(rows, spend) {
         `${factsOk}/${g.facts.length}`,
         Math.round(median(g.latencies)),
         (median(g.costs) || 0).toFixed(5),
+        efforts.join(',') || 'n/a',
+        String(Math.round(median(reasoning))),
+        failedCases.join(',') || 'none',
       ].join('\t')
     );
   }
@@ -392,8 +417,9 @@ async function main() {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const jobs = jobsFor(args);
   let spend = 0;
-  const rows = await mapPool(jobs, CONCURRENCY, async (job) => {
-    if (spend >= HARD_CAP_USD) {
+  const cap = Number(args.cap) || DEFAULT_CAP_USD;
+  const runJob = async (job) => {
+    if (spend >= cap) {
       return {
         ...job,
         group: job.case.group,
@@ -401,13 +427,14 @@ async function main() {
         tag: 'skipped_cap',
         ms: 0,
         usd: 0,
+        effort: '',
+        reasoningTokens: 0,
         reply: '',
       };
     }
     const t0 = Date.now();
-    const completion = await client.chat.completions.create({
+    const { completion, request } = await createChatCompletion(client, {
       model: job.model,
-      temperature: TEMPERATURE,
       messages: [
         { role: 'system', content: job.system },
         { role: 'user', content: job.case.question },
@@ -416,6 +443,7 @@ async function main() {
     const ms = Date.now() - t0;
     const reply = (completion.choices?.[0]?.message?.content || '').trim();
     const usage = completion.usage || {};
+    const reasoningTokens = reasoningTokensFromUsage(usage);
     const usd = costUsd(
       job.model,
       usage.prompt_tokens || 0,
@@ -423,6 +451,7 @@ async function main() {
     );
     spend += usd;
     const scored = job.case.score(reply);
+    const shape = cachedChatCompletionShape(job.model) || {};
     return {
       variant: job.variant,
       model: job.model,
@@ -433,11 +462,22 @@ async function main() {
       tag: scored.tag,
       ms,
       usd,
+      effort: request.reasoning_effort || shape.reasoning_effort || (request.temperature === 0 ? 'temp0' : ''),
+      reasoningTokens,
       promptTokens: usage.prompt_tokens || 0,
       completionTokens: usage.completion_tokens || 0,
       reply,
     };
-  });
+  };
+  const rows = [];
+  const byModel = new Map();
+  for (const job of jobs) {
+    if (!byModel.has(job.model)) byModel.set(job.model, []);
+    byModel.get(job.model).push(job);
+  }
+  for (const modelJobs of byModel.values()) {
+    rows.push(...(await mapPool(modelJobs, CONCURRENCY, runJob)));
+  }
 
   const { text, groups } = summarize(rows, spend);
   const outDir = path.join(__dirname, '..', 'data', 'test-results');

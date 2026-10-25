@@ -13,6 +13,7 @@ import {
   buildBusinessBotMessages,
   businessBotReply,
 } from '../src/businessBot.js';
+import { resetChatCompletionShapeCache } from '../src/openaiChat.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import { emptyProfile, withKnownProfileKeys } from '../src/profile.js';
 import {
@@ -70,6 +71,7 @@ function fakeClient(reply = 'Hello from the bot') {
 }
 
 async function testRequestShape() {
+  resetChatCompletionShapeCache();
   const profile = approvedProfile();
   const history = turns(2);
   const prevModel = process.env.OPENAI_MODEL;
@@ -97,6 +99,63 @@ async function testRequestShape() {
   if (prevModel === undefined) delete process.env.OPENAI_MODEL;
   else process.env.OPENAI_MODEL = prevModel;
   console.log('PASS request_shape_model_temperature_prompt');
+}
+
+function fakeClientRejectTempThenOk() {
+  const requests = [];
+  return {
+    requests,
+    chat: {
+      completions: {
+        create: async (req) => {
+          requests.push(req);
+          if (req.temperature != null) {
+            const err = new Error("Unsupported value: 'temperature' is not supported with this model.");
+            err.status = 400;
+            throw err;
+          }
+          if (req.reasoning_effort === 'none') {
+            const err = new Error("Unsupported value: 'reasoning_effort' does not support 'none'.");
+            err.status = 400;
+            throw err;
+          }
+          return { choices: [{ message: { content: 'reasoned' } }] };
+        },
+      },
+    },
+  };
+}
+
+async function testReasoningModelFallback() {
+  resetChatCompletionShapeCache();
+  const prevModel = process.env.OPENAI_MODEL;
+  process.env.OPENAI_MODEL = 'gpt-reason-test';
+  const client = fakeClientRejectTempThenOk();
+  const reply = await businessBotReply({
+    profile: approvedProfile(),
+    history: [],
+    question: 'Hi',
+    client,
+  });
+  assert.equal(reply, 'reasoned');
+  assert.equal(client.requests[0].temperature, 0);
+  const ok = [...client.requests].reverse().find((r) => r.temperature == null);
+  assert.ok(ok, 'retries without temperature');
+  assert.equal(ok.reasoning_effort, 'minimal');
+  assert.ok(ok.max_completion_tokens > 0);
+  await businessBotReply({
+    profile: approvedProfile(),
+    history: [],
+    question: 'Again',
+    client,
+  });
+  const last = client.requests.at(-1);
+  assert.equal(last.temperature, undefined);
+  assert.equal(last.reasoning_effort, 'minimal');
+  if (prevModel === undefined) delete process.env.OPENAI_MODEL;
+  else process.env.OPENAI_MODEL = prevModel;
+  resetChatCompletionShapeCache();
+  console.log('PASS reasoning_model_omits_temperature_uses_lowest_effort');
 }
 
 function testHistoryBounded() {
@@ -261,6 +320,7 @@ function testMigrationKeysMatchProfile() {
 
 async function main() {
   await testRequestShape();
+  await testReasoningModelFallback();
   testHistoryBounded();
   await testMemoryPersistsThroughStore();
   await testStoredHistoryCapped();

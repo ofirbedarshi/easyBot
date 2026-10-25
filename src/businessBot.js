@@ -1,5 +1,6 @@
 import { getClient } from './builder.js';
 import { buildCustomerSystemPrompt } from './customerPrompt.js';
+import { createChatCompletion } from './openaiChat.js';
 
 /** Most recent history messages sent to the model per Business Bot reply. */
 export const BUSINESS_BOT_CONTEXT_MESSAGES = 20;
@@ -35,9 +36,8 @@ export function buildBusinessBotMessages({ profile, history, question }) {
  */
 export async function businessBotReply({ profile, history, question, client }) {
   const openai = client || getClient();
-  const completion = await openai.chat.completions.create({
+  const { completion } = await createChatCompletion(openai, {
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    temperature: 0,
     messages: buildBusinessBotMessages({ profile, history, question }),
   });
   return (completion.choices?.[0]?.message?.content || '').trim();
