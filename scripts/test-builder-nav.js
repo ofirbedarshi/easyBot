@@ -15,8 +15,10 @@ import {
 import {
   isMenuRequest,
   menuActive,
+  menuItems,
   ownerLanguage,
   parseMenuChoice,
+  parseMenuItem,
   parseReviewChoice,
   renderMenu,
   renderReview,
@@ -26,7 +28,7 @@ import { startFlowiseSyncWorker } from '../src/flowiseSyncWorker.js';
 import { createMemoryStore } from '../src/store/memoryStore.js';
 
 const PROFILE = testProfilePath('builder-nav');
-const HE_MENU_HEAD = '1. פרטי העסק';
+const HE_MENU_HEAD = '2. פרטי העסק';
 const HE_FOOTER = 'אפשר לבחור מספר או פשוט לכתוב מה רוצים לשנות.';
 
 function clean() {
@@ -154,7 +156,7 @@ async function testPendingSyncNoSuccess() {
   assert.equal(menuActive(session.buildHistory), false);
 }
 
-/** Section 1–5 views are read-only and show real values; numbers after a section go to the Builder. */
+/** Section views (2–6 after approval) are read-only and show real values; numbers after a section go to the Builder. */
 async function testSectionRoutingReadOnly() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
@@ -166,8 +168,9 @@ async function testSectionRoutingReadOnly() {
   const m = await handleMessage(session, 'תפריט');
   assert.equal(m.event, 'menu');
   assert.ok(m.reply.includes(HE_MENU_HEAD));
-  const s4 = await handleMessage(session, '4');
+  const s4 = await handleMessage(session, '5');
   assert.equal(s4.event, 'menu_section');
+  assert.ok(s4.reply.startsWith('סגנון והצגת מחירים\n'), s4.reply);
   assert.ok(s4.reply.includes('סגנון: warm'), s4.reply);
   assert.ok(s4.reply.includes('אורך תשובות: קצרות'), s4.reply);
   assert.ok(s4.reply.includes('מחירים: רק כשהלקוח שואל על מחיר'), s4.reply);
@@ -181,16 +184,16 @@ async function testSectionRoutingReadOnly() {
 
   // Other sections render their own fields.
   await handleMessage(session, 'menu');
-  const s1 = await handleMessage(session, '1');
+  const s1 = await handleMessage(session, '2');
   assert.ok(s1.reply.includes('Studio Yoga') && s1.reply.includes('200 ILS'), s1.reply);
   await handleMessage(session, 'menu');
-  const s2 = await handleMessage(session, '2');
+  const s2 = await handleMessage(session, '3');
   assert.ok(s2.reply.includes('name, phone'), s2.reply);
   await handleMessage(session, 'menu');
-  const s3 = await handleMessage(session, '3');
+  const s3 = await handleMessage(session, '4');
   assert.ok(s3.reply.includes('Yes, beginners welcome.'), s3.reply);
   await handleMessage(session, 'menu');
-  const s5 = await handleMessage(session, '5');
+  const s5 = await handleMessage(session, '6');
   assert.ok(s5.reply.includes('Maya') && s5.reply.includes('(ברירת מחדל)'), s5.reply);
 }
 
@@ -228,7 +231,7 @@ async function testNumberWithoutMenuContext() {
   assert.equal(session.mode, 'BUILD');
 }
 
-/** 6 → same path as /test (fresh session); /end → Hebrew editing menu. */
+/** Try my bot (7 after approval) → same path as /test (fresh session); /end → Hebrew editing menu. */
 async function testSixAndEnd() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
@@ -237,7 +240,7 @@ async function testSixAndEnd() {
   await handleMessage(session, 'תפריט');
   const oldSid = session.testSessionId;
   await new Promise((r) => setTimeout(r, 2));
-  const six = await handleMessage(session, '6');
+  const six = await handleMessage(session, '7');
   assert.equal(six.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.notEqual(session.testSessionId, oldSid);
@@ -246,17 +249,17 @@ async function testSixAndEnd() {
   assert.ok(end.reply.startsWith('חזרנו למצב עריכה. מה תרצה לעשות?'), end.reply);
   assert.ok(end.reply.includes(HE_MENU_HEAD));
   assert.ok(!/BUILD mode|flowise/i.test(end.reply));
-  const s5 = await handleMessage(session, '5');
+  const s5 = await handleMessage(session, '6');
   assert.equal(s5.event, 'menu_section');
 }
 
-/** 6 keeps /test prerequisites: unsynced profile stays in BUILD with the existing reason. */
+/** Try my bot (7) keeps /test prerequisites: unsynced profile stays in BUILD with the existing reason. */
 async function testSixRespectsSyncGate() {
   clean();
   saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
-  const six = await handleMessage(session, '6');
+  const six = await handleMessage(session, '7');
   const slash = await handleMessage(session, '/test');
   assert.equal(six.ok, false);
   assert.equal(session.mode, 'BUILD');
@@ -273,11 +276,11 @@ async function testPendingChangesPreserved() {
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'user', content: 'hi, I run a yoga studio' });
   await handleMessage(session, 'menu');
-  const s4 = await handleMessage(session, '4');
+  const s4 = await handleMessage(session, '5');
   assert.ok(s4.reply.includes('Live now:') && s4.reply.includes('Pending change'), s4.reply);
   assert.ok(s4.reply.includes('Style: warm') && s4.reply.includes('Style: playful'), s4.reply);
   await handleMessage(session, 'menu');
-  const s1 = await handleMessage(session, '1');
+  const s1 = await handleMessage(session, '2');
   assert.ok(!s1.reply.includes('Pending change'), 'unchanged section shows current only');
   assert.equal(readRaw(), before, 'draft and reviewedDraftKey unchanged');
 }
@@ -306,9 +309,24 @@ async function testEnglishOwner() {
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio in Tel Aviv' });
   const end = await handleMessage(session, '/end');
   assert.ok(end.reply.startsWith('Back in editing mode. What would you like to do?'), end.reply);
-  assert.ok(end.reply.includes('1. Business\n'));
-  assert.ok(end.reply.includes('6. Try my bot'));
-  const s4 = await handleMessage(session, '4');
+  assert.ok(
+    end.reply.endsWith(
+      [
+        '1. Get this bot for my business',
+        '2. Edit business',
+        '3. Edit bot goal & customer details',
+        '4. Edit Q&A',
+        '5. Edit style & prices',
+        '6. Edit name & opening',
+        '7. Try my bot',
+        '',
+        'Pick a number or just write what you want to change.',
+      ].join('\n')
+    ),
+    end.reply
+  );
+  const s4 = await handleMessage(session, '5');
+  assert.ok(s4.reply.startsWith('Style & prices\nCurrent:'), s4.reply);
   assert.ok(s4.reply.includes('Prices: only when the customer asks about pricing'), s4.reply);
 }
 
@@ -380,7 +398,8 @@ async function testMakeChangesShowsMenu() {
   const ch = await handleMessage(session, 'Make changes');
   assert.equal(ch.event, 'menu');
   assert.ok(ch.reply.startsWith('What would you like to change?'), ch.reply);
-  assert.ok(ch.reply.includes('1. Business\n') && ch.reply.includes('6. Try my bot'), ch.reply);
+  assert.ok(ch.reply.includes('1. Edit business\n') && ch.reply.includes('6. Try my bot'), ch.reply);
+  assert.ok(!ch.reply.includes('Get this bot'), 'no lead item before approval');
   assert.equal(menuActive(session.buildHistory), true);
   assert.equal(readRaw(), before, 'Make changes must not save');
   const six = await handleMessage(session, '6');
@@ -410,13 +429,13 @@ async function testTryApprovesPendingEdit() {
   assert.equal(calls.flowise, 1);
 }
 
-/** 6 with no pending review uses the normal /test path (refusal when unsynced). */
+/** Try my bot (7) with no pending review uses the normal /test path (refusal when unsynced). */
 async function testSixWithoutPendingReview() {
   clean();
   saveProfile(approvedProfile({ flowiseSyncOk: false }), PROFILE);
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
-  const six = await handleMessage(session, '6');
+  const six = await handleMessage(session, '7');
   assert.equal(six.ok, false);
   assert.equal(session.mode, 'BUILD');
   assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
@@ -513,6 +532,37 @@ async function testReviewRenderHelpers() {
   assert.equal(parseReviewChoice('3'), null);
 }
 
+/** Menu numbering per state: lead item first only when shown; numbers map to what is rendered. */
+async function testMenuLayoutStates() {
+  const lead = { leadOption: true };
+  const noLead = { leadOption: false };
+  assert.deepEqual(menuItems(lead), ['lead', 1, 2, 3, 4, 5, 'try']);
+  assert.deepEqual(menuItems(noLead), [1, 2, 3, 4, 5, 'try']);
+  assert.deepEqual(menuItems(), menuItems(noLead));
+  for (const opts of [lead, noLead]) {
+    const rendered = renderMenu('en', opts).split('\n').filter((l) => /^\d\. /.test(l));
+    assert.equal(rendered.length, menuItems(opts).length);
+    rendered.forEach((line, i) => {
+      assert.ok(line.startsWith(`${i + 1}. `), line);
+      assert.equal(parseMenuItem(String(i + 1), opts), menuItems(opts)[i]);
+    });
+  }
+  assert.ok(renderMenu('en', noLead).startsWith('1. Edit business\n'));
+  assert.equal(parseMenuItem('1', lead), 'lead');
+  assert.equal(parseMenuItem('2.', lead), 1);
+  assert.equal(parseMenuItem('7', lead), 'try');
+  assert.equal(parseMenuItem('1', noLead), 1);
+  assert.equal(parseMenuItem('6', noLead), 'try');
+  assert.equal(parseMenuItem('7', noLead), null);
+  assert.equal(parseMenuItem('8', lead), null);
+  assert.equal(parseMenuItem('0', lead), null);
+  assert.equal(parseMenuItem('change Q&A', lead), null);
+  const he = renderMenu('he', lead).split('\n');
+  assert.equal(he[0], '1. Get this bot for my business');
+  assert.equal(he[1], HE_MENU_HEAD);
+  assert.equal(he[6], '7. לנסות את הבוט');
+}
+
 /** Background worker: BUILD → success + menu context; TEST → no editing claim, no menu. */
 async function testWorkerRespectsMode() {
   for (const mode of ['BUILD', 'TEST']) {
@@ -576,6 +626,7 @@ async function main() {
   await test('try_sync_pending_stays_in_build', testTrySyncPendingStaysInBuild);
   await test('review_render_helpers', testReviewRenderHelpers);
   await test('worker_respects_mode', testWorkerRespectsMode);
+  await test('menu_layout_states', testMenuLayoutStates);
   clean();
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

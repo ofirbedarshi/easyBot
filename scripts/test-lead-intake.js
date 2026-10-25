@@ -54,10 +54,10 @@ assert.deepEqual(r.state.answers, {
   systemName: 'A booking app',
 });
 
-// Menu: item 7 only when requested; English label in Hebrew too
+// Menu: item 1 only when requested; English label in Hebrew too
 assert.ok(!renderMenu('en').includes(LEAD_MENU_LABEL));
-assert.ok(renderMenu('en', { leadOption: true }).includes(`7. ${LEAD_MENU_LABEL}`));
-assert.ok(renderMenu('he', { leadOption: true }).includes(`7. ${LEAD_MENU_LABEL}`));
+assert.ok(renderMenu('en', { leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business\n`));
+assert.ok(renderMenu('he', { leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n`));
 
 // Session flow (memory store)
 const store = createMemoryStore();
@@ -81,24 +81,24 @@ async function send(text) {
 
 const profileBefore = JSON.stringify(await store.loadProfile(sender));
 
-// Cancel with "menu": nothing saved, menu shown, item 7 still offered
-assert.equal((await send('7')).event, 'lead_question');
+// Cancel with "menu": nothing saved, menu shown, item 1 still offered
+assert.equal((await send('1')).event, 'lead_question');
 let res = await send('menu');
 assert.equal(res.event, 'lead_cancelled');
-assert.ok(res.reply.includes(`7. ${LEAD_MENU_LABEL}`));
+assert.ok(res.reply.includes(`1. ${LEAD_MENU_LABEL}`));
 assert.equal(Object.keys(store._dump().leads).length, 0);
 
 // Cancel with /end
-await send('7');
+await send('1');
 await send('1');
 res = await send('/end');
 assert.equal(res.event, 'enter_build');
-assert.ok(res.reply.includes(`7. ${LEAD_MENU_LABEL}`));
+assert.ok(res.reply.includes(`1. ${LEAD_MENU_LABEL}`));
 assert.equal((await store.loadSession(sender)).leadIntake, null);
 assert.equal(Object.keys(store._dump().leads).length, 0);
 
 // Full run
-await send('7');
+await send('1');
 await send('1 4');
 await send('5');
 await send('Track orders');
@@ -108,7 +108,7 @@ await send('5');
 res = await send('1');
 assert.equal(res.event, 'lead_saved');
 assert.ok(res.reply.startsWith("Thanks! We'll get back to you soon."));
-assert.ok(res.reply.includes('6. Try my bot'));
+assert.ok(res.reply.includes('1. Edit business\n') && res.reply.includes('6. Try my bot'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 
 const lead = store._dump().leads[sender];
@@ -123,16 +123,16 @@ assert.deepEqual(lead.answers, {
   system: 'No',
 });
 
-// One-time: picking 7 again does not restart
-res = await send('7');
-assert.equal(res.event, 'lead_already_sent');
-assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
-assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
-
 // Builder state untouched
 const sess = await store.loadSession(sender);
 assert.equal(sess.buildHistory.filter((m) => m.role === 'user').length, 0);
 assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
+
+// One-time: after submission the lead item is hidden and 1 is the first edit item
+res = await send('1');
+assert.equal(res.event, 'menu_section');
+assert.ok(res.reply.startsWith('Business\nCurrent:'), res.reply);
+assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
 
 // Not offered before first approval: 7 falls through to the Builder
 const sender2 = 'whatsapp:+15550000002';

@@ -28,6 +28,7 @@ import {
   menuActive,
   ownerLanguage,
   parseMenuChoice,
+  parseMenuItem,
   renderMenu,
   parseReviewChoice,
   renderChangeMenu,
@@ -41,7 +42,6 @@ import {
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
-  LEAD_MENU_NUMBER,
   LEAD_THANKS,
   leadInProgress,
   leadSubmitted,
@@ -325,8 +325,10 @@ export async function handleMessage(session, text, options = {}) {
 /**
  * Editing-menu navigation (BUILD only). Menu words require an approved bot.
  * A review offers two options: 1 "Try my bot" (approves a pending review, then
- * TEST) and 2 "Make changes" (full editing menu). From the editing menu, 1–5
- * are read-only (never save the profile) and 6 behaves like "Try my bot".
+ * TEST) and 2 "Make changes" (full editing menu). From the editing menu, the
+ * section items are read-only (never save the profile) and the last item
+ * behaves like "Try my bot". After approval, until a lead is submitted, item 1
+ * is "Get this bot for my business" and the rest shift down by one.
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
 async function handleNavigation(session, text) {
@@ -349,21 +351,19 @@ async function handleNavigation(session, text) {
   }
 
   const wantsMenu = isMenuRequest(text);
-  const choice = menuActive(session.buildHistory)
-    ? parseMenuChoice(text, LEAD_MENU_NUMBER)
-    : null;
-  if (!wantsMenu && choice == null) return null;
+  const numbered = menuActive(session.buildHistory) && parseMenuChoice(text, 9) != null;
+  if (!wantsMenu && !numbered) return null;
   const profile = await loadAsync(session);
+  // Same visibility rule as every rendered menu, so numbers match what was shown.
+  const choice = numbered ? parseMenuItem(text, leadMenuOpts(session, profile)) : null;
+  if (!wantsMenu && choice == null) return null;
 
   // Menu words only after first approval; numbers work from a review menu too.
   if (wantsMenu && !profile.approvedAt) return null;
   if (!profile.approvedAt && choice == null) return null;
 
-  if (choice === LEAD_MENU_NUMBER) {
-    if (!profile.approvedAt) return null;
-    return beginLeadIntake(session);
-  }
-  if (choice === 6) return tryMyBot(session, text, profile);
+  if (choice === 'lead') return beginLeadIntake(session);
+  if (choice === 'try') return tryMyBot(session, text, profile);
 
   const lang = ownerLanguage(session.buildHistory);
   const reply = wantsMenu
@@ -421,7 +421,7 @@ async function approveDraft(session, profile) {
 }
 
 /**
- * Menu option 6 with a pending review: approve + sync, then enter TEST when ready.
+ * Try my bot with a pending review: approve + sync, then enter TEST when ready.
  */
 async function approvePendingAndTest(session, profile, text) {
   session.buildHistory.push({ role: 'user', content: text });
