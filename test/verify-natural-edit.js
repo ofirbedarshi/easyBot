@@ -93,6 +93,45 @@ async function testNaturalEdit() {
   }
   
   console.log('✓ Turn 2 succeeded: price updated, no duplicate\n');
+  profile = mergeDraft(profile, draft2);
+  let tokens = turn1.usage.total_tokens + turn2.usage.total_tokens;
+
+  const say = async (text) => {
+    const t = await runBuilderTurn({ buildHistory, profile, userMessage: text });
+    buildHistory.push({ role: 'user', content: text });
+    buildHistory.push({ role: 'assistant', content: t.message, nav: t.nav });
+    profile = mergeDraft(profile, t.draft);
+    tokens += t.usage.total_tokens;
+    return t;
+  };
+
+  console.log('Turn 3: Owner leaves weekend hours undecided');
+  await say("We're open weekdays 8am-6pm. Not sure yet whether we'll open on weekends.");
+  console.log('  Unknowns:', profile.unknowns, '| Hours:', profile.hours);
+  if (!profile.unknowns.some((u) => /weekend/i.test(u))) {
+    console.error('✗ FAILED: weekend unknown not recorded');
+    process.exit(1);
+  }
+
+  console.log('Turn 4: Owner resolves it');
+  await say("We'll be open Saturdays 9am-1pm too, closed Sundays.");
+  console.log('  Unknowns:', profile.unknowns, '| Hours:', profile.hours, '| otherFacts:', profile.otherFacts);
+  const stillUnknown = profile.unknowns.some((u) => /weekend|saturday|sunday/i.test(u));
+  const services = profile.services.filter((s) => /wash/i.test(s.name));
+  console.log('  Total tokens (4 turns):', tokens);
+  if (stillUnknown) {
+    console.error('✗ FAILED: resolved unknown came back');
+    process.exit(1);
+  }
+  if (!/sat/i.test(profile.hours || '') && !profile.otherFacts.some((f) => /sat/i.test(f))) {
+    console.error('✗ FAILED: Saturday hours not stored');
+    process.exit(1);
+  }
+  if (services.length !== 1 || !services[0].price.includes('60')) {
+    console.error('✗ FAILED: earlier price edit not kept', services);
+    process.exit(1);
+  }
+  console.log('✓ Resolved unknown removed, earlier edit kept\n');
   console.log('✓ Natural edit test PASSED');
 }
 
