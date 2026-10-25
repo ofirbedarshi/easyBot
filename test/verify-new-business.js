@@ -4,7 +4,7 @@
  */
 
 import { runBuilderTurn, openingMessage, applyReviewGate, shouldSoftApprove } from '../src/builder.js';
-import { emptyProfile, mergeDraft, draftReviewKey } from '../src/profile.js';
+import { emptyProfile, mergeDraft, draftReviewKey, businessFactsView } from '../src/profile.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import OpenAI from 'openai';
 
@@ -96,31 +96,24 @@ function checkProfile(profile) {
   console.log('Checking stored facts:\n');
   
   const expectedFacts = [
-    { name: "Vehicle restrictions", keywords: ["sedan", "SUV", "truck"] },
-    { name: "Mobile service range", keywords: ["15 miles", "travel", "mobile"] },
-    { name: "Eco-friendly products", keywords: ["eco", "biodegradable"] },
-    { name: "24-hour notice requirement", keywords: ["24 hour", "notice", "appointment"] }
+    { name: "Vehicle restrictions", all: ["sedan", "suv", "8 feet"] },
+    { name: "Mobile service range", all: ["15 miles", "$25"] },
+    { name: "Eco-friendly products", all: ["eco", "biodegradable"] },
+    { name: "24-hour notice requirement", all: ["24 hour"] }
   ];
-  
+
+  const facts = businessFactsView(profile);
+  const stored = Object.entries(facts).filter(([k]) => k !== 'unknowns').map(([k, v]) => [k, JSON.stringify(v ?? '').toLowerCase()]);
+  console.log('  otherFacts:', facts.otherFacts, '\n  unknowns:', facts.unknowns, '\n  locationOrArea:', facts.locationOrArea);
   let allFound = true;
-  
   for (const expected of expectedFacts) {
-    const found = profile.otherFacts?.some(f => 
-      expected.keywords.some(kw => f.toLowerCase().includes(kw.toLowerCase()))
-    );
-    
-    if (found) {
-      const fact = profile.otherFacts.find(f => 
-        expected.keywords.some(kw => f.toLowerCase().includes(kw.toLowerCase()))
-      );
-      console.log(`✓ ${expected.name}`);
-      console.log(`  Stored as: "${fact}"\n`);
-    } else {
-      console.log(`✗ ${expected.name} NOT FOUND\n`);
-      allFound = false;
-    }
+    const where = stored.filter(([, v]) => expected.all.some((t) => v.includes(t))).map(([k]) => k);
+    const blob = stored.map(([, v]) => v).join(' ');
+    const ok = expected.all.every((t) => blob.includes(t));
+    console.log(`${ok ? '✓' : '✗'} ${expected.name} (stored in: ${where.join(', ') || 'nowhere'})`);
+    if (!ok) allFound = false;
   }
-  
+
   return { allFound, factCount: profile.otherFacts?.length || 0 };
 }
 

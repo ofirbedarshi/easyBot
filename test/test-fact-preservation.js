@@ -84,28 +84,25 @@ test('resolved unknown is not restored', () => {
   assert.deepEqual(r.unknowns, []);
 });
 
-test('factOps: add appends, duplicate add ignored', () => {
-  assert.deepEqual(
-    applyFactOps(['Fact 1'], [{ op: 'add', text: 'Fact 2' }, { op: 'add', text: 'fact 1' }]),
-    ['Fact 1', 'Fact 2']
-  );
+test('newFacts append; already-stored fact not duplicated', () => {
+  assert.deepEqual(applyFactOps(['Fact 1'], ['Fact 2', 'fact 1'], []), ['Fact 1', 'Fact 2']);
 });
 
-test('factOps: change replaces by index, no duplicate', () => {
+test('factEdits text replaces stored fact by index, no duplicate', () => {
   assert.deepEqual(
-    applyFactOps(['Fact 1', 'Fact 2'], [{ op: 'change', index: 1, text: 'Fact 2 corrected' }]),
+    applyFactOps(['Fact 1', 'Fact 2'], [], [{ index: 1, text: 'Fact 2 corrected' }]),
     ['Fact 1', 'Fact 2 corrected']
   );
 });
 
-test('factOps: remove by index', () => {
-  assert.deepEqual(applyFactOps(['Fact 1', 'Fact 2'], [{ op: 'remove', index: 0 }]), ['Fact 2']);
+test('factEdits null text removes by index', () => {
+  assert.deepEqual(applyFactOps(['Fact 1', 'Fact 2'], [], [{ index: 0, text: null }]), ['Fact 2']);
 });
 
-test('factOps: no ops keeps list intact; invalid ops ignored', () => {
-  assert.deepEqual(applyFactOps(['Fact 1'], undefined), ['Fact 1']);
+test('no fact changes keeps stored list intact; invalid edits ignored', () => {
+  assert.deepEqual(applyFactOps(['Fact 1'], undefined, undefined), ['Fact 1']);
   assert.deepEqual(
-    applyFactOps(['Fact 1'], [{ op: 'remove', index: 5 }, { op: 'change', index: 0, text: '' }, { op: 'x' }]),
+    applyFactOps(['Fact 1'], [], [{ index: 5, text: null }, { index: 0, text: '' }, { index: 'x' }]),
     ['Fact 1']
   );
 });
