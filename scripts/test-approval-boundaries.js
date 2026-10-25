@@ -440,7 +440,8 @@ function testGoalSupport() {
     commonQuestions: [],
     informationToCollect: null,
   };
-  const disclaimer = /Right now the bot can answer customer questions and collect their details\. It can't book sessions yet, so I set it to answer questions and collect details\./;
+  const disclaimer =
+    /Noted! book sessions isn't available yet, so I'll set the bot to answer questions and collect details for now\./;
 
   // Unsupported → fallback goal + fixed disclaimer before the next question.
   const u = applyReviewGate(
@@ -457,9 +458,9 @@ function testGoalSupport() {
   assert.equal(u.draft.ownerGoal, 'answer_and_collect');
   assert.equal(u.draft.ownerGoalRequested, 'lead customers to book a session');
   assert.match(u.message, disclaimer);
-  assert.ok(u.message.startsWith('Right now the bot'), 'model ack replaced by disclaimer');
+  assert.ok(u.message.startsWith('Noted!'), 'model ack replaced by disclaimer');
   assert.ok(
-    u.message.indexOf("It can't") < u.message.indexOf('What questions do customers'),
+    u.message.indexOf("isn't available yet") < u.message.indexOf('What questions do customers'),
     'disclaimer before the question'
   );
 
@@ -475,7 +476,7 @@ function testGoalSupport() {
     'lead customers to book a session with me'
   );
   assert.equal(missed.draft.ownerGoal, 'answer_and_collect');
-  assert.match(missed.message, /^Right now the bot [\s\S]*It can't book appointments yet/);
+  assert.match(missed.message, /^Noted! book appointments isn't available yet/);
   assert.doesNotMatch(missed.message, /help customers book/);
 
   // Supported → no disclaimer.
@@ -490,7 +491,7 @@ function testGoalSupport() {
     'answer questions'
   );
   assert.equal(s.draft.ownerGoal, 'answer_questions');
-  assert.doesNotMatch(s.message, /Right now the bot/);
+  assert.doesNotMatch(s.message, /Noted!/);
 
   // reconcileDraft: invalid/omitted goal keeps previous; free text never stored.
   assert.equal(reconcileDraft({ ownerGoal: 'sell more' }, { ownerGoal: 'collect_details' }).ownerGoal, 'collect_details');

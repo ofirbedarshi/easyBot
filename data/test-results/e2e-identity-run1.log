@@ -14,7 +14,7 @@ PASS [deterministic] A.facts_unchanged_after_approve: facts equal seed
 PASS [deterministic] A.prompt_contains_identity: customer prompt includes approved opening
 
 === B: fresh conversation "Hi" ===
-PASS [deterministic] test.enter: TEST mode — you are now a customer talking to your business bot (Flowise). Type /end to return to BUILD.
+PASS [deterministic] test.enter: TEST mode — you are now a customer talking to your business bot . Type "/end" to return to BUILD mode.
 FAIL [real-llm-judge+real-flowise] B.fresh_hi_intro: verdict=REVIEW reason=[EVALUATION_UNRELIABLE — calibration failed] The response correctly introduces the assistant as Maya, the digital assistant of Yoga with Noa, which aligns with the behaviorSettings. There are no factual inaccuracies or unsupported claims. reply=Hi, I’m Maya, the digital assistant of Yoga with Noa 🙂 How can I help?
 PASS [real-llm-ux-judge] ux.B.fresh_hi_intro: ux=5/5 The reply is clear, warm, and matches the style settings perfectly. It introduces the assistant and invites the customer to ask a question.
 

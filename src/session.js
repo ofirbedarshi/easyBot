@@ -466,7 +466,7 @@ async function enterTest(session) {
   session.testHistory = [];
   session.testSessionId = `test-${Date.now()}`;
   const reply =
-    'TEST mode — you are now a customer talking to your business bot (Flowise). Type /end to return to BUILD.';
+    'TEST mode — you are now a customer talking to your business bot . Type "/end" to return to BUILD mode.';
   return {
     ok: true,
     reply,

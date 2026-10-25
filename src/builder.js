@@ -599,7 +599,7 @@ export function applyGoalSupport(profile, turn, userMessage) {
   const what = turn.goalUnsupportedPart || matched?.[1] || 'do that';
   return {
     turn: { ...turn, draft: { ...(turn.draft || {}), ownerGoal: FALLBACK_OWNER_GOAL } },
-    disclaimer: `Right now the bot can answer customer questions and collect their details. It can't ${what} yet, so I set it to answer questions and collect details.`,
+    disclaimer: `Noted! ${what} isn't available yet, so I'll set the bot to answer questions and collect details for now.`,
   };
 }
 
