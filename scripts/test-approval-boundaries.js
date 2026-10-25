@@ -1,6 +1,7 @@
 /**
  * Deterministic approval-boundary tests through real handleMessage handlers
- * with mocked Flowise + stubbed Builder turns (no network).
+ * with stubbed Builder turns (no network). Each approval that makes the
+ * Business Bot live records a snapshot of the live profile.
  */
 import assert from 'assert';
 import fs from 'fs';
@@ -26,8 +27,7 @@ import {
   withSingleQuestion,
 } from '../src/builder.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
-import { buildFlowData } from '../src/flowise.js';
-import { createSession, handleMessage } from '../src/session.js';
+import { createSession, handleMessage as runMessage } from '../src/session.js';
 import { renderSection } from '../src/ownerNav.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,9 +58,6 @@ function baseApprovedLive() {
   p.responseLength = null;
   p.priceDisclosure = null;
   p.approvedAt = '2026-01-01T00:00:00.000Z';
-  p.chatflowId = 'cf-live';
-  p.flowiseSyncOk = true;
-  p.flowiseSyncedAt = '2026-01-01T00:00:00.000Z';
   p.draft = {
     name: p.name,
     whatWeDo: p.whatWeDo,
@@ -78,22 +75,26 @@ function baseApprovedLive() {
   return p;
 }
 
-function makeSession(stubTurn, flowiseMock) {
+const APPROVAL_EVENTS = new Set(['approved_live', 'approved_enter_test']);
+
+function makeSession(stubTurn, liveMock) {
   const session = createSession({
     profilePath: PROFILE,
-    deps: {
-      runBuilderTurn: stubTurn,
-      pingFlowise: async () => true,
-      wakeFlowise: async () => {},
-      createOrUpdateChatflow: async (profile) => {
-        flowiseMock.calls.push(JSON.parse(JSON.stringify(profile)));
-        return profile.chatflowId || 'cf-mock';
-      },
-    },
+    deps: { runBuilderTurn: stubTurn },
   });
+  session.liveMock = liveMock;
   // Past the wake/opening turn so stubs exercise Builder turns.
   session.buildHistory.push({ role: 'assistant', content: '(opened)' });
   return session;
+}
+
+/** handleMessage that records the live profile after each approval. */
+async function handleMessage(session, text) {
+  const result = await runMessage(session, text);
+  if (session.liveMock && APPROVAL_EVENTS.has(result.event)) {
+    session.liveMock.approvals.push(structuredClone(loadProfile(PROFILE)));
+  }
+  return result;
 }
 
 /** Change turn (app presents a review of the stub draft), then "1. Try my bot". */
@@ -135,7 +136,7 @@ async function testApproveRequiresPresentedReview() {
   clean();
   const live = baseApprovedLive();
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const draft80 = liveDraftWith(live, {
     services: [{ name: 'Private lesson', price: '$80 / 60 min', notes: null }],
   });
@@ -146,7 +147,7 @@ async function testApproveRequiresPresentedReview() {
       // Typed "approve" is an ordinary Builder turn; extra model fields are ignored
       { message: 'Approved!', draft: draft80, readyForReview: true, approved: true },
     ]),
-    flowiseMock
+    liveMock
   );
 
   await handleMessage(session, 'Change private lessons to $80.');
@@ -155,7 +156,7 @@ async function testApproveRequiresPresentedReview() {
   const r1 = await handleMessage(session, 'approve');
   assert.ok(!r1.approved);
   assert.equal(r1.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0, 'no sync without a presented review');
+  assert.equal(liveMock.approvals.length, 0, 'no live approval without a presented review');
   assert.equal(loadProfile(PROFILE).services[0].price, '$70 / 60 min');
   assert.match(r1.reply, /what will change:\n\nServices: Private lesson — \$80 \/ 60 min \(was: Private lesson — \$70 \/ 60 min\)/);
   assert.match(r1.reply, /1\. Try my bot\n2\. Make changes/);
@@ -165,8 +166,8 @@ async function testApproveRequiresPresentedReview() {
   const r2 = await handleMessage(session, '1');
   assert.equal(r2.approved, true);
   assert.equal(r2.event, 'approved_enter_test');
-  assert.equal(flowiseMock.calls.length, 1);
-  assert.equal(flowiseMock.calls[0].services[0].price, '$80 / 60 min');
+  assert.equal(liveMock.approvals.length, 1);
+  assert.equal(liveMock.approvals[0].services[0].price, '$80 / 60 min');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
   console.log('PASS approve_requires_presented_review');
 }
@@ -176,7 +177,7 @@ async function testEditAfterReviewRequiresNewReview() {
   clean();
   const live = baseApprovedLive();
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const draft80 = liveDraftWith(live, {
     services: [{ name: 'Private lesson', price: '$80 / 60 min', notes: null }],
   });
@@ -189,7 +190,7 @@ async function testEditAfterReviewRequiresNewReview() {
       { message: 'Updated to $90 and approved.', draft: draft90, readyForReview: true, approved: true },
       { message: 'Approved.', draft: draft90, readyForReview: true, approved: true },
     ]),
-    flowiseMock
+    liveMock
   );
 
   const r1 = await handleMessage(session, 'Change private lessons to $80.');
@@ -199,21 +200,21 @@ async function testEditAfterReviewRequiresNewReview() {
 
   const r2 = await handleMessage(session, 'Actually make it $90 — approve.');
   assert.ok(!r2.approved, 'edit after review must not approve');
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
   assert.equal(loadProfile(PROFILE).services[0].price, '$70 / 60 min');
   assert.match(r2.reply, /what will change[\s\S]*\$90 \/ 60 min/);
   assert.notEqual(loadProfile(PROFILE).reviewedDraftKey, key80);
 
   const r3 = await handleMessage(session, '1');
   assert.equal(r3.event, 'approved_enter_test');
-  assert.equal(flowiseMock.calls[0].services[0].price, '$90 / 60 min');
+  assert.equal(liveMock.approvals[0].services[0].price, '$90 / 60 min');
   console.log('PASS edit_after_review_requires_new_review');
 }
 
 async function testDraftEditLeavesLiveUnchanged() {
   clean();
   saveProfile(baseApprovedLive(), PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const pendingServices = [
     { name: 'Private lesson', price: '$80 / 60 min', notes: null },
   ];
@@ -237,18 +238,17 @@ async function testDraftEditLeavesLiveUnchanged() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await handleMessage(session, 'Change private lessons to $80 and update the goal.');
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0, 'Flowise must not sync on draft-only edit');
+  assert.equal(liveMock.approvals.length, 0, 'draft-only edit must not approve');
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.services[0].price, '$70 / 60 min');
   assert.equal(disk.ownerGoal, 'answer_and_collect');
   assert.equal(disk.approvedAt, '2026-01-01T00:00:00.000Z');
-  assert.equal(disk.chatflowId, 'cf-live');
   assert.equal(disk.draft.services[0].price, '$80 / 60 min');
   assert.equal(disk.draft.ownerGoal, pendingGoal);
 
@@ -261,10 +261,10 @@ async function testDraftEditLeavesLiveUnchanged() {
   console.log('PASS draft_edit_leaves_live_unchanged');
 }
 
-async function testReapproveUpdatesFlowise() {
+async function testReapproveUpdatesLiveBot() {
   clean();
   saveProfile(baseApprovedLive(), PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const newServices = [
     { name: 'Private lesson', price: '$80 / 60 min', notes: null },
   ];
@@ -286,23 +286,22 @@ async function testReapproveUpdatesFlowise() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'approved_enter_test');
-  assert.equal(flowiseMock.calls.length, 1, 'Flowise must sync on re-approve');
+  assert.equal(liveMock.approvals.length, 1, 're-approve must make the update live');
 
-  const sent = flowiseMock.calls[0];
+  const sent = liveMock.approvals[0];
   assert.equal(sent.services[0].price, '$80 / 60 min');
   assert.equal(sent.ownerGoal, newGoal);
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.services[0].price, '$80 / 60 min');
   assert.equal(disk.ownerGoal, newGoal);
-  assert.equal(disk.flowiseSyncOk, true);
   assert.ok(disk.approvedAt);
-  console.log('PASS reapprove_updates_flowise_config');
+  console.log('PASS reapprove_updates_live_bot');
 }
 
 function testHasEnoughForFirstBotRequiresName() {
@@ -340,7 +339,7 @@ function testHasEnoughForFirstBotRequiresName() {
 async function testIntakeGateBlocksApprove() {
   clean();
   saveProfile(emptyProfile(), PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
 
   const session = makeSession(async () => ({
     message: 'Looks ready to approve.',
@@ -358,7 +357,7 @@ async function testIntakeGateBlocksApprove() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   session.deps.runBuilderTurn = async () => ({
     message:
@@ -384,7 +383,7 @@ async function testIntakeGateBlocksApprove() {
   assert.equal(r.ok, true);
   assert.ok(!r.approved);
   assert.equal(r.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
   assert.equal(loadProfile(PROFILE).approvedAt, null);
   assert.match(r.reply, /questions do customers usually ask/i);
   assert.ok(!/collect any information/i.test(r.reply), 'one topic per turn');
@@ -417,7 +416,7 @@ async function testIntakeGateBlocksApprove() {
   const r4 = await handleMessage(session, 'none');
   assert.ok(!r4.approved);
   assert.match(r4.reply, /Try my bot/);
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
   console.log('PASS required_topics_gate_blocks_approve');
 }
 
@@ -588,7 +587,7 @@ async function testNullOwnerGoalDoesNotWipeLive() {
     'null draft ownerGoal must not clear live'
   );
 
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
     message: 'Approved.',
     draft: {
@@ -605,13 +604,13 @@ async function testNullOwnerGoalDoesNotWipeLive() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   // Null ownerGoal merges to the live config: nothing to approve, Try my bot just tests.
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'enter_test');
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
   assert.equal(loadProfile(PROFILE).ownerGoal, 'answer_and_collect');
   console.log('PASS null_owner_goal_does_not_wipe_live');
 }
@@ -631,17 +630,16 @@ async function testFormatSummaryIncludesOwnerGoal() {
   console.log('PASS format_summary_owner_goal');
 }
 
-/** Case B: pending behavior settings must not affect live prompt / Flowise. */
+/** Case B: pending behavior settings must not affect the live prompt. */
 async function testBehaviorDraftIsolatesLivePrompt() {
   clean();
   const live = baseApprovedLive();
   live.tone = 'friendly';
   live.responseLength = null;
   live.priceDisclosure = null;
-  live.flowiseSyncedAt = '2026-01-01T00:00:00.000Z';
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
-  const syncedAtBefore = live.flowiseSyncedAt;
+  const liveMock = { approvals: [] };
+  const approvedAtBefore = live.approvedAt;
 
   const session = makeSession(async () => ({
     message: 'Updated style and price disclosure — approve when ready.',
@@ -661,7 +659,7 @@ async function testBehaviorDraftIsolatesLivePrompt() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await handleMessage(
     session,
@@ -669,13 +667,13 @@ async function testBehaviorDraftIsolatesLivePrompt() {
   );
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.priceDisclosure, null);
   assert.equal(disk.responseLength, null);
   assert.equal(disk.tone, 'friendly');
-  assert.equal(disk.flowiseSyncedAt, syncedAtBefore);
+  assert.equal(disk.approvedAt, approvedAtBefore);
   assert.equal(disk.draft.priceDisclosure, 'on_request');
   assert.equal(disk.draft.responseLength, 'short');
 
@@ -691,13 +689,13 @@ async function testBehaviorDraftIsolatesLivePrompt() {
   console.log('PASS behavior_draft_isolates_live_prompt');
 }
 
-/** Approval propagates behavior settings into Flowise prompt; facts unchanged. */
-async function testBehaviorApprovePropagatesToFlowise() {
+/** Approval propagates behavior settings into the live prompt; facts unchanged. */
+async function testBehaviorApprovePropagatesToLivePrompt() {
   clean();
   const live = baseApprovedLive();
   const factsBefore = JSON.stringify(businessFactsView(live));
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
 
   const session = makeSession(async () => ({
     message: 'Approved behavior updates.',
@@ -717,14 +715,14 @@ async function testBehaviorApprovePropagatesToFlowise() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'approved_enter_test');
-  assert.equal(flowiseMock.calls.length, 1);
+  assert.equal(liveMock.approvals.length, 1);
 
-  const sent = flowiseMock.calls[0];
+  const sent = liveMock.approvals[0];
   assert.equal(sent.priceDisclosure, 'on_request');
   assert.equal(sent.responseLength, 'short');
   assert.equal(
@@ -733,16 +731,14 @@ async function testBehaviorApprovePropagatesToFlowise() {
     'business facts must be unchanged on behavior approve'
   );
 
-  const flowData = JSON.parse(buildFlowData(sent));
-  const chain = flowData.nodes.find((n) => n.data?.name === 'conversationChain');
-  const sys = chain?.data?.inputs?.systemMessagePrompt || '';
+  const sys = buildCustomerSystemPrompt(sent);
   assert.match(sys, /on request only/i);
   assert.match(sys, /Reply length: short/);
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.priceDisclosure, 'on_request');
   assert.equal(disk.responseLength, 'short');
-  console.log('PASS behavior_approve_propagates_to_flowise');
+  console.log('PASS behavior_approve_propagates_to_live_prompt');
 }
 
 /** Case I: legacy profile without new keys loads with safe defaults. */
@@ -766,8 +762,7 @@ async function testLegacyProfileSafeDefaults() {
     unknowns: [],
     tone: 'warm and calm',
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-legacy',
-    flowiseSyncOk: true,
+    retiredField: 'dropped on load',
     draft: null,
   };
   // Write raw JSON without responseLength / priceDisclosure keys
@@ -775,6 +770,7 @@ async function testLegacyProfileSafeDefaults() {
   fs.writeFileSync(PROFILE, JSON.stringify(legacy, null, 2), 'utf8');
 
   const disk = loadProfile(PROFILE);
+  assert.equal(Object.hasOwn(disk, 'retiredField'), false, 'unknown keys dropped on load');
   assert.equal(disk.tone, 'warm and calm');
   assert.equal(disk.responseLength, null);
   assert.equal(disk.priceDisclosure, null);
@@ -830,13 +826,13 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
   );
   assert.equal(reconciled.priceDisclosure, 'on_request');
 
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
     message: 'Updated tone only — approve when ready.',
     draft: reconciled,
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.ok, true);
@@ -909,18 +905,16 @@ function draftFrom(live, overrides = {}) {
   };
 }
 
-function systemPromptSentTo(flowiseMock) {
-  const flowData = JSON.parse(buildFlowData(flowiseMock.calls.at(-1)));
-  const chain = flowData.nodes.find((n) => n.data?.name === 'conversationChain');
-  return chain?.data?.inputs?.systemMessagePrompt || '';
+function systemPromptSentTo(liveMock) {
+  return buildCustomerSystemPrompt(liveMock.approvals.at(-1));
 }
 
-/** Pending identity / opening must not affect the live prompt or Flowise. */
+/** Pending identity / opening must not affect the live prompt. */
 async function testIdentityDraftIsolatesLive() {
   clean();
   const live = identityLive();
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   // Model captures identity but asks an unrelated question instead of reviewing
   const session = makeSession(async ({ profile }) => ({
     message: 'Noted Maya. What outcome do you want this bot to achieve?',
@@ -930,11 +924,11 @@ async function testIdentityDraftIsolatesLive() {
     ),
     readyForReview: false,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await handleMessage(session, 'Call the assistant Maya…');
   assert.equal(r.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0);
+  assert.equal(liveMock.approvals.length, 0);
   assert.equal(r.readyForReview, true, 'settings-only edit is presented for review');
   assert.match(r.reply, /what will change:\n\nName & opening: Maya, custom opening \(was: default\)/);
   assert.match(r.reply, /1\. Try my bot\n2\. Make changes/);
@@ -953,13 +947,13 @@ async function testIdentityDraftIsolatesLive() {
   console.log('PASS identity_draft_isolates_live');
 }
 
-/** Approval persists both identity fields and propagates them into Flowise. */
+/** Approval persists both identity fields and propagates them into the live prompt. */
 async function testIdentityApprovePropagates() {
   clean();
   const live = identityLive();
   const factsBefore = JSON.stringify(businessFactsView(live));
   saveProfile(live, PROFILE);
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async ({ profile }) => ({
     message: 'Approved.',
     draft: reconcileDraft(
@@ -968,14 +962,14 @@ async function testIdentityApprovePropagates() {
     ),
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const r = await reviewThenApprove(session);
   assert.equal(r.event, 'approved_enter_test');
-  assert.equal(flowiseMock.calls.length, 1);
-  assert.equal(flowiseMock.calls[0].assistantName, 'Maya');
-  assert.equal(flowiseMock.calls[0].openingMessage, MAYA_OPENING);
-  const sys = systemPromptSentTo(flowiseMock);
+  assert.equal(liveMock.approvals.length, 1);
+  assert.equal(liveMock.approvals[0].assistantName, 'Maya');
+  assert.equal(liveMock.approvals[0].openingMessage, MAYA_OPENING);
+  const sys = systemPromptSentTo(liveMock);
   assert.match(sys, /Assistant name: Maya\./);
   assert.ok(sys.includes(MAYA_OPENING));
   assert.match(sys, /on request only/i);
@@ -991,12 +985,9 @@ async function testOtherFactsApprovePropagates() {
   clean();
   const live = baseApprovedLive();
   live.approvedAt = null;
-  live.chatflowId = null;
-  live.flowiseSyncOk = false;
-  live.flowiseSyncedAt = null;
   saveProfile(live, PROFILE);
   const facts = ['Fact A applies on weekdays only.', 'Fact B has no exceptions.'];
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
     message: 'Here is your draft.',
     draft: {
@@ -1006,7 +997,7 @@ async function testOtherFactsApprovePropagates() {
     },
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
 
   const review = await handleMessage(session, 'Please apply this change.');
   assert.ok(
@@ -1021,8 +1012,8 @@ async function testOtherFactsApprovePropagates() {
   assert.equal(r.event, 'approved_enter_test');
   const disk = loadProfile(PROFILE);
   assert.deepEqual(disk.otherFacts, facts);
-  assert.deepEqual(flowiseMock.calls[0].otherFacts, facts);
-  const sys = systemPromptSentTo(flowiseMock);
+  assert.deepEqual(liveMock.approvals[0].otherFacts, facts);
+  const sys = systemPromptSentTo(liveMock);
   assert.equal(sys, buildCustomerSystemPrompt(disk));
   assert.match(sys, /Other business facts and policies:/);
   for (const f of facts) assert.ok(sys.includes(`- ${f}`));
@@ -1052,13 +1043,13 @@ async function testOpeningOnlyEditPreservesName() {
   );
   assert.equal(reconciled.assistantName, 'Maya');
 
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
     message: 'Opening updated.',
     draft: reconciled,
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
   await reviewThenApprove(session);
   const disk = loadProfile(PROFILE);
   assert.equal(disk.assistantName, 'Maya');
@@ -1103,20 +1094,20 @@ async function testIdentityResetRestoresDefault() {
   assert.equal(laterDraft.openingMessageReset, true);
   assert.equal(draftDiffersFromLive(live, laterDraft), true);
 
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
     message: 'Approved.',
     draft: laterDraft,
     readyForReview: true,
     source: 'stub-builder',
-  }), flowiseMock);
+  }), liveMock);
   const r = await reviewThenApprove(session);
   assert.equal(r.event, 'approved_enter_test');
   const disk = loadProfile(PROFILE);
   assert.equal(disk.assistantName, null);
   assert.equal(disk.openingMessage, null);
   assert.equal(disk.tone, 'calm');
-  const sys = systemPromptSentTo(flowiseMock);
+  const sys = systemPromptSentTo(liveMock);
   assert.doesNotMatch(sys, /Maya/);
   assert.match(sys, /Assistant name: none/);
   assert.match(sys, /Opening: default/);
@@ -1140,8 +1131,7 @@ async function testLegacyIdentityDefaults() {
     commonQuestions: [],
     tone: 'warm and calm',
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-legacy',
-    flowiseSyncOk: true,
+    retiredField: 'dropped on load',
     draft: { name: 'Quiet Mat Yoga', tone: 'warm and calm' },
   };
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
@@ -1172,7 +1162,7 @@ async function testTypedApproveIsBuilderTurn() {
   saveProfile(live, PROFILE);
 
   const draftRelevant = liveDraftWith(live, { priceDisclosure: 'relevant' });
-  const flowiseMock = { calls: [] };
+  const liveMock = { approvals: [] };
   const session = makeSession(
     queuedTurns([
       // Present review of relevant (pending)
@@ -1188,7 +1178,7 @@ async function testTypedApproveIsBuilderTurn() {
         readyForReview: true,
       },
     ]),
-    flowiseMock
+    liveMock
   );
 
   const r1 = await handleMessage(session, 'Switch to mentioning prices when relevant.');
@@ -1199,7 +1189,7 @@ async function testTypedApproveIsBuilderTurn() {
 
   const typed = await handleMessage(session, 'approve');
   assert.equal(typed.event, 'build_turn');
-  assert.equal(flowiseMock.calls.length, 0, 'typed approve never syncs');
+  assert.equal(liveMock.approvals.length, 0, 'typed approve never makes the bot live');
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'on_request');
 
   const r2 = await handleMessage(session, '1');
@@ -1214,7 +1204,7 @@ async function testTypedApproveIsBuilderTurn() {
   live2.priceDisclosure = 'on_request';
   live2.draft = liveDraftWith(live2, { priceDisclosure: 'on_request' });
   saveProfile(live2, PROFILE);
-  const flowiseMock2 = { calls: [] };
+  const liveMock2 = { approvals: [] };
   const session2 = makeSession(
     queuedTurns([
       {
@@ -1229,13 +1219,13 @@ async function testTypedApproveIsBuilderTurn() {
         approved: true, // ignored: only Try my bot approves
       },
     ]),
-    flowiseMock2
+    liveMock2
   );
 
   await handleMessage(session2, 'Put the price in every reply.');
   const rYes = await handleMessage(session2, 'yes');
   assert.ok(!rYes.approved, 'yes + new change must not approve');
-  assert.equal(flowiseMock2.calls.length, 0);
+  assert.equal(liveMock2.approvals.length, 0);
   const diskYes = loadProfile(PROFILE);
   assert.equal(diskYes.priceDisclosure, 'on_request', 'live unchanged');
   assert.equal(diskYes.draft.priceDisclosure, 'relevant', 'draft keeps accepted alternative');
@@ -1262,7 +1252,7 @@ async function testTypedApproveIsBuilderTurn() {
     askedTopics: ['commonQuestions'],
   });
   saveProfile(first, PROFILE);
-  const flowiseMock3 = { calls: [] };
+  const liveMock3 = { approvals: [] };
   const session3 = makeSession(
     queuedTurns([
       {
@@ -1276,7 +1266,7 @@ async function testTypedApproveIsBuilderTurn() {
         readyForReview: true,
       },
     ]),
-    flowiseMock3
+    liveMock3
   );
 
   const rFirstReview = await handleMessage(session3, 'Looks ready.');
@@ -1379,11 +1369,11 @@ async function main() {
   testHasEnoughForFirstBotRequiresName();
   await testFormatSummaryIncludesOwnerGoal();
   await testDraftEditLeavesLiveUnchanged();
-  await testReapproveUpdatesFlowise();
+  await testReapproveUpdatesLiveBot();
   await testIntakeGateBlocksApprove();
   await testNullOwnerGoalDoesNotWipeLive();
   await testBehaviorDraftIsolatesLivePrompt();
-  await testBehaviorApprovePropagatesToFlowise();
+  await testBehaviorApprovePropagatesToLivePrompt();
   await testLegacyProfileSafeDefaults();
   await testStyleOnlyEditPreservesPriceDisclosure();
   await testBehaviorOnlyMergePreservesFacts();

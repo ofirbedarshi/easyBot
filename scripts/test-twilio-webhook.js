@@ -239,18 +239,12 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
     name: 'Sender A Biz',
     whatWeDo: 'yoga',
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-a',
-    flowiseSyncOk: true,
-    flowiseSyncedAt: '2026-01-01T00:00:00.000Z',
   });
   await store.saveProfile(b, {
     ...emptyProfile(),
     name: 'Sender B Biz',
     whatWeDo: 'barber',
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-b',
-    flowiseSyncOk: true,
-    flowiseSyncedAt: '2026-01-01T00:00:00.000Z',
   });
   const sa = await createSenderSession(store, a);
   const sb = await createSenderSession(store, b);
@@ -271,44 +265,22 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   const pb = await store.loadProfile(b);
   assert.equal(pa.name, 'Sender A Biz');
   assert.equal(pb.name, 'Sender B Biz');
-  assert.equal(pa.chatflowId, 'cf-a');
-  assert.equal(pb.chatflowId, 'cf-b');
   ok('two senders keep isolated profiles and modes');
 
-  // /test blocked without flowiseSyncOk
+  // /test blocked without approval
   await store.saveProfile(a, {
     ...pa,
-    flowiseSyncOk: false,
+    approvedAt: null,
   });
-  const flowiseDown = {
-    pingFlowise: async () => false,
-    wakeFlowise: async () => {},
-  };
-  const sa2 = await createSenderSession(store, a, { deps: flowiseDown });
+  const sa2 = await createSenderSession(store, a);
   sa2.mode = 'BUILD';
   const blocked = await handleMessage(sa2, '/test');
   assert.equal(blocked.ok, false);
-  assert.ok(/not ready|getting ready/i.test(blocked.reply));
-  assert.equal((await store.loadProfile(a)).flowiseSyncPending, true);
-  ok('/test retries sync when flowiseSyncOk is false (stays blocked while unreachable)');
-
-  // /test while pending sync — warmer copy + listPending
-  await store.saveProfile(a, {
-    ...pa,
-    flowiseSyncOk: false,
-    flowiseSyncPending: true,
-    flowiseSyncRequestedAt: new Date().toISOString(),
-  });
-  const sa3 = await createSenderSession(store, a, { deps: flowiseDown });
-  const pendingTest = await handleMessage(sa3, '/test');
-  assert.equal(pendingTest.ok, false);
-  assert.ok(/getting ready/i.test(pendingTest.reply));
-  const pendingList = await store.listPendingFlowiseSyncs();
-  assert.ok(pendingList.some((p) => p.senderId === a));
-  ok('/test pending copy + listPendingFlowiseSyncs');
+  assert.ok(/not live|Try my bot/i.test(blocked.reply));
+  ok('/test blocked when nothing is approved');
 }
 
-// --- Builder/test commands through webhook (MOCKED; no OpenAI/Flowise network) ---
+// --- Builder/test commands through webhook (MOCKED; no OpenAI network) ---
 {
   const store = createMemoryStore();
   const sender = 'whatsapp:+15555555';
@@ -319,9 +291,6 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
     services: [{ name: 'Drop-in', price: '15' }],
     informationToCollect: [],
     approvedAt: '2026-01-01T00:00:00.000Z',
-    chatflowId: 'cf-demo',
-    flowiseSyncOk: true,
-    flowiseSyncedAt: '2026-01-01T00:00:00.000Z',
   });
   const session = await createSenderSession(store, sender);
   bootstrapSession(session);

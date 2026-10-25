@@ -2,18 +2,17 @@
   "name": "easybot",
   "version": "0.1.0",
   "private": true,
-  "description": "Local POC — AI Business Bot Builder using Flowise",
+  "description": "Local POC — AI Business Bot Builder",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch --watch-preserve-output src/server.js",
-    "spike": "node scripts/spike-flowise.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
     "test:nav": "node scripts/test-builder-nav.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
-    "flowise": "docker start easybot-flowise || docker run -d --name easybot-flowise -p 3000:3000 flowiseai/flowise:1.8.3",
-    "test:lead": "node scripts/test-lead-intake.js"
+    "test:lead": "node scripts/test-lead-intake.js",
+    "test:business-bot": "node scripts/test-business-bot.js"
   },
   "engines": {
     "node": ">=18.15.0"

@@ -382,18 +382,6 @@ export function emptyProfile() {
     /** Custom opening for a fresh customer conversation. null = default intro. */
     openingMessage: null,
     approvedAt: null,
-    chatflowId: null,
-    /** Set only after Flowise create/update succeeds for the current approval. */
-    flowiseSyncedAt: null,
-    /** App gate for /test: true only after a successful Flowise sync. */
-    flowiseSyncOk: false,
-    /**
-     * True while approved facts await background Flowise sync (cold start / 502).
-     * Cleared on success or after sync worker gives up.
-     */
-    flowiseSyncPending: false,
-    /** ISO time when pending sync was requested (wake + retry window). */
-    flowiseSyncRequestedAt: null,
     /**
      * draftReviewKey of the last review the app presented to the owner.
      * Approval is accepted only when it matches the current draft.
@@ -401,6 +389,18 @@ export function emptyProfile() {
     reviewedDraftKey: null,
     draft: null,
   };
+}
+
+/**
+ * Defaults merged with the stored profile, keeping only top-level keys that
+ * emptyProfile() defines so retired fields are dropped on load.
+ */
+export function withKnownProfileKeys(stored) {
+  const profile = emptyProfile();
+  for (const key of Object.keys(profile)) {
+    if (stored && Object.hasOwn(stored, key)) profile[key] = stored[key];
+  }
+  return profile;
 }
 
 function normalizeProfileFaq(profile) {
@@ -422,18 +422,9 @@ export function loadProfile(profilePath = PROFILE_PATH) {
   }
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = JSON.parse(raw);
-  const profile = normalizeBehaviorSettings(
-    normalizeProfileFaq({ ...emptyProfile(), ...parsed })
+  return normalizeBehaviorSettings(
+    normalizeProfileFaq(withKnownProfileKeys(parsed))
   );
-  // Pre-flag profiles that already have a chatflow were syncable; allow /test
-  if (
-    parsed.flowiseSyncOk === undefined &&
-    profile.chatflowId &&
-    profile.approvedAt
-  ) {
-    profile.flowiseSyncOk = true;
-  }
-  return profile;
 }
 
 export function saveProfile(profile, profilePath = PROFILE_PATH) {

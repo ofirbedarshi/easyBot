@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import {
   emptyProfile,
+  withKnownProfileKeys,
   normalizeBehaviorSettings,
   normalizeCommonQuestions,
 } from '../profile.js';
@@ -77,10 +78,7 @@ export function createSupabaseStore() {
         .single();
       if (error) throw new Error(`loadProfile: ${error.message}`);
       const parsed = data.profile || {};
-      const profile = normalizeBehaviorSettings({
-        ...emptyProfile(),
-        ...parsed,
-      });
+      const profile = normalizeBehaviorSettings(withKnownProfileKeys(parsed));
       profile.commonQuestions = normalizeCommonQuestions(
         profile.commonQuestions
       );
@@ -88,13 +86,6 @@ export function createSupabaseStore() {
         profile.draft.commonQuestions = normalizeCommonQuestions(
           profile.draft.commonQuestions
         );
-      }
-      if (
-        parsed.flowiseSyncOk === undefined &&
-        profile.chatflowId &&
-        profile.approvedAt
-      ) {
-        profile.flowiseSyncOk = true;
       }
       return profile;
     },
@@ -248,25 +239,6 @@ export function createSupabaseStore() {
       });
       if (error) throw new Error(`countSenderMessagesSince: ${error.message}`);
       return Number(data) || 0;
-    },
-
-    /** Profiles waiting for background Flowise sync after Approve. */
-    async listPendingFlowiseSyncs() {
-      const { data, error } = await sb
-        .from('easybot_business_profiles')
-        .select('sender_id, profile');
-      if (error) throw new Error(`listPendingFlowiseSyncs: ${error.message}`);
-      const out = [];
-      for (const row of data || []) {
-        const profile = row.profile || {};
-        if (profile.flowiseSyncPending && profile.approvedAt) {
-          out.push({
-            senderId: row.sender_id,
-            profile: { ...emptyProfile(), ...profile },
-          });
-        }
-      }
-      return out;
     },
   };
 }

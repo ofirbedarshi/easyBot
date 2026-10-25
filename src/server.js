@@ -10,11 +10,9 @@ import {
   getState,
 } from './session.js';
 import { testProfilePath } from './profile.js';
-import { pingFlowise } from './flowise.js';
 import { createStore, isSupabaseConfigured } from './store/index.js';
 import { createTwilioWhatsAppRouter } from './twilio/webhook.js';
 import { startInboundWorker } from './twilio/worker.js';
-import { startFlowiseSyncWorker } from './flowiseSyncWorker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CTO_STATE_PATH = path.join(__dirname, '..', 'cto-workflow', 'state.json');
@@ -63,18 +61,10 @@ app.get('/api/cto-progress', (_req, res) => {
   }
 });
 
-app.get('/api/health', async (_req, res) => {
-  let flowise = false;
-  try {
-    flowise = await pingFlowise();
-  } catch {
-    flowise = false;
-  }
+app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     openai: !!process.env.OPENAI_API_KEY,
-    flowise,
-    flowiseUrl: process.env.FLOWISE_URL || 'http://localhost:3000',
     supabase: isSupabaseConfigured(),
     store: store.kind,
     twilioWebhook: !!process.env.TWILIO_AUTH_TOKEN,
@@ -107,11 +97,7 @@ app.post('/api/chat', async (req, res) => {
     }
     const session = resolveSession(sessionKey);
     const text = req.body?.message ?? req.body?.text ?? '';
-    const flowiseSessionId =
-      typeof req.body?.flowiseSessionId === 'string'
-        ? req.body.flowiseSessionId
-        : undefined;
-    const result = await handleMessage(session, text, { flowiseSessionId });
+    const result = await handleMessage(session, text);
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -122,7 +108,7 @@ app.post('/api/chat', async (req, res) => {
 /**
  * Only run the durable WhatsApp worker when Twilio outbound is configured.
  * Prevents a local `npm start` (same Supabase) from claiming production
- * inbound rows and answering via local Flowise (missing chatflows → errors).
+ * inbound rows meant for the deployed app.
  * Set DISABLE_INBOUND_WORKER=1 to force off; ENABLE_INBOUND_WORKER=1 to force on.
  */
 function shouldStartInboundWorker() {
@@ -130,16 +116,11 @@ function shouldStartInboundWorker() {
   if (process.env.ENABLE_INBOUND_WORKER === '1') return true;
   if (!process.env.TWILIO_AUTH_TOKEN) return false;
 
-  const flowise = (process.env.FLOWISE_URL || '').toLowerCase();
   const publicBase = (process.env.PUBLIC_BASE_URL || '').toLowerCase();
-  const flowiseLocal =
-    !flowise ||
-    flowise.includes('localhost') ||
-    flowise.includes('127.0.0.1');
   const publicRemote =
     publicBase.startsWith('https://') && !publicBase.includes('localhost');
   // Local UI + Twilio secrets + production Supabase must not steal the queue.
-  if (flowiseLocal && publicRemote) return false;
+  if (!isProd && publicRemote) return false;
 
   return true;
 }
@@ -147,16 +128,12 @@ function shouldStartInboundWorker() {
 const worker = shouldStartInboundWorker()
   ? startInboundWorker(store)
   : null;
-const flowiseSyncWorker = worker
-  ? startFlowiseSyncWorker(store)
-  : null;
 
 app.listen(PORT, () => {
   console.log(`easyBot UI → http://localhost:${PORT}`);
   console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
   if (worker) {
     console.log('Inbound worker: ON');
-    console.log('Flowise sync worker: ON');
   } else {
     console.log(
       'Inbound worker: OFF (no TWILIO_AUTH_TOKEN / disabled) — safe for local UI; Render handles WhatsApp'
@@ -170,4 +147,4 @@ app.listen(PORT, () => {
   }
 });
 
-export { app, store, worker, flowiseSyncWorker };
+export { app, store, worker };
