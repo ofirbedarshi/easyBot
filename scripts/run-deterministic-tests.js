@@ -19,6 +19,8 @@ const SUITES = [
   { id: 'lead-intake', file: 'scripts/test-lead-intake.js' },
   { id: 'business-bot', file: 'scripts/test-business-bot.js' },
   { id: 'builder-output', file: 'test/test-builder-output.js' },
+  { id: 'format-reply', file: 'test/test-format-reply.js' },
+  { id: 'identical-reply', file: 'test/test-identical-reply.js' },
   { id: 'fact-preservation', file: 'test/test-fact-preservation.js' },
   { id: 'validate-cto-state', file: 'scripts/validate-cto-state.js' },
   { id: 'admin-dashboard', file: 'scripts/test-admin-dashboard.js' },

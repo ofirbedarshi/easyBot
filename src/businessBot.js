@@ -1,5 +1,11 @@
 import { getClient } from './builder.js';
 import { buildCustomerSystemPrompt } from './customerPrompt.js';
+import { formatModelReply } from './formatReply.js';
+import {
+  generateWithIdenticalRetry,
+  lastOutgoingMessage,
+  messagesWithRetryNote,
+} from './identicalReply.js';
 import { createChatCompletion } from './openaiChat.js';
 import { customerOpeningText } from './profile.js';
 
@@ -56,10 +62,20 @@ export function withCustomerOpening(profile, history, reply) {
  */
 export async function businessBotReply({ profile, history, question, client }) {
   const openai = client || getClient();
-  const { completion } = await createChatCompletion(openai, {
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    messages: buildBusinessBotMessages({ profile, history, question }),
+  const messages = buildBusinessBotMessages({ profile, history, question });
+  const previousOutgoing = lastOutgoingMessage(history);
+  const completeOnce = async (retryNote) => {
+    const { completion } = await createChatCompletion(openai, {
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages: retryNote ? messagesWithRetryNote(messages, retryNote) : messages,
+    });
+    return formatModelReply(completion.choices?.[0]?.message?.content || '');
+  };
+  const reply = await generateWithIdenticalRetry({
+    generate: completeOnce,
+    extractText: (text) => text,
+    previousOutgoing,
+    label: 'Business Bot',
   });
-  const reply = (completion.choices?.[0]?.message?.content || '').trim();
   return withCustomerOpening(profile, history, reply);
 }

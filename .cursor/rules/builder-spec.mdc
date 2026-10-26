@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Builder spec stays current
 
-`BUILDER.md` is the spec for how the Builder works today: what it asks, when a first bot is enough, unknowns and corrections, and how approval, `/test`, and `/end` behave.
+`BUILDER.md` is the spec for how the Builder works today: what it asks, when a first bot is enough, unknowns and corrections, and how approval, `/test`, and `stop` behave.
 
 When a change alters that behavior, update `BUILDER.md` in the same change.
 

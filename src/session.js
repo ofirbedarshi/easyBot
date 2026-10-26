@@ -165,6 +165,26 @@ function stateFrom(session, profile) {
 const BOT_ERROR_REPLY =
   "Sorry, your bot couldn't answer right now. Please try again in a moment.";
 
+export const ENTER_TEST_REPLY =
+  "You're now chatting with me as a customer. Type *stop* when you want to keep teaching me.";
+
+/** One pair of surrounding WhatsApp bold asterisks, if present. */
+function unwrapWhatsAppBold(text) {
+  const t = String(text || '').trim();
+  const m = /^\*([^*]+)\*$/.exec(t);
+  return (m ? m[1] : t).trim();
+}
+
+/**
+ * Exit TEST (and cancel lead): the whole message is `stop`, trimmed,
+ * case-insensitive, optionally wrapped in WhatsApp `*bold*`. `/end` is a
+ * silent alias. "stop" inside a longer sentence is not the command.
+ */
+export function isExitTestCommand(text) {
+  const inner = unwrapWhatsAppBold(text).toLowerCase();
+  return inner === 'stop' || inner === '/end';
+}
+
 /**
  * @param {ReturnType<typeof createSession>} session
  * @param {string} text
@@ -176,14 +196,15 @@ export async function handleMessage(session, text) {
   }
 
   // Commands handled in app code — never by the LLM
-  if (['/test', '/end', '/reset'].includes(trimmed)) {
+  const exitTest = isExitTestCommand(trimmed);
+  if (trimmed === '/test' || trimmed === '/reset' || exitTest) {
     cancelLeadIntake(session);
     clearLeadResume(session);
   }
   if (trimmed === '/test') {
     return enterTest(session);
   }
-  if (trimmed === '/end') {
+  if (exitTest) {
     return enterBuild(session);
   }
   if (trimmed === '/reset') {
@@ -318,8 +339,7 @@ async function enterTest(session) {
   session.mode = 'TEST';
   session.testHistory = [];
   session.testSessionId = `test-${Date.now()}`;
-  const reply =
-    "You're now chatting with me as a customer. Type /end when you want to keep teaching me.";
+  const reply = ENTER_TEST_REPLY;
   return {
     ok: true,
     reply,

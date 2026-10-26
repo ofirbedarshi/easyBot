@@ -31,7 +31,7 @@ For each acceptance criterion, record: pass | fail | blocked | needs_decision, p
 
 ### Product behavior
 
-When criteria involve Builder, Business Bot, approval, `/test`, or `/end`:
+When criteria involve Builder, Business Bot, approval, `/test`, or `stop`:
 
 - Prefer `npm test` (all deterministic suites). When criteria need a live model, `npm run regress` (gpt-6-luna; never print env values).
 - Smoke the running app (`/api/health`, chat flows) when criteria require it.

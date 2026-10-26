@@ -151,7 +151,7 @@ export function renderMenu(menuOpts) {
   ].join('\n');
 }
 
-/** /end before the bot is ready: no editing menu during first-time setup. */
+/** stop (silent /end alias) before the bot is ready: no editing menu during first-time setup. */
 export function renderSetupContinue() {
   return STRINGS.setupContinue;
 }

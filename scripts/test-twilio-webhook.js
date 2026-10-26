@@ -193,14 +193,14 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
 {
   const store = createMemoryStore();
   const worker = startInboundWorker(store, { intervalMs: 10_000 });
-  // Stub handle path: inject profile so worker does not call OpenAI if body is /end
+  // Stub handle path: inject profile so worker does not call OpenAI if body is stop
   await withServer(store, async ({ base }) => {
     const params = {
       MessageSid: 'SMdup1',
       AccountSid: 'ACtest',
       From: 'whatsapp:+15552222',
       To: 'whatsapp:+15550000',
-      Body: '/end',
+      Body: 'stop',
       NumMedia: '0',
     };
     const a = await postWebhook(base, params, {
@@ -225,7 +225,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   const store = createMemoryStore();
   const sender = 'whatsapp:+15553333';
   await store.ensureSender(sender);
-  // Pre-seed session so /end and second command do not need OpenAI
+  // Pre-seed session so stop and second command do not need OpenAI
   const session = await createSenderSession(store, sender);
   bootstrapSession(session);
   await persistSenderSession(session);
@@ -237,7 +237,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
       AccountSid: 'ACtest',
       From: sender,
       To: 'whatsapp:+15550000',
-      Body: '/end',
+      Body: 'stop',
       NumMedia: '0',
     };
     const p2 = {
@@ -245,7 +245,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
       AccountSid: 'ACtest',
       From: sender,
       To: 'whatsapp:+15550000',
-      Body: '/end',
+      Body: 'stop',
       NumMedia: '0',
     };
     await postWebhook(base, p1, { 'X-Twilio-Signature': sign(p1) });
@@ -289,7 +289,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
 
   const ra = await handleMessage(sa, '/test');
   await persistSenderSession(sa);
-  const rb = await handleMessage(sb, '/end');
+  const rb = await handleMessage(sb, 'stop');
   await persistSenderSession(sb);
 
   assert.equal(ra.event, 'enter_test');
@@ -338,7 +338,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
       NumMedia: '0',
     });
     const t1 = mk('SMwf1', '/test');
-    const t2 = mk('SMwf2', '/end');
+    const t2 = mk('SMwf2', 'stop');
     await postWebhook(base, t1, { 'X-Twilio-Signature': sign(t1) });
     await postWebhook(base, t2, { 'X-Twilio-Signature': sign(t2) });
   });
@@ -348,9 +348,11 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   const done = dump.inbound.filter((r) => r.status === 'done');
   assert.equal(done.length, 2);
   assert.ok(done[0].reply_body.includes('chatting with me as a customer'));
+  assert.ok(done[0].reply_body.includes('Type *stop*'));
+  assert.ok(!done[0].reply_body.includes('/end'));
   assert.ok(done[1].reply_body.includes("I'm back! What should I learn next?"));
   assert.equal(sess.buildHistory[sess.buildHistory.length - 1].nav, 'menu');
-  ok('webhook workflow /test then /end (mocked store + worker)');
+  ok('webhook workflow /test then stop (mocked store + worker)');
   worker.stop();
 }
 

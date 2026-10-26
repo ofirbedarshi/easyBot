@@ -130,10 +130,10 @@ assert.equal(res.event, 'lead_cancelled');
 assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
 assert.equal(Object.keys(store._dump().leads).length, 0);
 
-// Cancel with /end
+// Cancel with stop
 await send('1');
 await send('1');
-res = await send('/end');
+res = await send('stop');
 assert.equal(res.event, 'enter_build');
 assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
 assert.equal((await store.loadSession(sender)).leadIntake, null);

@@ -204,7 +204,7 @@ console.log('=== sender isolation + conversation log (mocked) ===\n');
   const worker = startInboundWorker(store, { intervalMs: 10_000 });
   await withServer(store, async ({ base }) => {
     const p1 = mk('SMordA', sender, 'wake-me');
-    const p2 = mk('SMordB', sender, '/end');
+    const p2 = mk('SMordB', sender, 'stop');
     await postWebhook(base, p1, { 'X-Twilio-Signature': sign(p1) });
     await postWebhook(base, p2, { 'X-Twilio-Signature': sign(p2) });
   });
@@ -220,7 +220,7 @@ console.log('=== sender isolation + conversation log (mocked) ===\n');
   const inbound = msgs.filter((m) => m.direction === 'inbound');
   assert.equal(inbound[0].body, 'wake-me');
   assert.equal(inbound[0].mode, 'opening');
-  assert.equal(inbound[1].body, '/end');
+  assert.equal(inbound[1].body, 'stop');
   assert.equal(inbound[1].mode, 'command');
   const sess = dump.sessions[sender];
   assert.equal(sess.buildHistory.filter((t) => t.role === 'user').length, 0);
@@ -291,7 +291,7 @@ console.log('=== sender isolation + conversation log (mocked) ===\n');
   await store.enqueueInbound({
     messageSid: 'SMreclaim1',
     senderId: sender,
-    body: '/end',
+    body: 'stop',
   });
   const stale = new Date(Date.now() - 200_000).toISOString();
   store._patchInbound('SMreclaim1', {
@@ -326,7 +326,7 @@ console.log('=== sender isolation + conversation log (mocked) ===\n');
   await store.enqueueInbound({
     messageSid: 'SMreclaim2',
     senderId: sender,
-    body: '/end',
+    body: 'stop',
   });
   store._patchInbound('SMreclaim2', {
     status: 'processing',

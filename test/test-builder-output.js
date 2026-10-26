@@ -5,6 +5,7 @@ import {
   applyConsistencyUpdates,
   applyDraftDelta,
   applyFactOps,
+  BUILDER_SYSTEM,
   builderChatParams,
   existingValueChanges,
   openingMessage,
@@ -17,6 +18,7 @@ import {
   BUILDER_TOP_LEVEL_KEYS,
 } from '../src/builderSchema.js';
 import { formatSummary } from '../src/profile.js';
+import { PARAGRAPH_PROMPT_LINE, formatModelReply } from '../src/formatReply.js';
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -33,6 +35,12 @@ test('openingMessage keeps paragraph breaks and Adam welcome copy', () => {
   assert.match(open.message, /\n\n/);
   assert.equal(open.message.includes('\n\n'), true);
   assert.equal(open.message.split('\n\n').length, 5);
+  assert.equal(formatModelReply(open.message), open.message);
+});
+
+test('builder system prompt includes the one-line paragraph instruction once', () => {
+  assert.ok(BUILDER_SYSTEM.includes(PARAGRAPH_PROMPT_LINE));
+  assert.equal(BUILDER_SYSTEM.split(PARAGRAPH_PROMPT_LINE).length, 2);
 });
 
 test('schema requires top-level newFacts and all draft keys', () => {
