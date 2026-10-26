@@ -57,12 +57,21 @@ const SALON = {
       kidsKept: !!(kids && /25/.test(String(kids.price || ''))),
       blowoutKept: !!(blowout && /35/.test(String(blowout.price || ''))),
       noNails: /nail/i.test(blob),
+      colorPolicy:
+        /color/i.test(blob) &&
+        /consult/i.test(blob) &&
+        /(price|quote|chat)/i.test(blob),
       serviceCount: services.length,
     };
   },
   customerQuestions: [
     { q: 'how much is a womens haircut?', must: [/45/], deny: /i don'?t know/i },
     { q: 'do you also do gel manicures?', must: [/nail|manicur/i], deny: /i don'?t know/i },
+    {
+      q: 'how much would it be to color my whole head?',
+      must: [/consult/i],
+      deny: /i don'?t know the price|message the owner/i,
+    },
   ],
 };
 
@@ -168,14 +177,18 @@ async function runInterview(scenario, model) {
     buildHistory.push({ role: 'assistant', content: turn.message });
     turns.push({
       userMessage,
+      message: turn.message,
       readyForReview: turn.readyForReview,
       presentReview: turn.presentReview,
       usage: raw.usage,
       latencyMs: raw.latencyMs,
       newFacts: raw.modelJson?.newFacts,
       ownerEdits: raw.modelJson?.ownerEdits,
+      configRequests: raw.configRequests,
     });
     if (i === scenario.afterCorrectionFrom) {
+      console.log('  correction-turn message:', String(turn.message).replace(/\s+/g, ' ').slice(0, 280));
+      console.log('  correction-turn configRequests:', JSON.stringify(raw.configRequests));
       console.log('  correction-turn newFacts:', JSON.stringify(raw.modelJson?.newFacts));
       console.log('  correction-turn ownerEdits:', JSON.stringify(raw.modelJson?.ownerEdits));
       console.log('  correction-turn delta.services:', JSON.stringify(raw.modelJson?.draft?.services));
@@ -189,6 +202,12 @@ async function runInterview(scenario, model) {
 
   const draft = profile.draft;
   const score = scenario.scoreDraft(draft);
+  const correctionTurn = turns[scenario.afterCorrectionFrom];
+  if (correctionTurn && 'colorPolicy' in score) {
+    score.didNotRefuseConfig = !/can'?t configure|cannot configure|i can'?t (set|configure)/i.test(
+      correctionTurn.message || ''
+    );
+  }
   const review = renderReview({ ...profile, draft });
   return {
     profile,

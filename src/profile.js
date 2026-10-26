@@ -72,9 +72,8 @@ export const PRICE_DISCLOSURE_LABELS = {
 
 /**
  * What the product can configure. Single source for the Builder prompt and the
- * config-request check: a request is supported only if one of these fields can
- * represent it exactly. Anything else is unsupported, even if it could be
- * written into a free-text field.
+ * config-request check. Settings and actions are supported only if a field
+ * represents them exactly. Customer-facing policies belong in business facts.
  */
 export const CONFIG_CAPABILITIES = [
   {
@@ -94,7 +93,7 @@ export const CONFIG_CAPABILITIES = [
     field: 'priceDisclosure',
     represents: `When approved prices are mentioned: ${PRICE_DISCLOSURE_VALUES.map((v) => `"${v}" (${PRICE_DISCLOSURE_LABELS[v]})`).join(' or ')}.`,
     cannotRepresent:
-      'Prices in every reply regardless of topic, never revealing prices, discounts or prices not in the services list.',
+      'Prices in every reply, a global never-mention-any-prices policy, or discounts/prices not in the facts. How one offering is priced or quoted is a business fact.',
   },
   {
     field: 'assistantName',
@@ -123,9 +122,9 @@ export const CONFIG_CAPABILITIES = [
   {
     field: 'business facts',
     represents:
-      'name, whatWeDo, services (name/price/notes), hours, locationOrArea, commonQuestions (customer question + owner answer), unknowns — facts the Business Bot may tell customers.',
+      'name, whatWeDo, services, hours, locationOrArea, commonQuestions, otherFacts, unknowns — facts and customer-facing policies (including how an offering is priced or quoted).',
     cannotRepresent:
-      'Instructions about how the bot behaves. Do not hide behavior rules inside facts, notes, or FAQ answers.',
+      'Booking, payments, CRM, outbound messages, or per-message scripts and formatting.',
   },
 ];
 
