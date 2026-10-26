@@ -15,6 +15,7 @@ const SUITES = [
   { id: 'builder-nav', file: 'scripts/test-builder-nav.js' },
   { id: 'customer-prompt', file: 'scripts/test-customer-prompt.js' },
   { id: 'twilio-webhook', file: 'scripts/test-twilio-webhook.js' },
+  { id: 'limits', file: 'scripts/test-limits.js' },
   { id: 'sender-isolation', file: 'scripts/test-sender-isolation.js' },
   { id: 'lead-intake', file: 'scripts/test-lead-intake.js' },
   { id: 'business-bot', file: 'scripts/test-business-bot.js' },

@@ -12,6 +12,7 @@
     "test:nav": "node scripts/test-builder-nav.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
+    "test:limits": "node scripts/test-limits.js",
     "test:isolation": "node scripts/test-sender-isolation.js",
     "test:lead": "node scripts/test-lead-intake.js",
     "test:admin": "node scripts/test-admin-dashboard.js",
