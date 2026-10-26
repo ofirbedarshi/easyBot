@@ -1,17 +1,15 @@
 import {
   loadProfile,
   saveProfile,
-  mergeDraft,
   formatSummary,
   emptyProfile,
   defaultProfilePath,
+  applyDraftToLive,
   draftDiffersFromLive,
-  draftReviewKey,
   hasEnoughForFirstBot,
 } from './profile.js';
 import {
   applyReviewGate,
-  hasAnsweredInformationToCollect,
   runBuilderTurn as defaultRunBuilderTurn,
   openingMessage,
 } from './builder.js';
@@ -28,13 +26,14 @@ import {
   interveningBuilderQuestion,
   isReviewNumberChoice,
   parseReviewChoice,
+  lastShownNav,
   renderChangeMenu,
   renderReturnToEditing,
   renderReview,
+  renderSavedChanges,
   renderSection,
   reviewActive,
   renderSetupContinue,
-  renderSyncedShort,
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
@@ -166,21 +165,6 @@ const BOT_ERROR_REPLY =
   "Sorry, your bot couldn't answer right now. Please try again in a moment.";
 
 /**
- * True when a presented review of the current draft is waiting to be applied
- * (first approval, or a later pending edit).
- */
-export function reviewPending(profile) {
-  const draft = profile?.draft;
-  if (!draft) return false;
-  if (!hasAnsweredInformationToCollect(draft)) return false;
-  if (!hasEnoughForFirstBot(mergeDraft(profile, draft))) return false;
-  const key = draftReviewKey(profile, draft);
-  if (!profile.reviewedDraftKey || profile.reviewedDraftKey !== key) return false;
-  if (!profile.approvedAt) return true;
-  return draftDiffersFromLive(profile, draft);
-}
-
-/**
  * @param {ReturnType<typeof createSession>} session
  * @param {string} text
  */
@@ -242,15 +226,13 @@ export async function handleMessage(session, text) {
 }
 
 /**
- * Editing-menu navigation (BUILD only). Menu words require an approved bot.
- * A review offers two options: 1 "Try my bot" (approves a pending review, then
- * TEST) and 2 "Make changes" (full editing menu). Those stay active while the
- * last shown nav is still the review, except a bare number after an intervening
- * Builder question (`asksQuestion` on that turn, no nav) is an answer to that
- * question. From the editing menu, the
- * section items are read-only (never save the profile) and the last item
- * behaves like "Try my bot". After approval, until a lead is submitted, item 1
- * is "Get this bot for my business" and the rest shift down by one.
+ * Editing-menu navigation (BUILD only). Menu words require `approvedAt`.
+ * A save card offers 1 "Try my bot" (TEST) and 2
+ * "Make changes" (full editing menu). Those stay active while the last shown
+ * nav is still the card, except a bare number after an intervening Builder
+ * question (`asksQuestion` on that turn, no nav) is an answer to that question.
+ * Section items are read-only. Until a lead is submitted, item 1 is
+ * "Get this bot for my business" and the rest shift down by one.
  * Completing the questionnaire does not append a menu; the next BUILD
  * message shows the current menu (without the lead item).
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
@@ -279,18 +261,23 @@ async function handleNavigation(session, text) {
 
   const wantsMenu = isMenuRequest(text);
   const numbered = menuActive(session.buildHistory) && parseMenuChoice(text, 9) != null;
-  if (!wantsMenu && !numbered) return null;
+  // Label on the last menu item — not a bare 1/2, which still means those menu numbers.
+  const tryWords =
+    menuActive(session.buildHistory) &&
+    parseReviewChoice(text) === 'try' &&
+    !isReviewNumberChoice(text);
+  if (!wantsMenu && !numbered && !tryWords) return null;
   const profile = await loadAsync(session);
   // Same visibility rule as every rendered menu, so numbers match what was shown.
   const choice = numbered ? parseMenuItem(text, leadMenuOpts(session, profile)) : null;
-  if (!wantsMenu && choice == null) return null;
+  if (!wantsMenu && choice == null && !tryWords) return null;
 
-  // Menu words only after first approval; numbers work from a review menu too.
+  // Menu words only after the bot is ready; numbers work from a save card too.
   if (wantsMenu && !profile.approvedAt) return null;
-  if (!profile.approvedAt && choice == null) return null;
+  if (!profile.approvedAt && choice == null && !tryWords) return null;
 
   if (choice === 'lead') return beginLeadIntake(session);
-  if (choice === 'try') return tryMyBot(session, text, profile);
+  if (tryWords || choice === 'try') return tryMyBot(session);
 
   const reply = wantsMenu
     ? renderMenu(leadMenuOpts(session, profile))
@@ -310,65 +297,16 @@ async function handleNavigation(session, text) {
   };
 }
 
-/** "Try my bot": approve a pending review first, otherwise the normal /test path. */
-async function tryMyBot(session, text, loaded = null) {
-  const profile = loaded || (await loadAsync(session));
-  if (reviewPending(profile)) return approvePendingAndTest(session, profile, text);
+/** "Try my bot": enter TEST when the profile has enough to answer. */
+async function tryMyBot(session) {
   return enterTest(session);
-}
-
-/**
- * Apply the reviewed draft to live fields; the Business Bot uses them at once.
- * Mutates `profile` in place; caller saves.
- */
-function approveDraft(profile) {
-  const merged = mergeDraft(profile, profile.draft);
-  Object.assign(profile, merged, {
-    ownerGoal: merged.ownerGoal ?? null,
-    ownerGoalRequested: merged.ownerGoalRequested ?? null,
-    services: merged.services || [],
-    commonQuestions: merged.commonQuestions || [],
-    informationToCollect: Array.isArray(merged.informationToCollect)
-      ? merged.informationToCollect
-      : [],
-    unknowns: merged.unknowns || [],
-    otherFacts: Array.isArray(merged.otherFacts) ? merged.otherFacts : [],
-    responseLength: merged.responseLength ?? null,
-    priceDisclosure: merged.priceDisclosure ?? null,
-    assistantName: merged.assistantName ?? null,
-    openingMessage: merged.openingMessage ?? null,
-    draft: profile.draft,
-    approvedAt: new Date().toISOString(),
-  });
-}
-
-/**
- * Try my bot with a pending review: approve, then enter TEST.
- */
-async function approvePendingAndTest(session, profile, text) {
-  session.buildHistory.push({ role: 'user', content: text });
-  approveDraft(profile);
-  await saveAsync(session, profile);
-
-  const testResult = await enterTest(session);
-  const reply = `${renderSyncedShort()}\n\n${testResult.reply}`;
-  session.buildHistory.push({ role: 'assistant', content: reply });
-  return {
-    ...testResult,
-    ok: true,
-    reply,
-    source: 'app',
-    event: 'approved_enter_test',
-    approved: true,
-    readyForReview: true,
-  };
 }
 
 async function enterTest(session) {
   const profile = await loadAsync(session);
-  if (!profile.approvedAt) {
+  if (!hasEnoughForFirstBot(profile)) {
     const reply =
-      'Nothing is live yet. Finish the setup, then choose **Try my bot** on the review.';
+      'Add a business name and what you do (or a service) before you can try the bot.';
     return {
       ok: false,
       reply,
@@ -558,18 +496,31 @@ async function handleBuild(session, userMessage) {
   }
 
   result = applyReviewGate(profile, result, userMessage);
-  const draftChanged =
-    draftReviewKey(profile, profile.draft) !== draftReviewKey(profile, result.draft);
+  const prior = structuredClone(profile);
+  const lastNav = lastShownNav(session.buildHistory);
   profile.draft = result.draft;
-  profile.reviewedDraftKey = result.reviewedDraftKey;
+  const changed = draftDiffersFromLive(prior, result.draft);
+  if (changed) applyDraftToLive(profile);
   await saveAsync(session, profile);
+
+  const editingChrome =
+    lastNav === 'menu' || (typeof lastNav === 'string' && lastNav.startsWith('section:'));
+  const asking = !!result.asksQuestion && (changed || !editingChrome);
 
   let reply;
   let nav = null;
-  if (result.presentReview) {
-    const ack = draftChanged ? (result.message || '').trim() : '';
-    reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
+  if (asking) {
+    reply = result.message;
+  } else if (changed || result.presentReview) {
+    const ack = changed ? (result.message || '').trim() : '';
+    const card = changed ? renderSavedChanges(prior, profile) : renderReview(profile);
+    reply = [ack, card].filter(Boolean).join('\n\n');
     nav = 'review';
+  } else if (profile.approvedAt) {
+    reply = [result.message, renderMenu(leadMenuOpts(session, profile))]
+      .filter(Boolean)
+      .join('\n\n');
+    nav = 'menu';
   } else {
     reply = result.message;
   }

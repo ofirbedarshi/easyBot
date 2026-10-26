@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -360,7 +359,7 @@ export function emptyProfile() {
      * null = owner not asked yet; [] = collect nothing; non-empty = items to ask.
      */
     informationToCollect: null,
-    /** Explicit gaps the owner left undecided or unclarified (must stay unknown until approved). */
+    /** Explicit gaps the owner left undecided or unclarified. */
     unknowns: [],
     /** Owner-stated facts, policies, or caveats that fit no other field, close to the owner's wording. */
     otherFacts: [],
@@ -380,12 +379,8 @@ export function emptyProfile() {
     assistantName: null,
     /** Custom opening for a fresh customer conversation. null = default intro. */
     openingMessage: null,
+    /** Ready timestamp: name + offering, and first-time required topics settled. */
     approvedAt: null,
-    /**
-     * draftReviewKey of the last review the app presented to the owner.
-     * Approval is accepted only when it matches the current draft.
-     */
-    reviewedDraftKey: null,
     draft: null,
   };
 }
@@ -473,11 +468,51 @@ export function mergeDraft(profile, draft) {
   return next;
 }
 
+/**
+ * Copy the merged draft onto live fields. The customer bot reads these.
+ * Sets approvedAt the first time name + offering are present and first-time
+ * required topics (FAQ asked/answered, intake is an array) are settled.
+ * Mutates `profile` in place.
+ */
+export function applyDraftToLive(profile) {
+  if (!profile?.draft) return profile;
+  const merged = mergeDraft(profile, profile.draft);
+  Object.assign(profile, merged, {
+    ownerGoal: merged.ownerGoal ?? null,
+    ownerGoalRequested: merged.ownerGoalRequested ?? null,
+    services: merged.services || [],
+    commonQuestions: merged.commonQuestions || [],
+    informationToCollect: Array.isArray(merged.informationToCollect)
+      ? merged.informationToCollect
+      : profile.informationToCollect,
+    unknowns: merged.unknowns || [],
+    otherFacts: Array.isArray(merged.otherFacts) ? merged.otherFacts : [],
+    responseLength: merged.responseLength ?? null,
+    priceDisclosure: merged.priceDisclosure ?? null,
+    assistantName: merged.assistantName ?? null,
+    openingMessage: merged.openingMessage ?? null,
+    draft: profile.draft,
+  });
+  if (hasEnoughForFirstBot(profile) && !profile.approvedAt && firstSetupSettled(profile)) {
+    profile.approvedAt = new Date().toISOString();
+  }
+  return profile;
+}
+
+function firstSetupSettled(profile) {
+  const asked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
+  const faqDone =
+    normalizeCommonQuestions(profile.commonQuestions).some((q) => q.answer.trim()) ||
+    asked.includes('commonQuestions');
+  const intakeDone = Array.isArray(profile.informationToCollect);
+  return faqDone && intakeDone;
+}
+
 function stableJson(value) {
   return JSON.stringify(value ?? null);
 }
 
-/** True when draft would change live approved facts or behavior after merge. */
+/** True when merging the draft would change live facts or behavior. */
 export function draftDiffersFromLive(profile, draft) {
   if (!draft || typeof draft !== 'object') return false;
   const merged = mergeDraft(profile, draft);
@@ -615,37 +650,11 @@ function formatFactsBlock(profile) {
   return lines.join('\n');
 }
 
-/**
- * Owner-facing summary. When already approved and draft differs from live,
- * shows Live vs Pending so unapproved edits are not mistaken for the active bot.
- */
+/** Owner-facing summary of the current (live) profile. */
 export function formatSummary(profile) {
   const draft = profile?.draft;
-  if (
-    profile?.approvedAt &&
-    draft &&
-    draftDiffersFromLive(profile, draft)
-  ) {
-    const pending = mergeDraft(profile, draft);
-    return [
-      'Live approved (active customer bot):',
-      formatFactsBlock(profile),
-      '',
-      'Pending (not live until you approve):',
-      formatFactsBlock(pending),
-    ].join('\n');
-  }
   const view = draft ? mergeDraft(profile, draft) : profile;
   return formatFactsBlock(view || emptyProfile());
-}
-
-/** Fingerprint of the pending configuration as rendered in the owner review. */
-export function draftReviewKey(profile, draft) {
-  const view = draft ? mergeDraft(profile, draft) : profile;
-  return crypto
-    .createHash('sha256')
-    .update(formatFactsBlock(view || emptyProfile()), 'utf8')
-    .digest('hex');
 }
 
 /** True when the draft changes only conversation settings / identity, not facts. */

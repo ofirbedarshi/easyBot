@@ -4,7 +4,6 @@ import {
   CONFIG_CAPABILITIES,
   DEMO_SCOPE,
   draftChangesOnlySettings,
-  draftReviewKey,
   hasEnoughForFirstBot,
   identityResetFlag,
   IDENTITY_KEYS,
@@ -72,10 +71,10 @@ Discover when relevant (partial info is OK — do not force every category):
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
 - Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in newFacts and edit stored ones only via factEdits.
 
-Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions before the first review. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
+Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
-Demo scope (what the customer bot CAN do once approved):
+Demo scope (what the customer bot CAN do once live):
 ${DEMO_SCOPE_CAN}
 It cannot:
 ${DEMO_SCOPE_CANNOT}
@@ -86,7 +85,7 @@ ${CAPABILITY_LINES}
 
 CONFIGURATION REQUESTS — product settings and actions only:
 Classify style, global price mention, identity, goal, intake list, and actions the bot should perform. What customers should be told — including what to say or not quote about an offering — is a business fact (store it; do not classify it here):
-- "supported": one field above represents it exactly as asked. Update that field. Describe it as a proposed change that goes live only after approval.
+- "supported": one field above represents it exactly as asked. Update that field. The app saves it.
 - "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
 - "unsupported": no field represents it exactly, or it is outside demo scope. Say plainly that it is not supported, offer the closest supported alternative by name, and ask whether to use it. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
 - Never say you "added", "will add", "set", or "noted" an unsupported or ambiguous request, and never list it in a summary.
@@ -103,7 +102,6 @@ ${PRICE_DISCLOSURE_LINES}
   Extra detail for "on_request": mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
   Extra detail for "relevant": mention approved prices when useful; do not dump prices into unrelated answers; volunteering a price in every general description is not required.
 - Map clear natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
-- Proposed vs applied: describe changes as proposed until the owner approves. Do NOT say the bot "will now", "is updated", or "already does" something before approval. Your message, the pending draft, and the approval summary must agree.
 - Style/settings cannot establish service attributes, benefits, guarantees, capabilities, or extra intake. If a style request also contains a business fact, update the fact fields separately and keep settings as settings.
 - Assistant identity (conversation settings, NOT business facts):
   - assistantName: the name the owner gives the customer bot (e.g. "Maya"). Leave null unless the owner names it — never invent a name.
@@ -112,7 +110,7 @@ ${PRICE_DISCLOSURE_LINES}
   - The opening is customer-facing content. Before accepting it, check it against the draft business facts, the demo scope above, and priceDisclosure. If it claims an unsupported capability (booking, payments, saving or forwarding inquiries, etc.), states a fact or price that is not in the draft, impersonates the owner or a human, or contradicts the price setting: explain the specific conflict, keep the PREVIOUS openingMessage in the draft (do not store the conflicting text), set readyForReview=false, and ask the owner for a corrected opening.
   - When the owner changes only the opening, keep assistantName unchanged, and vice versa. If a new name would leave a different old name inside the opening, point that out and ask which they want.
   - Explicit reset: if the owner asks to remove the assistant name, set assistantName=null AND assistantNameReset=true. If they ask to go back to the default opening, set openingMessage=null AND openingMessageReset=true. Otherwise omit the reset flags (or set false) — a null value alone means "keep the current value".
-- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style, price disclosure, assistant name, or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true, show what changed (quote the new opening), and ask for approval again (approved=false until they confirm). Do not switch to unrelated interview questions in that turn.
+- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style, price disclosure, assistant name, or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true. Do not switch to unrelated interview questions in that turn.
 
 Interview rules:
 - Start with the business only — invite them to tell you about their business. Do NOT ask about ownerGoal / bot outcome in the same turn, and do not ask ownerGoal until draft.name is set.
@@ -154,11 +152,11 @@ ${OWNER_GOAL_LINES}
   - On the answering turn: same reaction-then-question; do not restate capabilities.
   - Set goalSupported=null on every turn where the owner did not answer or change the goal.
   - Leave ownerGoal null until the owner answers. Never invent a goal.
-  - When they later change the goal, apply the same mapping and ask for approval again if already reviewed.
+  - When they later change the goal, apply the same mapping and set readyForReview=true.
 - When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
 - When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one short specific sentence about what they just said (not a generic "Got it") — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Try my bot / Make changes). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
 - If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
-- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
+- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). The app saves the change immediately.
 
 You MUST respond with a single JSON object matching the schema (all keys required; no markdown fences).
 draft is a delta: null means unchanged this turn (reset flags: false unless the owner asked to clear that identity field). Do not re-emit unchanged text or unchanged list items. Code keeps previous values and merges.
@@ -1032,8 +1030,8 @@ export async function runBuilderTurn({
     'Stored unknowns (report answered ones in resolvedUnknowns, by index):',
     currentDraft.unknowns?.length ? currentDraft.unknowns.map((u, i) => `[${i}] ${u}`).join('\n') : '(none)',
     profile.approvedAt
-      ? `Last approved at: ${profile.approvedAt}`
-      : 'Not yet approved.',
+      ? `Ready since: ${profile.approvedAt}`
+      : 'First-time setup still open.',
     enoughHint,
   ].join('\n');
 
@@ -1135,18 +1133,10 @@ export function reviewAck(text) {
 }
 
 /**
- * Application review gate (runs after every Builder turn, real or stubbed).
- * The Builder never approves: approval happens only when the owner picks
- * "Try my bot" on a presented review of exactly this draft
- * (profile.reviewedDraftKey). Any later draft change invalidates that review.
- * Always keeps the turn's draft (so accepting an offered alternative can update
- * the pending draft). Settings-only edits to an approved business are presented
- * for review even if the model asked an unrelated question instead.
- *
- * When presenting a review, returns presentReview=true with an acknowledgment-only
- * message; the session layer appends the short summary and numbered menu.
- *
- * @returns turn fields plus reviewedDraftKey to persist on the profile
+ * Application save-card gate (runs after every Builder turn, real or stubbed).
+ * Required topics are asked before the first save card. Settings-only edits
+ * still get a save card even if the model asked an unrelated question.
+ * The session layer applies the draft immediately and appends the card or menu.
  */
 export function applyReviewGate(profile, turn, userMessage) {
   const { turn: goalTurn, disclaimer } = applyGoalSupport(turn);
@@ -1209,21 +1199,16 @@ function gateTurn(profile, turn) {
       presentReview: false,
       asksQuestion: true,
       message: withSingleQuestion(lead, askTopic.question),
-      reviewedDraftKey: null,
     };
   }
 
-  const key = draftReviewKey(profile, draft);
-  const reviewCurrent =
-    !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
-  const intakeAnswered = hasAnsweredInformationToCollect(draft);
   let readyForReview = !!turn.readyForReview;
   const wantsReview = turn.wantsReview === true;
-  if (intakeAnswered && profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
+  if (profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
     readyForReview = true;
   }
 
-  if ((readyForReview || wantsReview) && intakeAnswered) {
+  if (readyForReview || wantsReview) {
     return {
       ...turn,
       draft,
@@ -1232,7 +1217,6 @@ function gateTurn(profile, turn) {
       wantsReview,
       asksQuestion: false,
       message: readyForReview ? reviewAck(turn.message) : '',
-      reviewedDraftKey: key,
     };
   }
   return {
@@ -1242,7 +1226,6 @@ function gateTurn(profile, turn) {
     presentReview: false,
     wantsReview,
     asksQuestion: !!turn.asksQuestion,
-    reviewedDraftKey: reviewCurrent ? key : null,
   };
 }
 

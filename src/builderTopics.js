@@ -43,7 +43,6 @@ export function topicByKey(key) {
 
 /**
  * First required topic still open for this draft, or null.
- * Topics apply to first-time setup only; an approved profile already went through them.
  * `priorAskedTopics` are topics the app asked before the current owner message.
  */
 export function nextOpenTopic(profile, draft, priorAskedTopics = []) {

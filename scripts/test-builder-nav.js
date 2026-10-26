@@ -22,6 +22,7 @@ import {
   parseReviewChoice,
   renderMenu,
   renderReview,
+  renderSavedChanges,
   reviewActive,
 } from '../src/ownerNav.js';
 
@@ -119,7 +120,7 @@ async function testTypedApproveIsBuilderTurn() {
   const r = await handleMessage(session, 'approve');
   assert.equal(r.event, 'build_turn');
   assert.equal(calls.builder, 2);
-  assert.equal(loadProfile(PROFILE).approvedAt, null);
+  assert.ok(loadProfile(PROFILE).approvedAt, 'first understood dump is already saved');
 }
 
 /** Section views (2–4 after approval) are read-only and show real values; numbers after a section go to the Builder. */
@@ -193,14 +194,14 @@ async function testReviewChoiceAfterInterveningAnswer() {
   const q = await handleMessage(session, 'how much is a private lesson?');
   assert.equal(q.event, 'build_turn');
   assert.equal(session.mode, 'BUILD');
-  assert.equal(reviewActive(session.buildHistory), true);
+  assert.equal(menuActive(session.buildHistory), true, 'non-question turn restores the menu');
   assert.equal(interveningBuilderQuestion(session.buildHistory), false);
   assert.equal(calls.builder, 2);
 
-  const tryIt = await handleMessage(session, '1');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  const tryIt = await handleMessage(session, '5');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
-  assert.equal(calls.builder, 2, '1 must not reach the Builder after a non-question reply');
+  assert.equal(calls.builder, 2, '5 must not reach the Builder after a restored menu');
 }
 
 /** Same as above: option wording and 2 still follow the last shown review. */
@@ -215,8 +216,8 @@ async function testReviewWordsAndMakeChangesAfterAnswer() {
   await handleMessage(session, 'I run Studio Yoga');
   await handleMessage(session, 'how much is a private lesson?');
   const ch = await handleMessage(session, '2');
-  assert.equal(ch.event, 'menu');
-  assert.ok(ch.reply.includes('4. 🤖 Try my bot'), ch.reply);
+  assert.equal(ch.event, 'menu_section');
+  assert.ok(ch.reply.includes('Business info'), ch.reply);
   assert.equal(calls.builder, 2);
 }
 
@@ -230,8 +231,9 @@ async function testTryMyBotWordsAfterAnswer() {
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
   await handleMessage(session, 'how much is a private lesson?');
+  assert.equal(menuActive(session.buildHistory), true);
   const tryIt = await handleMessage(session, 'Try my bot');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(calls.builder, 2);
 }
@@ -248,10 +250,10 @@ async function testReviewChoiceAfterCorrectionAck() {
   await handleMessage(session, 'I run Studio Yoga');
   const ack = await handleMessage(session, 'the hours are already correct');
   assert.equal(ack.event, 'build_turn');
-  assert.equal(reviewActive(session.buildHistory), true);
+  assert.equal(menuActive(session.buildHistory), true);
   assert.equal(interveningBuilderQuestion(session.buildHistory), false);
-  const tryIt = await handleMessage(session, '1');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  const tryIt = await handleMessage(session, '5');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(calls.builder, 2);
 }
 
@@ -268,8 +270,8 @@ async function testCourtesyCloserDoesNotBlockReviewNumber() {
   const q = await handleMessage(session, 'how much is a private lesson?');
   assert.equal(q.event, 'build_turn');
   assert.equal(interveningBuilderQuestion(session.buildHistory), false);
-  const tryIt = await handleMessage(session, '1');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  const tryIt = await handleMessage(session, '5');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(calls.builder, 2);
 }
@@ -305,7 +307,7 @@ async function testTryMyBotWordsAfterInterveningQuestion() {
   await handleMessage(session, 'I run Studio Yoga');
   await handleMessage(session, 'staff size');
   const tryIt = await handleMessage(session, 'Try my bot');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(calls.builder, 2);
 }
@@ -333,7 +335,7 @@ async function testNumberWithoutMenuContext() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'What is the new price?', draft: facts(), readyForReview: false },
+    { message: 'What is the new price?', draft: facts(), readyForReview: false, asksQuestion: true },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi' });
   await handleMessage(session, 'I want to change a price');
@@ -377,10 +379,10 @@ async function testSixEntersTestWhenApproved() {
   assert.equal(loadProfile(PROFILE).approvedAt, '2026-01-01T00:00:00.000Z');
 }
 
-/** Pending draft: section shows live vs pending; navigation keeps draft + review key. */
+/** Section views show live current values; navigation does not write the profile. */
 async function testPendingChangesPreserved() {
   clean();
-  const p = approvedProfile({ reviewedDraftKey: 'review-key-1' });
+  const p = approvedProfile();
   p.draft = { ...p.draft, tone: 'playful', priceDisclosure: 'relevant' };
   saveProfile(p, PROFILE);
   const before = readRaw();
@@ -388,12 +390,13 @@ async function testPendingChangesPreserved() {
   session.buildHistory.push({ role: 'user', content: 'hi, I run a yoga studio' });
   await handleMessage(session, 'menu');
   const talks = await handleMessage(session, '4');
-  assert.ok(talks.reply.includes('Live now:') && talks.reply.includes('Pending change'), talks.reply);
-  assert.ok(talks.reply.includes('Style: warm') && talks.reply.includes('Style: playful'), talks.reply);
+  assert.ok(talks.reply.includes('Current:'), talks.reply);
+  assert.ok(talks.reply.includes('Style: warm'), talks.reply);
+  assert.ok(!talks.reply.includes('Pending change'), talks.reply);
   await handleMessage(session, 'menu');
   const s1 = await handleMessage(session, '2');
-  assert.ok(!s1.reply.includes('Pending change'), 'unchanged section shows current only');
-  assert.equal(readRaw(), before, 'draft and reviewedDraftKey unchanged');
+  assert.ok(!s1.reply.includes('Pending change'), 'section shows current only');
+  assert.equal(readRaw(), before, 'navigation must not save');
 }
 
 /** First-time setup: menu words and /end do not show the editing menu. */
@@ -450,7 +453,7 @@ async function testMenuParseHelpers() {
   assert.ok(renderMenu().endsWith(FOOTER));
 }
 
-/** First-time review: prose summary + two options, no questions, no field dump; 1 approves then TEST. */
+/** First-time save card: changed lines + two options; 1 enters TEST. */
 async function testFirstReviewTryApprovesAndTests() {
   clean();
   const f = facts();
@@ -463,26 +466,26 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.equal(review.readyForReview, true);
   assert.equal(reviewActive(session.buildHistory), true);
   assert.ok(review.reply.startsWith('Got it!\n\n'), review.reply);
-  assert.match(review.reply, /Here's your bot for Studio Yoga:\n\nBusiness info: /);
+  assert.match(review.reply, /Saved! Here's what changed:/);
+  assert.match(review.reply, /Business info: Private yoga lessons in Tel Aviv \(was: not set\)/);
   assert.doesNotMatch(review.reply, /\*\*/, 'no markdown bold');
-  assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
-  assert.match(review.reply, /\nAsks customers for: name, phone\n/);
+  assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min \(was: none\)\n/);
+  assert.match(review.reply, /\nAsks customers for: name, phone \(was: not decided yet\)\n/);
   assert.match(review.reply, /\nHow the bot talks: [^\n]*prices only when asked/);
   assert.doesNotMatch(review.reply, /What your bot will do|contact you directly/);
   assert.match(review.reply, /1\. Try my bot\n2\. Make changes/);
   assert.ok(!review.reply.includes('2. Edit Q&A'), 'full menu hidden until Make changes');
   assert.doesNotMatch(withoutOptionsPrompt(review.reply), /\?|Business Name:|Ready to approve/);
-  assert.equal(loadProfile(PROFILE).approvedAt, null);
+  assert.ok(loadProfile(PROFILE).approvedAt);
 
   const tryIt = await handleMessage(session, '1');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
-  assert.ok(tryIt.reply.includes('Bot updated ✅'), tryIt.reply);
   assert.ok(tryIt.reply.includes('TEST mode'), tryIt.reply);
   assert.ok(loadProfile(PROFILE).approvedAt);
 }
 
-/** "Make changes" shows the full editing menu; from there 4 still approves + tests. */
+/** "Make changes" shows the full editing menu; from there 5 is Try my bot. */
 async function testMakeChangesShowsMenu() {
   clean();
   const f = facts();
@@ -495,12 +498,11 @@ async function testMakeChangesShowsMenu() {
   const ch = await handleMessage(session, 'Make changes');
   assert.equal(ch.event, 'menu');
   assert.ok(ch.reply.startsWith('What would you like to change?'), ch.reply);
-  assert.ok(ch.reply.includes('1. 🏪 Edit business info\n') && ch.reply.includes('4. 🤖 Try my bot'), ch.reply);
-  assert.ok(!ch.reply.includes('Get this bot'), 'no lead item before approval');
+  assert.ok(ch.reply.includes('🏪 Edit business info') && ch.reply.includes('🤖 Try my bot'), ch.reply);
   assert.equal(menuActive(session.buildHistory), true);
   assert.equal(readRaw(), before, 'Make changes must not save');
-  const tryIt = await handleMessage(session, '4');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  const tryIt = await handleMessage(session, '5');
+  assert.equal(tryIt.event, 'enter_test');
 }
 
 /** Later pending edit: review lists only what changes; 1 applies it then enters TEST. */
@@ -514,12 +516,12 @@ async function testTryApprovesPendingEdit() {
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const review = await handleMessage(session, 'Change hours to Sun–Fri 8–14');
-  assert.match(review.reply, /Here's what will change:\n\nHours: Sun–Fri 8–14 \(was: Sun–Thu 8–18\)\n\n/);
+  assert.match(review.reply, /Saved! Here's what changed:\n\nHours: Sun–Fri 8–14 \(was: Sun–Thu 8–18\)\n\n/);
   assert.ok(!review.reply.includes('Studio Yoga'), 'unchanged facts not repeated');
-  assert.equal(loadProfile(PROFILE).hours, 'Sun–Thu 8–18');
+  assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
 
   const tryIt = await handleMessage(session, 'Try my bot');
-  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
 }
@@ -534,12 +536,12 @@ async function testSectionsBeforeApprovalShowDraft() {
   await handleMessage(session, 'I run Studio Yoga');
   const before = readRaw();
   await handleMessage(session, '2');
-  const s1 = await handleMessage(session, '1');
+  const s1 = await handleMessage(session, '2');
   assert.equal(s1.event, 'menu_section');
   assert.ok(s1.reply.includes('Studio Yoga') && s1.reply.includes('200 ILS'), s1.reply);
   assert.equal(readRaw(), before, 'section view must not save');
   assert.equal(calls.builder, 1);
-  assert.equal(loadProfile(PROFILE).approvedAt, null);
+  assert.ok(loadProfile(PROFILE).approvedAt);
 }
 
 async function testReviewRenderHelpers() {
@@ -590,17 +592,12 @@ async function testReviewRenderHelpers() {
 
   // Changes view: same labels; hidden edits marked (updated); gap note not repeated in "was".
   const live = { ...facts(), approvedAt: '2026-01-01T00:00:00Z', hours: null };
-  const changed = renderReview(
-    {
-      ...live,
-      draft: {
-        ...live,
-        hours: 'Sun–Thu 9–18',
-        services: [{ ...live.services[0], notes: 'new note' }],
-        ownerGoal: 'answer_questions',
-      },
-    }
-  );
+  const changed = renderSavedChanges(live, {
+    ...live,
+    hours: 'Sun–Thu 9–18',
+    services: [{ ...live.services[0], notes: 'new note' }],
+    ownerGoal: 'answer_questions',
+  });
   assert.match(changed, /\nHours: Sun–Thu 9–18 \(was: not set\)/);
   assert.match(changed, /\nServices: [^\n]* \(updated\)/);
   assert.match(changed, /\nBot goal: Answer customer questions/);
@@ -691,11 +688,9 @@ async function testWantsReviewUsesRenderReview() {
   assert.equal(r.event, 'build_turn');
   assert.equal(reviewActive(session.buildHistory), true);
   assert.equal(lastShownNav(session.buildHistory), 'review');
-  const review = renderReview(loadProfile(PROFILE));
-  assert.ok(r.reply.includes(review), r.reply);
-  assert.match(r.reply, /Here's your bot for Studio Yoga:/);
-  assert.match(r.reply, /\nQ&A: 1 answer\n/);
-  assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?/);
+  assert.match(r.reply, /Saved! Here's what changed:/);
+  assert.match(r.reply, /\nQ&A: 1 answer \(was: none\)\n/);
+  assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for/);
 }
 
 /** Without wantsReview or readyForReview, a model-written dump is not replaced. */
@@ -713,8 +708,9 @@ async function testNoWantsReviewKeepsModelMessage() {
   await handleMessage(session, 'hi');
   const r = await handleMessage(session, 'how much is a lesson?');
   assert.equal(r.event, 'build_turn');
-  assert.equal(lastShownNav(session.buildHistory), null);
-  assert.equal(r.reply, 'A private lesson is 200 ILS.');
+  assert.equal(lastShownNav(session.buildHistory), 'review');
+  assert.match(r.reply, /Saved! Here's what changed:/);
+  assert.ok(r.reply.includes('A private lesson is 200 ILS.'), r.reply);
 }
 
 async function main() {

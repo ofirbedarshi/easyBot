@@ -10,9 +10,8 @@
 import 'dotenv/config';
 import fs from 'fs';
 import { attachCostTracker } from './lib/modelCost.js';
-import { createSession, handleMessage, reviewPending } from '../src/session.js';
+import { createSession, handleMessage } from '../src/session.js';
 import {
-  draftReviewKey,
   emptyProfile,
   saveProfile,
   testProfilePath,
@@ -21,6 +20,7 @@ import {
   interveningBuilderQuestion,
   lastAssistant,
   lastShownNav,
+  menuActive,
   renderReview,
   reviewActive,
 } from '../src/ownerNav.js';
@@ -64,10 +64,11 @@ function draft() {
 
 function seededProfile() {
   const d = draft();
-  const base = { ...emptyProfile(), draft: d };
   return {
-    ...base,
-    reviewedDraftKey: draftReviewKey(base, d),
+    ...emptyProfile(),
+    ...d,
+    approvedAt: '2026-01-01T00:00:00.000Z',
+    draft: d,
   };
 }
 
@@ -102,6 +103,7 @@ function flagLine(session, extra) {
   const last = lastAssistant(session.buildHistory);
   return [
     `reviewActive=${reviewActive(session.buildHistory)}`,
+    `menuActive=${menuActive(session.buildHistory)}`,
     `lastNav=${lastShownNav(session.buildHistory)}`,
     `asksQuestion=${last?.asksQuestion === true}`,
     `intervening=${interveningBuilderQuestion(session.buildHistory)}`,
@@ -123,26 +125,34 @@ async function main() {
 
   transcript.push(`model=${MODEL}`);
 
-  // Case A: customer-style answer / courtesy closer must not block 1.
+  // Case A: customer-style answer restores the editing menu; Try my bot still works.
   const courtesy = seedSession();
   transcript.push('');
-  transcript.push('--- courtesy / answer (must not block 1) ---');
-  transcript.push(flagLine(courtesy.session, `reviewPending=${reviewPending(courtesy.profile)}`));
+  transcript.push('--- courtesy / answer (menu comes back; Try my bot still works) ---');
+  transcript.push(flagLine(courtesy.session));
   transcript.push(line('APP', courtesy.session.buildHistory.at(-1).content));
   const priceQ = 'how much is a womens haircut?';
   transcript.push(line('OWNER', priceQ));
   const mid = await handleMessage(courtesy.session, priceQ);
   transcript.push(`event=${mid.event} source=${mid.source} mode=${courtesy.session.mode} ${flagLine(courtesy.session)}`);
   transcript.push(line('APP', mid.reply));
-  const oneA = await handleMessage(courtesy.session, '1');
-  transcript.push(line('OWNER', '1'));
-  transcript.push(`event=${oneA.event} source=${oneA.source} mode=${courtesy.session.mode} approved=${!!oneA.approved}`);
-  transcript.push(line('APP', oneA.reply));
+  const tryA = await handleMessage(courtesy.session, 'Try my bot');
+  transcript.push(line('OWNER', 'Try my bot'));
+  transcript.push(`event=${tryA.event} source=${tryA.source} mode=${courtesy.session.mode}`);
+  transcript.push(line('APP', tryA.reply));
+  const menuRestored = menuActive(courtesy.session.buildHistory) || lastShownNav(courtesy.session.buildHistory) === 'menu';
   const okCourtesy =
-    oneA.event === 'approved_enter_test' &&
+    mid.event === 'build_turn' &&
+    !interveningBuilderQuestion(courtesy.session.buildHistory) &&
+    (menuRestored || reviewActive(courtesy.session.buildHistory)) &&
+    tryA.event === 'enter_test' &&
     courtesy.session.mode === 'TEST' &&
-    /TEST mode/.test(oneA.reply);
-  results.push(okCourtesy ? 'PASS courtesy/answer then 1 entered TEST' : 'FAIL courtesy/answer then 1 did not enter TEST');
+    /TEST mode/.test(tryA.reply);
+  results.push(
+    okCourtesy
+      ? 'PASS courtesy/answer restored next-step UI and Try my bot entered TEST'
+      : 'FAIL courtesy/answer then Try my bot did not enter TEST'
+  );
 
   // Case B: a real interview question, then 1 is the answer.
   const question = seedSession();
@@ -157,17 +167,17 @@ async function main() {
   const questionFlag = lastAssistant(question.session.buildHistory)?.asksQuestion === true;
   const oneB = await handleMessage(question.session, '1');
   transcript.push(line('OWNER', '1'));
-  transcript.push(`event=${oneB.event} source=${oneB.source} mode=${question.session.mode} approved=${!!oneB.approved}`);
+  transcript.push(`event=${oneB.event} source=${oneB.source} mode=${question.session.mode}`);
   transcript.push(line('APP', oneB.reply));
   const okQuestionTurn =
-    questionFlag && oneB.event === 'build_turn' && question.session.mode === 'BUILD' && !oneB.approved;
+    questionFlag && oneB.event === 'build_turn' && question.session.mode === 'BUILD';
   results.push(
     okQuestionTurn
       ? 'PASS real question then 1 stayed in BUILD (answer, not Try my bot)'
       : `FAIL real question then 1 event=${oneB.event} mode=${question.session.mode} asksQuestion=${questionFlag}`
   );
 
-  // Same-draft re-present: no prepended ack.
+  // Same-draft re-present: current-bot card, no prepended ack.
   const second = seedSession();
   const show = 'please show the current bot';
   transcript.push('');

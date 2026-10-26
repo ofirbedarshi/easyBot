@@ -24,7 +24,6 @@ set
       'assistantName',
       'openingMessage',
       'approvedAt',
-      'reviewedDraftKey',
       'draft'
     ])
   ),
@@ -50,7 +49,6 @@ where exists (
     'assistantName',
     'openingMessage',
     'approvedAt',
-    'reviewedDraftKey',
     'draft'
   ])
 );
