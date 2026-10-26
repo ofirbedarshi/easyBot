@@ -62,6 +62,62 @@ test('dropped service, FAQ, and text fields are restored', () => {
   assert.equal(r.hours, 'full hours with exception');
 });
 
+test('restored list items keep their original position', () => {
+  const r = preserveFacts(
+    { services: [svc('Men\'s cut', '$30')] },
+    {
+      services: [
+        svc('Women\'s cut', '$45'),
+        svc('Men\'s cut', '$28'),
+        svc('Blowout', '$35'),
+      ],
+    },
+    [{ field: 'services', item: 'Men\'s cut', action: 'change' }]
+  );
+  assert.deepEqual(
+    r.services.map((s) => s.name),
+    ['Women\'s cut', 'Men\'s cut', 'Blowout']
+  );
+  assert.equal(r.services[0].price, '$45');
+  assert.equal(r.services[1].price, '$30');
+});
+
+test('sameKey folds curly apostrophes so a reported edit still applies', () => {
+  const r = preserveFacts(
+    { services: [svc('Men\'s cut', '$30')] },
+    { services: [svc('Women\'s cut', '$45'), svc('men\u2019s cut', '$28')] },
+    [{ field: 'services', item: 'Men\'s cut', action: 'change' }]
+  );
+  assert.equal(r.services.find((s) => /^men/i.test(s.name)).price, '$30');
+  assert.equal(r.services.find((s) => /women/i.test(s.name)).price, '$45');
+});
+
+test('overlapping service names: editing one does not mark the other', () => {
+  const r = preserveFacts(
+    { services: [svc('Men\'s cut', '$30')] },
+    { services: [svc('Women\'s cut', '$45'), svc('Men\'s cut', '$28')] },
+    [{ field: 'services', item: 'Men\'s cut', action: 'change' }]
+  );
+  assert.equal(r.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+  assert.equal(r.services.find((s) => s.name === 'Men\'s cut').price, '$30');
+});
+
+test('locationOrArea is kept when a service correction sends a shorter area', () => {
+  const r = preserveFacts(
+    {
+      services: [svc('Plumbing', '$95')],
+      locationOrArea: 'Dayton and Kettering',
+    },
+    {
+      services: [svc('Plumbing', '$90'), svc('Electrical', '$110')],
+      locationOrArea: 'Dayton and Kettering. Does not serve Springfield.',
+    },
+    [{ field: 'services', item: 'Plumbing', action: 'change' }]
+  );
+  assert.match(r.locationOrArea, /Springfield/);
+  assert.equal(r.services.find((s) => s.name === 'Electrical').price, '$110');
+});
+
 test('unreported additive change (e.g. resolving an unknown) is kept', () => {
   const r = preserveFacts(
     { hours: 'Weekdays 8-6, Saturday 9-1', unknowns: [], services: [svc('Item A', '$5, per unit')] },

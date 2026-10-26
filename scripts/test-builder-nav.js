@@ -562,7 +562,7 @@ async function testReviewRenderHelpers() {
     .filter((l) => ['Business', 'Services', 'Area', 'Hours', 'Bot goal', 'Asks customers for', 'Q&A', 'Style', 'Name & opening'].includes(l));
   assert.deepEqual(labels, ['Business', 'Services', 'Area', 'Hours', 'Bot goal', 'Asks customers for', 'Q&A', 'Style', 'Name & opening']);
 
-  // Gaps are shown; long values trimmed; legacy free-text goal reads as not set.
+  // Gaps are shown; review values are not clipped; legacy free-text goal reads as not set.
   const gaps = renderReview(
     { draft: { name: 'X', whatWeDo: 'a'.repeat(30) + ' ' + 'b'.repeat(30) + ' ' + 'c'.repeat(40), ownerGoal: 'help me sell', services: [], commonQuestions: [], informationToCollect: null } }
   );
@@ -571,7 +571,28 @@ async function testReviewRenderHelpers() {
   assert.match(gaps, /\nQ&A: none yet \(bot refers customers to you\)\n/);
   assert.match(gaps, /\nBot goal: not set\n/);
   assert.match(gaps, /\nAsks customers for: not decided yet\n/);
-  assert.match(gaps, /\nBusiness: a{30} b{30}…\n/);
+  assert.match(gaps, /\nBusiness: a{30} b{30} c{40}\n/);
+
+  const manyServices = renderReview({
+    draft: {
+      name: 'Studio Yoga',
+      whatWeDo: 'Lessons',
+      services: [
+        { name: "Women's cut", price: '$45', notes: null },
+        { name: "Men's cut", price: '$30', notes: null },
+        { name: "Kids' cut (under 10)", price: '$25', notes: null },
+        { name: 'Blowout', price: '$35', notes: null },
+        { name: 'Long or thick hair extra', price: '$15', notes: null },
+      ],
+      informationToCollect: [],
+    },
+  });
+  assert.match(manyServices, /Women's cut — \$45/);
+  assert.match(manyServices, /Men's cut — \$30/);
+  assert.match(manyServices, /Kids' cut \(under 10\) — \$25/);
+  assert.match(manyServices, /Blowout — \$35/);
+  assert.match(manyServices, /Long or thick hair extra — \$15/);
+  assert.doesNotMatch(manyServices, /…/);
 
   // Changes view: same labels; hidden edits marked (updated); gap note not repeated in "was".
   const live = { ...facts(), approvedAt: '2026-01-01T00:00:00Z', hours: null };
