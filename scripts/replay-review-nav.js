@@ -7,7 +7,9 @@
  *
  * Costs a few cents. Isolated profile file; does not touch data/business-profile.json.
  */
+import 'dotenv/config';
 import fs from 'fs';
+import { attachCostTracker } from './lib/modelCost.js';
 import { createSession, handleMessage, reviewPending } from '../src/session.js';
 import {
   draftReviewKey,
@@ -115,6 +117,7 @@ async function main() {
     process.exit(1);
   }
 
+  const cost = attachCostTracker(MODEL);
   const transcript = [];
   const results = [];
 
@@ -186,6 +189,7 @@ async function main() {
   for (const r of results) console.log(r);
 
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
+  cost.print();
   if (!okCourtesy || !okQuestionTurn) process.exit(1);
 }
 

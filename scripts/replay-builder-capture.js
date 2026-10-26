@@ -8,7 +8,9 @@
  *   node scripts/replay-builder-capture.js --models gpt-4o-mini --modes legacy,delta --runs 12
  *
  * Not part of the default test suite. Budget cap $2 unless --budget is set.
+ * Exits 1 if any interview errors, is skipped, or misses a scored fact.
  */
+import 'dotenv/config';
 import { runBuilderTurn, openingMessage } from '../src/builder.js';
 import { emptyProfile } from '../src/profile.js';
 
@@ -295,3 +297,15 @@ for (const model of MODELS) {
   }
 }
 console.log(`\nTotal spent: $${spent.toFixed(3)} (cap $${BUDGET.toFixed(2)})`);
+
+const failed = results.filter((r) => {
+  if (r.skipped || r.error || !r.score) return true;
+  return Object.values(r.score).some((v) => !v);
+});
+if (failed.length) {
+  console.error(
+    `\nCAPTURE FAIL: ${failed.length}/${results.length} interviews errored, skipped, or missed a scored fact`
+  );
+  process.exit(1);
+}
+console.log('\nCAPTURE PASS');

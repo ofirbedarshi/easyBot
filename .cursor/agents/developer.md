@@ -26,7 +26,7 @@ mark work as independently verified — only the Verifier does that.
 
 1. Set your agent activity in `cto-workflow/state.json` (`agents.developer`) at start and handoff.
 2. Implement the minimal change that satisfies acceptance criteria.
-3. Run relevant checks (targeted tests, lint, or smoke commands listed in the task). Prefer existing scripts: `npm run test:approval`, `test:nav`, `test:customer-prompt`, `test:twilio`.
+3. Run `npm test` (all deterministic suites). Before merge, run `npm run regress` (live gpt-6-luna; costs a few cents; never print env values). Report both summaries in the PR. Do not treat a single `test:*` alias as enough.
 4. Do **not** introduce an AI judge / semantic evaluation framework.
 
 ## Handoff report (required)

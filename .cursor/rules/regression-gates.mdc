@@ -1,0 +1,15 @@
+---
+description: Run npm test and npm run regress; report results in the PR
+alwaysApply: true
+---
+
+# Regression gates
+
+After a change, run **`npm test`** (all deterministic suites, no network). Paste the summary table in the PR.
+
+Before merge, run **`npm run regress`** once against gpt-6-luna (needs `OPENAI_API_KEY`, a few cents). Paste the per-scenario pass/fail, time, and cost table in the PR.
+
+- Do not treat a single `npm run test:*` alias as enough.
+- Do not print `OPENAI_API_KEY` or other env values.
+- Ask before spending more than the usual few-cent regress run.
+- `npm test` is also the GitHub Actions check on pull requests and push to main. Live regress is manual (`npm run regress` or the `Live regress` workflow_dispatch).

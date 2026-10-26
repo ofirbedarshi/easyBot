@@ -2,9 +2,8 @@ node_modules/
 .env
 data/business-profile.json
 data/test-profiles/
-# Tester run output from src/judge.js. Local only; not part of deploy.
+# Local live-eval output (not part of deploy).
 data/test-results/*.json
-!data/test-results/synthetic-incomplete-viewer-fixture.json
 .DS_Store
 
 .local/

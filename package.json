@@ -7,12 +7,14 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch --watch-preserve-output src/server.js",
+    "test": "node scripts/run-deterministic-tests.js",
     "test:approval": "node scripts/test-approval-boundaries.js",
     "test:nav": "node scripts/test-builder-nav.js",
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "test:lead": "node scripts/test-lead-intake.js",
     "test:business-bot": "node scripts/test-business-bot.js",
+    "regress": "node scripts/run-live-regress.js",
     "replay:salon-intake": "node scripts/replay-salon-intake.js"
   },
   "engines": {
