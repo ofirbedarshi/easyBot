@@ -535,6 +535,21 @@ function testRequiredTopicsGate() {
   assert.match(a.message, /^Got it, thanks!\n\nWhat questions do customers usually ask/);
   assert.deepEqual(a.draft.askedTopics, ['commonQuestions']);
 
+  // Specific lead + readyForReview + open FAQ → that lead kept + fixed FAQ question.
+  const specificLead =
+    'A family bakery in the old town sounds like a place neighbors already know.';
+  const specific = applyReviewGate(
+    emptyProfile(),
+    { message: specificLead, draft: facts, readyForReview: true },
+    'we are a family-run bakery in the old town'
+  );
+  assert.equal(specific.presentReview, false);
+  assert.equal(
+    specific.message,
+    `${specificLead}\n\nWhat questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.`
+  );
+  assert.deepEqual(specific.draft.askedTopics, ['commonQuestions']);
+
   // Asked on a prior turn → settled even with no FAQ stored → review.
   const b = applyReviewGate({ ...emptyProfile(), draft: a.draft }, turn, 'skip');
   assert.equal(b.presentReview, true);

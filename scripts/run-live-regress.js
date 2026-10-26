@@ -50,6 +50,7 @@ const SCENARIOS = [
   },
   { id: 'review-nav', args: ['scripts/replay-review-nav.js'] },
   { id: 'salon-intake', args: ['scripts/replay-salon-intake.js'] },
+  { id: 'builder-reaction', args: ['scripts/replay-builder-reaction.js'] },
   { id: 'stale-facts', args: ['scripts/replay-stale-facts.js'] },
   {
     id: 'builder-capture',

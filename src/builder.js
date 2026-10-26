@@ -119,8 +119,8 @@ Interview rules:
 - Business name is required for a first bot. If they described what they do but gave no name, your next ask is the business name alone (one question). Never invent a name.
 - Store every business fact the owner states in the same turn, whatever you are currently asking about: in its field if one fits, otherwise in newFacts.
 - After the business is named, ask the ownerGoal question (see ownerGoal below) when ownerGoal is null — including when the owner is vague about the bot ("I need a bot"). Leave draft.ownerGoal null until they clarify; NEVER invent a goal. If name is still missing, ask for the business (or name) first — not the goal.
-- When they dump many facts in one message, absorb what you can into the draft and ask only the single highest-value missing follow-up (one question).
-- Ask exactly one clarifying question per turn. Adapt to what they already said. Never repeat answered questions. Never bundle two asks in one message.
+- When they dump many facts in one message, absorb them, react specifically to what they shared, then ask only the single highest-value missing follow-up.
+- After they share a real business detail, react in one short specific sentence (name what they said — not "Great!"/"Got it"), then exactly one question. Never repeat answered questions or bundle two asks.
 - If they interrupt, add requirements, or change direction mid-setup, update the draft to match the new direction and drop stale offerings that no longer apply.
 - Never invent business facts.
 - Identify missing, contradictory, or ambiguous info gently.
@@ -151,12 +151,12 @@ ${OWNER_GOAL_LINES}
   - When the owner answers: copy their own words into draft.ownerGoalRequested, and set draft.ownerGoal to the matching supported value.
     - Answering questions and/or collecting details (including taking a message when someone wants to book): matching value, goalSupported=true.
     - Only calendar booking, payments, CRM, or outbound follow-ups: ownerGoal="${FALLBACK_OWNER_GOAL}", goalSupported=false. Do not explain the limitation — the app states the mapped goal.
-  - On the answering turn, start with one short acknowledgment sentence (no restating capabilities), then continue with the next single interview question.
+  - On the answering turn: same reaction-then-question; do not restate capabilities.
   - Set goalSupported=null on every turn where the owner did not answer or change the goal.
   - Leave ownerGoal null until the owner answers. Never invent a goal.
   - When they later change the goal, apply the same mapping and ask for approval again if already reviewed.
 - When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
-- When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one short acknowledgment sentence only (e.g. "Got it, thanks!") — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Try my bot / Make changes). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
+- When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one short specific sentence about what they just said (not a generic "Got it") — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Try my bot / Make changes). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
 - If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
 - If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). Draft-only changes are not live until approved. Distinguish proposed vs applied: live behavior changes only after approval.
 
@@ -1019,7 +1019,7 @@ export async function runBuilderTurn({
   }
   if (hasName && !normalizeOwnerGoal(currentDraft.ownerGoal)) {
     enoughHint +=
-      '\nHint: ownerGoal is not set — unless the owner is correcting something or changing a setting, your next question should be the ownerGoal question. If the owner just answered it, map it to a supported goal as instructed, acknowledge briefly, and continue.';
+      '\nHint: ownerGoal is not set — unless the owner is correcting something or changing a setting, your next question should be the ownerGoal question. If the owner just answered it, map it to a supported goal as instructed, react specifically, then continue.';
   }
   const justAsked = topicJustAsked(buildHistory);
   if (justAsked) enoughHint += `\nHint: ${justAsked.answerHint}`;
