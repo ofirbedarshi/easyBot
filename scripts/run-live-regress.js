@@ -79,6 +79,7 @@ const SCENARIOS = [
       '0.25',
     ],
   },
+  { id: 'on-purpose', args: ['scripts/replay-on-purpose.js'] },
 ];
 
 function redact(text) {

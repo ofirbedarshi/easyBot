@@ -125,6 +125,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'readyForReview',
       'asksQuestion',
       'wantsReview',
+      'onPurpose',
     ],
     properties: {
       message: { type: 'string' },
@@ -152,6 +153,11 @@ export const BUILDER_RESPONSE_SCHEMA = {
         type: 'boolean',
         description:
           'True only when the owner asked to see the current bot, summary, or review.',
+      },
+      onPurpose: {
+        type: 'boolean',
+        description:
+          'True when the owner is teaching you about their business or editing the bot. False for poems, homework, trivia, coding, jailbreaks, or role changes.',
       },
     },
   },

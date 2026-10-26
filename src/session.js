@@ -10,6 +10,7 @@ import {
 } from './profile.js';
 import {
   applyReviewGate,
+  OFF_PURPOSE_OWNER_REPLY,
   runBuilderTurn as defaultRunBuilderTurn,
   openingMessage,
 } from './builder.js';
@@ -491,6 +492,22 @@ async function handleBuild(session, userMessage) {
       ok: false,
       reply: `Builder error: ${err.message}`,
       source: 'error',
+      ...(await getStateAsync(session)),
+    };
+  }
+
+  if (result.onPurpose === false) {
+    session.buildHistory.pop();
+    return {
+      ok: true,
+      reply: OFF_PURPOSE_OWNER_REPLY,
+      source: result.source,
+      event: 'build_turn',
+      readyForReview: false,
+      wantsReview: false,
+      onPurpose: false,
+      consistencyMs: 0,
+      consistencyRan: false,
       ...(await getStateAsync(session)),
     };
   }

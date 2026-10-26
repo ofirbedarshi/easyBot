@@ -4,7 +4,9 @@ import {
   persistSenderSession,
 } from '../session.js';
 import {
+  burstWindowMs,
   checkMessageLength,
+  checkSenderBurst,
   maxMsgsPerSenderPerDay,
   maxMsgsPerSenderPerHour,
 } from '../limits.js';
@@ -130,8 +132,22 @@ async function processRow(store, row, { sessionDeps } = {}) {
 
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const burstAgo = new Date(Date.now() - burstWindowMs()).toISOString();
     const hourCount = await store.countSenderMessagesSince(senderId, hourAgo);
     const dayCount = await store.countSenderMessagesSince(senderId, dayAgo);
+    const burstCount = await store.countSenderMessagesSince(senderId, burstAgo);
+    const burst = checkSenderBurst(burstCount);
+    if (!burst.ok) {
+      await store.updateMessageModeBySid(row.message_sid, 'limit');
+      await logOutboundThenSend(store, {
+        senderId,
+        inboundSid: row.message_sid,
+        body: burst.reason,
+        mode: 'limit',
+      });
+      await store.markInboundSkipped(row.id, burst.reason);
+      return;
+    }
     if (hourCount > maxMsgsPerSenderPerHour()) {
       const msg = 'Hourly message limit reached. Try again later.';
       await store.updateMessageModeBySid(row.message_sid, 'limit');
