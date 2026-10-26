@@ -4,6 +4,7 @@ import {
   PRICE_DISCLOSURE_LABELS,
   RESPONSE_LENGTH_LABELS,
   assistantIdentityView,
+  defaultCustomerOpening,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
@@ -659,7 +660,7 @@ function profileFactsHtml(profile) {
   const prices = `${PRICE_DISCLOSURE_LABELS[eff.priceDisclosure] || PRICE_DISCLOSURE_LABELS.relevant}${storedPrice ? '' : ' (default)'}`;
   const opening = identity.openingMessage
     ? identity.openingMessage
-    : `(default) short introduction as the digital assistant of ${p.name || 'this business'}`;
+    : `(default) “${defaultCustomerOpening(p)}”`;
 
   const extras = [];
   extras.push(

@@ -150,7 +150,7 @@ export const DEMO_SCOPE = {
  * Stored values stay null until the owner sets them.
  */
 export const DEFAULT_BEHAVIOR = {
-  tone: 'friendly, clear, and professional',
+  tone: 'warm, friendly, and human',
   responseLength: 'standard',
   priceDisclosure: 'relevant',
 };
@@ -332,6 +332,31 @@ export function assistantIdentityView(profile) {
     openingMessage,
     usesDefaultIntroduction: !openingMessage,
   };
+}
+
+/**
+ * Warm default first-contact line when the owner has not set openingMessage.
+ * Uses the approved business name and assistantName when present.
+ */
+export function defaultCustomerOpening(profile) {
+  const identity = assistantIdentityView(profile);
+  const biz =
+    typeof profile?.name === 'string' && profile.name.trim()
+      ? profile.name.trim()
+      : null;
+  const who = identity.assistantName
+    ? `I'm ${identity.assistantName}, the digital assistant here`
+    : `I'm the digital assistant here`;
+  if (biz) {
+    return `Hi there! 👋 Welcome to ${biz}. ${who}, happy to help with anything you'd like to know 😊`;
+  }
+  return `Hi there! 👋 ${who}, happy to help with anything you'd like to know 😊`;
+}
+
+/** Custom openingMessage if set; otherwise the warm default. */
+export function customerOpeningText(profile) {
+  const identity = assistantIdentityView(profile);
+  return identity.openingMessage || defaultCustomerOpening(profile);
 }
 
 /** Conversation settings view (effective values) for prompts / summaries. */
@@ -644,7 +669,7 @@ function formatFactsBlock(profile) {
     `  Opening: ${
       identity.openingMessage
         ? `“${identity.openingMessage}”`
-        : `(default) short introduction as the digital assistant of ${profile.name || 'this business'}`
+        : `(default) “${defaultCustomerOpening(profile)}”`
     }`
   );
   return lines.join('\n');

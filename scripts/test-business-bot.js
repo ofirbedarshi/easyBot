@@ -10,12 +10,17 @@ import { fileURLToPath } from 'url';
 import {
   BUSINESS_BOT_CONTEXT_MESSAGES,
   BUSINESS_BOT_STORED_MESSAGES,
+  FIRST_TURN_SYSTEM,
   buildBusinessBotMessages,
   businessBotReply,
 } from '../src/businessBot.js';
 import { resetChatCompletionShapeCache } from '../src/openaiChat.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
-import { emptyProfile, withKnownProfileKeys } from '../src/profile.js';
+import {
+  customerOpeningText,
+  emptyProfile,
+  withKnownProfileKeys,
+} from '../src/profile.js';
 import {
   createSenderSession,
   handleMessage,
@@ -89,6 +94,10 @@ async function testRequestShape() {
   });
   assert.deepEqual(req.messages.slice(1, -1), history);
   assert.deepEqual(req.messages.at(-1), { role: 'user', content: 'Price?' });
+  assert.ok(
+    !req.messages.some((m) => m.content === FIRST_TURN_SYSTEM),
+    'later turns do not get the first-turn system line'
+  );
 
   process.env.OPENAI_MODEL = 'gpt-test-model';
   const client2 = fakeClient();
@@ -137,7 +146,10 @@ async function testReasoningModelFallback() {
     question: 'Hi',
     client,
   });
-  assert.equal(reply, 'reasoned');
+  assert.equal(
+    reply,
+    `${customerOpeningText(approvedProfile())}\n\nreasoned`
+  );
   assert.equal(client.requests[0].temperature, 0);
   const ok = [...client.requests].reverse().find((r) => r.temperature == null);
   assert.ok(ok, 'retries without temperature');
@@ -156,6 +168,84 @@ async function testReasoningModelFallback() {
   else process.env.OPENAI_MODEL = prevModel;
   resetChatCompletionShapeCache();
   console.log('PASS reasoning_model_omits_temperature_uses_lowest_effort');
+}
+
+async function testFirstTurnOpeningPrefixed() {
+  const profile = approvedProfile({
+    name: 'BurgerBarber',
+    openingMessage: null,
+    assistantName: null,
+  });
+  const client = fakeClient("A men's haircut is 100 shekel.");
+  const reply = await businessBotReply({
+    profile,
+    history: [],
+    question: 'Heyy',
+    client,
+  });
+  const open = customerOpeningText(profile);
+  assert.ok(reply.startsWith(`${open}\n\n`), reply);
+  assert.ok(reply.includes("A men's haircut is 100 shekel."));
+  assert.ok(
+    client.requests[0].messages.some(
+      (m) => m.role === 'system' && m.content === FIRST_TURN_SYSTEM
+    )
+  );
+
+  const later = fakeClient('Glad you like it — want to leave your name and phone?');
+  const reply2 = await businessBotReply({
+    profile,
+    history: [
+      { role: 'user', content: 'Heyy' },
+      { role: 'assistant', content: reply },
+    ],
+    question: 'Cool',
+    client: later,
+  });
+  assert.equal(reply2, 'Glad you like it — want to leave your name and phone?');
+  assert.ok(!reply2.startsWith(open));
+  assert.ok(
+    !later.requests[0].messages.some((m) => m.content === FIRST_TURN_SYSTEM)
+  );
+
+  const custom = 'Welcome to the chair!';
+  const customProfile = approvedProfile({
+    name: 'BurgerBarber',
+    openingMessage: custom,
+  });
+  const customReply = await businessBotReply({
+    profile: customProfile,
+    history: [],
+    question: 'Hi',
+    client: fakeClient('How can I help?'),
+  });
+  assert.equal(customReply, `${custom}\n\nHow can I help?`);
+  console.log('PASS first_turn_opening_prefixed');
+}
+
+async function testTestModeFirstMessageGetsOpening() {
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15550009';
+  const profile = approvedProfile({
+    name: 'BurgerBarber',
+    openingMessage: null,
+  });
+  await store.saveProfile(sender, profile);
+  const session = await createSenderSession(store, sender, {
+    deps: {
+      businessBotReply: (args) =>
+        businessBotReply({ ...args, client: fakeClient('A cut is 100 shekel.') }),
+    },
+  });
+  session.buildHistory.push({ role: 'assistant', content: '(opened)' });
+  assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
+  const first = await handleMessage(session, 'How much it cost?');
+  const open = customerOpeningText(profile);
+  assert.ok(first.reply.startsWith(`${open}\n\n`), first.reply);
+  assert.ok(first.reply.includes('A cut is 100 shekel.'));
+  const second = await handleMessage(session, 'Cool');
+  assert.equal(second.reply, 'A cut is 100 shekel.');
+  console.log('PASS test_mode_first_message_gets_opening');
 }
 
 function testHistoryBounded() {
@@ -322,6 +412,8 @@ function testMigrationKeysMatchProfile() {
 async function main() {
   await testRequestShape();
   await testReasoningModelFallback();
+  await testFirstTurnOpeningPrefixed();
+  await testTestModeFirstMessageGetsOpening();
   testHistoryBounded();
   await testMemoryPersistsThroughStore();
   await testStoredHistoryCapped();

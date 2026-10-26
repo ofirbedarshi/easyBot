@@ -14,6 +14,7 @@ import {
   draftDiffersFromLive,
   effectiveBehavior,
   emptyProfile,
+  customerOpeningText,
   formatSummary,
   hasEnoughForFirstBot,
   loadProfile,
@@ -1013,7 +1014,8 @@ async function testIdentityApprovePropagates() {
   assert.equal(diskLive.openingMessage, MAYA_OPENING);
   const sys = buildCustomerSystemPrompt(diskLive);
   assert.match(sys, /Assistant name: Maya\./);
-  assert.ok(sys.includes(MAYA_OPENING));
+  assert.doesNotMatch(sys, /Use the opening ONLY/);
+  assert.equal(customerOpeningText(diskLive), MAYA_OPENING);
   assert.match(sys, /on request only/i);
   const disk = loadProfile(PROFILE);
   assert.equal(disk.assistantName, 'Maya');
@@ -1151,7 +1153,7 @@ async function testIdentityResetRestoresDefault() {
   const sys = buildCustomerSystemPrompt(disk);
   assert.doesNotMatch(sys, /Maya/);
   assert.match(sys, /Assistant name: none/);
-  assert.match(sys, /Opening: default/);
+  assert.doesNotMatch(sys, /Use the opening ONLY/);
   assert.match(formatSummary(disk), /Opening: \(default\)/);
 
   // Omitted (no flag) must NOT clear a set name

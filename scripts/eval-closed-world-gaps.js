@@ -168,7 +168,7 @@ function deniesVegan(text) {
 function isUnknownGap(text) {
   return (
     isListedGap(text) ||
-    /don'?t know|do not know|not sure|i('m| am) not (sure|certain)|check with (the )?owner|ask (the )?owner|message (the )?owner|don'?t have that|do not have that|no (approved )?information|haven'?t been told|i('ll| will) (check|ask)|isn'?t available here|is not available here|not available here/i.test(
+    /don'?t know|do not know|not sure|i('m| am) not (sure|certain)|check with (the )?owner|ask (the )?owner|message (the )?owner|don'?t have that|do not have that|no (approved )?information|haven'?t been told|i('ll| will) (check|ask)|isn'?t available here|aren'?t available here|is not available here|are not available here|not available here/i.test(
       text
     )
   );
