@@ -59,7 +59,7 @@ async function judgeFirstSentence({ ownerMessage, builderReply }) {
       content: JSON.stringify({ ownerMessage, builderReply }),
     },
   ];
-  let params = { model: MODEL, messages, max_completion_tokens: 16 };
+  let params = { model: MODEL, messages, max_completion_tokens: 256 };
   let lastErr;
   for (let i = 0; i < 6; i++) {
     try {
