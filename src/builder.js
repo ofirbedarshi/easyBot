@@ -1224,7 +1224,7 @@ function gateTurn(profile, turn) {
       presentReview: true,
       wantsReview,
       asksQuestion: false,
-      message: reviewAck(turn.message),
+      message: readyForReview ? reviewAck(turn.message) : '',
       reviewedDraftKey: key,
     };
   }
