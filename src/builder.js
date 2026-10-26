@@ -1249,7 +1249,7 @@ function gateTurn(profile, turn) {
 export function openingMessage() {
   return {
     message:
-      "Hi! 👋 So glad you’re here.\nI’m here to help you build a smart assistant for your business that can answer customers even when you’re busy.✨\nYou’re one of the first to try the product, so you might still come across a few rough edges.\nReady to get started? Tell me a little about your business 😊",
+      "Hi! 👋 So glad you’re here.\n\nI’m here to help you build a smart assistant for your business, one that answers your customers even when you’re busy ✨\n\nIn the next few minutes, I’ll ask you a few short questions to get to know your business, so I can build the right bot for you.\n\nYou’re one of the first to try the product, so you might still come across a few rough edges.\n\nReady? Tell me a little about your business 😊",
     source: 'app',
   };
 }

@@ -7,6 +7,7 @@ import {
   applyFactOps,
   builderChatParams,
   existingValueChanges,
+  openingMessage,
   preserveFacts,
   runConsistencyPass,
 } from '../src/builder.js';
@@ -20,6 +21,18 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
 const svc = (name, price, notes = null) => ({ name, price, notes });
+
+test('openingMessage keeps paragraph breaks and curly apostrophes', () => {
+  const open = openingMessage();
+  assert.equal(open.source, 'app');
+  assert.equal(
+    open.message,
+    "Hi! 👋 So glad you’re here.\n\nI’m here to help you build a smart assistant for your business, one that answers your customers even when you’re busy ✨\n\nIn the next few minutes, I’ll ask you a few short questions to get to know your business, so I can build the right bot for you.\n\nYou’re one of the first to try the product, so you might still come across a few rough edges.\n\nReady? Tell me a little about your business 😊"
+  );
+  assert.match(open.message, /\n\n/);
+  assert.equal(open.message.includes('\n\n'), true);
+  assert.equal(open.message.split('\n\n').length, 5);
+});
 
 test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('newFacts'));
