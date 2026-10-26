@@ -330,16 +330,20 @@ export function assistantIdentityView(profile) {
   };
 }
 
+/** Fixed second line of the default customer opening (code, not the model). */
+export const DEFAULT_CUSTOMER_HELP_LINE = 'How can I help you? ✨';
+
 /**
- * Warm default first-contact line when the owner has not set openingMessage.
+ * Warm default first-contact opening when the owner has not set openingMessage.
  * Always Adam; uses the approved business name, or "this business".
+ * One message: intro and help line separated by a blank line.
  */
 export function defaultCustomerOpening(profile) {
   const biz =
     typeof profile?.name === 'string' && profile.name.trim()
       ? profile.name.trim()
       : 'this business';
-  return `Hi! I'm ${ASSISTANT_NAME}, ${biz}'s digital assistant 😊`;
+  return `Hi! I'm ${ASSISTANT_NAME}, ${biz}'s digital assistant 😊\n\n${DEFAULT_CUSTOMER_HELP_LINE}`;
 }
 
 /** Custom openingMessage if set; otherwise the warm default. */
