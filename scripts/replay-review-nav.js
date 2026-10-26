@@ -136,8 +136,8 @@ async function main() {
   const mid = await handleMessage(courtesy.session, priceQ);
   transcript.push(`event=${mid.event} source=${mid.source} mode=${courtesy.session.mode} ${flagLine(courtesy.session)}`);
   transcript.push(line('APP', mid.reply));
-  const tryA = await handleMessage(courtesy.session, 'Try my bot');
-  transcript.push(line('OWNER', 'Try my bot'));
+  const tryA = await handleMessage(courtesy.session, 'chat with me like a customer');
+  transcript.push(line('OWNER', 'chat with me like a customer'));
   transcript.push(`event=${tryA.event} source=${tryA.source} mode=${courtesy.session.mode}`);
   transcript.push(line('APP', tryA.reply));
   const menuRestored = menuActive(courtesy.session.buildHistory) || lastShownNav(courtesy.session.buildHistory) === 'menu';
@@ -147,7 +147,7 @@ async function main() {
     (menuRestored || reviewActive(courtesy.session.buildHistory)) &&
     tryA.event === 'enter_test' &&
     courtesy.session.mode === 'TEST' &&
-    /TEST mode/.test(tryA.reply);
+    /chatting with me as a customer/.test(tryA.reply);
   results.push(
     okCourtesy
       ? 'PASS courtesy/answer restored next-step UI and Try my bot entered TEST'

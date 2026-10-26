@@ -147,14 +147,14 @@ async function testApproveRequiresPresentedReview() {
 
   const r0 = await handleMessage(session, 'Change private lessons to $80.');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
-  assert.match(r0.reply, /Saved! Here's what changed:/);
+  assert.match(r0.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
   assert.match(r0.reply, /Services: Private lesson — \$80 \/ 60 min \(was: Private lesson — \$70 \/ 60 min\)/);
 
   const r1 = await handleMessage(session, 'approve');
   assert.ok(!r1.approved);
   assert.equal(r1.event, 'build_turn');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
-  assert.match(r1.reply, /🏪 Edit business info/);
+  assert.match(r1.reply, /🏪 Tell me more about your business/);
   console.log('PASS edit_saves_immediately_typed_approve_is_builder_turn');
 }
 
@@ -177,11 +177,11 @@ async function testEditAfterReviewRequiresNewReview() {
   );
 
   const r1 = await handleMessage(session, 'Change private lessons to $80.');
-  assert.match(r1.reply, /Saved! Here's what changed:/);
+  assert.match(r1.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
 
   const r2 = await handleMessage(session, 'Actually make it $90.');
-  assert.match(r2.reply, /Saved! Here's what changed:[\s\S]*\$90 \/ 60 min/);
+  assert.match(r2.reply, /Got it, I'll remember that! 🌟 Here's what changed:[\s\S]*\$90 \/ 60 min/);
   assert.equal(loadProfile(PROFILE).services[0].price, '$90 / 60 min');
   console.log('PASS successive_edits_save_immediately');
 }
@@ -223,7 +223,7 @@ async function testDraftEditLeavesLiveUnchanged() {
   assert.equal(disk.services[0].price, '$80 / 60 min');
   assert.equal(disk.ownerGoal, pendingGoal);
   assert.ok(disk.approvedAt);
-  assert.match(r.reply, /Saved! Here's what changed:/);
+  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
   const summary = formatSummary(disk);
   assert.doesNotMatch(summary, /Pending \(not live until you approve\)/);
   assert.match(summary, /\$80 \/ 60 min/);
@@ -261,7 +261,7 @@ async function testReapproveUpdatesLiveBot() {
   const r = await applyChange(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /Saved! Here's what changed:/);
+  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
 
   const sent = loadProfile(PROFILE);
   assert.equal(sent.services[0].price, '$80 / 60 min');
@@ -353,21 +353,21 @@ async function testIntakeGateBlocksApprove() {
   assert.equal(r.ok, true);
   assert.ok(!r.approved);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /questions do customers usually ask/i);
+  assert.match(r.reply, /what do customers usually ask you/i);
   assert.equal(loadProfile(PROFILE).name, 'Cafe');
   assert.equal(loadProfile(PROFILE).approvedAt, null, 'ready timestamp waits until first-time topics settle');
-  assert.ok(!/collect any information/i.test(r.reply), 'one topic per turn');
+  assert.ok(!/collect any details/i.test(r.reply), 'one topic per turn');
 
   // Owner skips FAQ → settled (skippable); intake asked next, still no approval.
   const r2 = await handleMessage(session, 'skip');
   assert.ok(!r2.approved);
-  assert.match(r2.reply, /collect any information/i);
-  assert.ok(!/questions do customers usually ask/i.test(r2.reply), 'FAQ asked once');
+  assert.match(r2.reply, /collect any details/i);
+  assert.ok(!/what do customers usually ask you/i.test(r2.reply), 'FAQ asked once');
 
   // Intake still null after the owner replied → intake asked again (not skippable).
   const r3 = await handleMessage(session, 'hmm');
   assert.ok(!r3.approved);
-  assert.match(r3.reply, /collect any information/i);
+  assert.match(r3.reply, /collect any details/i);
 
   // Intake answered → review presented, not approved yet.
   session.deps.runBuilderTurn = async () => ({
@@ -385,7 +385,7 @@ async function testIntakeGateBlocksApprove() {
   });
   const r4 = await handleMessage(session, 'none');
   assert.ok(!r4.approved);
-  assert.match(r4.reply, /Try my bot/);
+  assert.match(r4.reply, /Chat with me like a customer/);
   assert.deepEqual(loadProfile(PROFILE).informationToCollect, []);
   console.log('PASS required_topics_still_asked');
 }
@@ -399,8 +399,9 @@ function testGoalSupport() {
     informationToCollect: null,
   };
 
-  assert.match(OWNER_GOAL_QUESTION, /answer customer questions/);
-  assert.match(OWNER_GOAL_QUESTION, /collect contact details/);
+  assert.match(OWNER_GOAL_QUESTION, /how can I help you the most/);
+  assert.match(OWNER_GOAL_QUESTION, /Answer your customers' questions/);
+  assert.match(OWNER_GOAL_QUESTION, /Ask customers for their details/);
   assert.doesNotMatch(OWNER_GOAL_QUESTION, /booking an appointment/);
 
   // Unsupported (model flag) → fallback goal + mapped-goal line before the next question.
@@ -420,7 +421,7 @@ function testGoalSupport() {
   assert.ok(u.message.startsWith(GOAL_FALLBACK_DISCLAIMER), 'model ack replaced by mapped-goal line');
   assert.doesNotMatch(u.message, /isn't available yet/);
   assert.ok(
-    u.message.indexOf(GOAL_FALLBACK_DISCLAIMER) < u.message.indexOf('What questions do customers'),
+    u.message.indexOf(GOAL_FALLBACK_DISCLAIMER) < u.message.indexOf('What do customers usually ask'),
     'mapped-goal line before the question'
   );
 
@@ -499,10 +500,10 @@ function testRequiredTopicsGate() {
   // FAQ never asked → asked now, recorded, no review.
   const a = applyReviewGate(emptyProfile(), turn, 'no');
   assert.equal(a.presentReview, false);
-  assert.match(a.message, /^Got it, thanks!\n\nWhat questions do customers usually ask/);
+  assert.match(a.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
   assert.deepEqual(a.draft.askedTopics, ['commonQuestions']);
 
-  // Specific lead + readyForReview + open FAQ → that lead kept + fixed FAQ question.
+  // App-asked FAQ uses the fixed ack, not the model's lead.
   const specificLead =
     'A family bakery in the old town sounds like a place neighbors already know.';
   const specific = applyReviewGate(
@@ -513,7 +514,7 @@ function testRequiredTopicsGate() {
   assert.equal(specific.presentReview, false);
   assert.equal(
     specific.message,
-    `${specificLead}\n\nWhat questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.`
+    'Got it! 💛\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
   );
   assert.deepEqual(specific.draft.askedTopics, ['commonQuestions']);
 
@@ -545,7 +546,7 @@ function testRequiredTopicsGate() {
   );
   assert.equal(
     own.message,
-    'Great, so the goal is answering questions.\n\nWhat questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.'
+    'Great, so the goal is answering questions.\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
   );
   assert.deepEqual(own.draft.askedTopics, ['commonQuestions']);
 
@@ -561,7 +562,7 @@ function testRequiredTopicsGate() {
     'show me the summary'
   );
   assert.equal(wantOpen.presentReview, false);
-  assert.match(wantOpen.message, /What questions do customers usually ask/);
+  assert.match(wantOpen.message, /What do customers usually ask you/);
 
   // wantsReview with intake answered → review; model summary text is stripped.
   const readyFacts = {
@@ -927,8 +928,8 @@ async function testBehaviorOnlyMergePreservesFacts() {
   console.log('PASS behavior_only_merge_preserves_facts');
 }
 
-const MAYA_OPENING =
-  'Hi, I’m Maya, the digital assistant of Yoga with Noa 🙂 How can I help?';
+const CUSTOM_OPENING =
+  "Hi, I'm Adam, Yoga with Noa's digital assistant 🙂 How can I help?";
 
 function identityLive() {
   const live = baseApprovedLive();
@@ -956,41 +957,41 @@ function draftFrom(live, overrides = {}) {
   };
 }
 
-/** Identity / opening edits save on that turn. */
+/** Opening edits save on that turn. */
 async function testIdentityDraftIsolatesLive() {
   clean();
   const live = identityLive();
   saveProfile(live, PROFILE);
   const liveMock = { approvals: [] };
-  // Model captures identity but asks an unrelated question instead of reviewing
   const session = makeSession(async ({ profile }) => ({
-    message: 'Noted Maya. What outcome do you want this bot to achieve?',
+    message: 'Noted the opening. What outcome do you want this bot to achieve?',
     draft: reconcileDraft(
-      draftFrom(live, { assistantName: 'Maya', openingMessage: MAYA_OPENING }),
+      draftFrom(live, { openingMessage: CUSTOM_OPENING }),
       profile.draft
     ),
     readyForReview: false,
     source: 'stub-builder',
   }), liveMock);
 
-  const r = await handleMessage(session, 'Call the assistant Maya…');
+  const r = await handleMessage(session, 'Use this opening…');
   assert.equal(r.event, 'build_turn');
   assert.equal(r.readyForReview, true, 'settings-only edit is presented as a save card');
-  assert.match(r.reply, /Saved! Here's what changed:\n\nHow the bot talks: friendly, prices only when asked, Maya, custom opening \(was: friendly, prices only when asked\)/);
-  assert.match(r.reply, /1\. Try my bot\n2\. Make changes/);
+  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, prices only when asked, custom opening \(was: friendly, prices only when asked\)/);
+  assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.assistantName, 'Maya');
-  assert.equal(disk.openingMessage, MAYA_OPENING);
+  assert.equal(disk.openingMessage, CUSTOM_OPENING);
+  assert.equal('assistantName' in disk, false);
   const livePrompt = buildCustomerSystemPrompt(disk);
-  assert.match(livePrompt, /Maya/);
+  assert.match(livePrompt, /You are Adam, Yoga with Noa's digital assistant/);
   const summary = formatSummary(disk);
   assert.doesNotMatch(summary, /Pending/);
-  assert.match(summary, /Assistant name: Maya/);
+  assert.doesNotMatch(summary, /Assistant name/);
+  assert.match(summary, /Opening: “/);
   console.log('PASS identity_edit_saves_live');
 }
 
-/** Approval persists both identity fields and propagates them into the live prompt. */
+/** Approval persists the opening and keeps Adam identity in the live prompt. */
 async function testIdentityApprovePropagates() {
   clean();
   const live = identityLive();
@@ -1000,7 +1001,7 @@ async function testIdentityApprovePropagates() {
   const session = makeSession(async ({ profile }) => ({
     message: 'Approved.',
     draft: reconcileDraft(
-      draftFrom(live, { assistantName: 'Maya', openingMessage: MAYA_OPENING }),
+      draftFrom(live, { openingMessage: CUSTOM_OPENING }),
       profile.draft
     ),
     readyForReview: true,
@@ -1010,16 +1011,16 @@ async function testIdentityApprovePropagates() {
   const r = await applyChange(session);
   assert.equal(r.event, 'build_turn');
   const diskLive = loadProfile(PROFILE);
-  assert.equal(diskLive.assistantName, 'Maya');
-  assert.equal(diskLive.openingMessage, MAYA_OPENING);
+  assert.equal(diskLive.openingMessage, CUSTOM_OPENING);
+  assert.equal('assistantName' in diskLive, false);
   const sys = buildCustomerSystemPrompt(diskLive);
-  assert.match(sys, /Assistant name: Maya\./);
+  assert.match(sys, /You are Adam, Yoga with Noa's digital assistant/);
+  assert.doesNotMatch(sys, /Assistant name:/);
   assert.doesNotMatch(sys, /Use the opening ONLY/);
-  assert.equal(customerOpeningText(diskLive), MAYA_OPENING);
+  assert.equal(customerOpeningText(diskLive), CUSTOM_OPENING);
   assert.match(sys, /on request only/i);
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.assistantName, 'Maya');
-  assert.equal(disk.openingMessage, MAYA_OPENING);
+  assert.equal(disk.openingMessage, CUSTOM_OPENING);
   assert.equal(JSON.stringify(businessFactsView(disk)), factsBefore);
   console.log('PASS identity_approve_propagates');
 }
@@ -1063,28 +1064,26 @@ async function testOtherFactsApprovePropagates() {
   console.log('PASS other_facts_approve_propagates');
 }
 
-/** Opening-only edit keeps assistantName and every other setting / fact. */
+/** Opening-only edit keeps every other setting / fact. */
 async function testOpeningOnlyEditPreservesName() {
   clean();
   const live = identityLive();
-  live.assistantName = 'Maya';
-  live.openingMessage = MAYA_OPENING;
+  live.openingMessage = CUSTOM_OPENING;
   live.responseLength = 'short';
   live.tone = 'warm';
   live.draft = draftFrom(live, {
-    assistantName: 'Maya',
-    openingMessage: MAYA_OPENING,
+    openingMessage: CUSTOM_OPENING,
   });
   const factsBefore = JSON.stringify(businessFactsView(live));
   saveProfile(live, PROFILE);
-  const newOpening = 'Hey, Maya here — how can I help with your yoga today?';
+  const newOpening = "Hey — how can I help with your yoga today?";
 
-  // Model omits assistantName (null) on an opening-only edit
   const reconciled = reconcileDraft(
-    draftFrom(live, { assistantName: null, openingMessage: newOpening }),
+    draftFrom(live, { openingMessage: newOpening }),
     live.draft
   );
-  assert.equal(reconciled.assistantName, 'Maya');
+  assert.equal(reconciled.tone, 'warm');
+  assert.equal(reconciled.priceDisclosure, 'on_request');
 
   const liveMock = { approvals: [] };
   const session = makeSession(async () => ({
@@ -1095,7 +1094,6 @@ async function testOpeningOnlyEditPreservesName() {
   }), liveMock);
   await applyChange(session);
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.assistantName, 'Maya');
   assert.equal(disk.openingMessage, newOpening);
   assert.equal(disk.priceDisclosure, 'on_request');
   assert.equal(disk.responseLength, 'short');
@@ -1104,36 +1102,29 @@ async function testOpeningOnlyEditPreservesName() {
   console.log('PASS opening_only_edit_preserves_name');
 }
 
-/** Explicit reset flags clear identity on approval; defaults return. */
+/** Explicit reset flags clear the opening on approval; Adam default returns. */
 async function testIdentityResetRestoresDefault() {
   clean();
   const live = identityLive();
-  live.assistantName = 'Maya';
-  live.openingMessage = MAYA_OPENING;
+  live.openingMessage = CUSTOM_OPENING;
   live.draft = draftFrom(live, {
-    assistantName: 'Maya',
-    openingMessage: MAYA_OPENING,
+    openingMessage: CUSTOM_OPENING,
   });
   saveProfile(live, PROFILE);
 
-  // Turn 1: owner asks to remove the name and use the default opening
   const resetDraft = reconcileDraft(
     draftFrom(live, {
-      assistantName: null,
       openingMessage: null,
-      assistantNameReset: true,
       openingMessageReset: true,
     }),
     live.draft
   );
-  assert.equal(resetDraft.assistantName, null);
-  assert.equal(resetDraft.assistantNameReset, true);
-  // Turn 2 (unrelated edit, model omits flags) keeps the pending reset
+  assert.equal(resetDraft.openingMessage, null);
+  assert.equal(resetDraft.openingMessageReset, true);
   const laterDraft = reconcileDraft(
     draftFrom(live, { tone: 'calm' }),
     resetDraft
   );
-  assert.equal(laterDraft.assistantNameReset, true);
   assert.equal(laterDraft.openingMessageReset, true);
   assert.equal(draftDiffersFromLive(live, laterDraft), true);
 
@@ -1147,18 +1138,16 @@ async function testIdentityResetRestoresDefault() {
   const r = await applyChange(session);
   assert.equal(r.event, 'build_turn');
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.assistantName, null);
   assert.equal(disk.openingMessage, null);
   assert.equal(disk.tone, 'calm');
   const sys = buildCustomerSystemPrompt(disk);
-  assert.doesNotMatch(sys, /Maya/);
-  assert.match(sys, /Assistant name: none/);
+  assert.match(sys, /You are Adam, Yoga with Noa's digital assistant/);
+  assert.doesNotMatch(sys, /Assistant name:/);
   assert.doesNotMatch(sys, /Use the opening ONLY/);
   assert.match(formatSummary(disk), /Opening: \(default\)/);
 
-  // Omitted (no flag) must NOT clear a set name
-  const kept = mergeDraft({ ...live }, { assistantName: null });
-  assert.equal(kept.assistantName, 'Maya');
+  const kept = mergeDraft({ ...live }, { openingMessage: null });
+  assert.equal(kept.openingMessage, CUSTOM_OPENING);
   console.log('PASS identity_reset_restores_default');
 }
 
@@ -1180,14 +1169,15 @@ async function testLegacyIdentityDefaults() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
   fs.writeFileSync(PROFILE, JSON.stringify(legacy, null, 2), 'utf8');
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.assistantName, null);
+  assert.equal('assistantName' in disk, false);
   assert.equal(disk.openingMessage, null);
   assert.equal(draftDiffersFromLive(disk, disk.draft), false);
   const prompt = buildCustomerSystemPrompt(disk);
-  assert.match(prompt, /digital assistant of Quiet Mat Yoga/);
-  assert.match(prompt, /Assistant name: none — do not invent a name/);
+  assert.match(prompt, /You are Adam, Quiet Mat Yoga's digital assistant/);
+  assert.doesNotMatch(prompt, /Assistant name:/);
   assert.match(prompt, /Tone: warm and calm/);
-  assert.match(formatSummary(disk), /Assistant name: \(not set — no name\)/);
+  assert.doesNotMatch(formatSummary(disk), /Assistant name/);
+  assert.match(formatSummary(disk), /Opening: \(default\)/);
   console.log('PASS legacy_identity_defaults');
 }
 
@@ -1222,12 +1212,12 @@ async function testTypedApproveIsBuilderTurn() {
   const r1 = await handleMessage(session, 'Switch to mentioning prices when relevant.');
   assert.ok(!r1.approved);
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  assert.match(r1.reply, /Saved! Here's what changed:/);
+  assert.match(r1.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
 
   const typed = await handleMessage(session, 'approve');
   assert.equal(typed.event, 'build_turn');
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  assert.match(typed.reply, /🏪 Edit business info/);
+  assert.match(typed.reply, /🏪 Tell me more about your business/);
   console.log('PASS typed_approve_is_builder_turn_change_already_saved');
 
   clean();
@@ -1255,7 +1245,7 @@ async function testTypedApproveIsBuilderTurn() {
   const rYes = await handleMessage(session2, 'yes');
   assert.ok(!rYes.approved);
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  assert.match(rYes.reply, /Saved! Here's what changed:/);
+  assert.match(rYes.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
   console.log('PASS typed_yes_saves_accepted_alternative');
 }
 
@@ -1279,7 +1269,6 @@ function testEnforceConfigRequests() {
     responseLength: null,
     priceDisclosure: 'on_request',
     openingMessage: null,
-    assistantName: 'Noa',
     commonQuestions: [],
   };
 
@@ -1412,7 +1401,7 @@ async function testTranscriptShapedImmediateSave() {
   session.leadIntake = { submittedAt: '2026-01-01T00:00:00.000Z' };
 
   const yes = await handleMessage(session, 'Yes');
-  assert.match(yes.reply, /Saved! Here's what changed:/);
+  assert.match(yes.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
   assert.match(yes.reply, /100 shekel per haircut/);
   assert.doesNotMatch(yes.reply, /Pending change|will change/);
   const disk = loadProfile(PROFILE);
@@ -1426,15 +1415,15 @@ async function testTranscriptShapedImmediateSave() {
   assert.equal(qa.event, 'menu_section');
   assert.match(qa.reply, /It's 100 shekel per haircut/);
   assert.doesNotMatch(qa.reply, /Pending change|Live now:/);
-  assert.match(qa.reply, /Current:/);
+  assert.match(qa.reply, /Here's what I have:/);
 
   const approve = await handleMessage(session, 'Approve');
   assert.equal(approve.event, 'build_turn');
-  assert.match(approve.reply, /1\. 🏪 Edit business info/);
+  assert.match(approve.reply, /1\. 🏪 Tell me more about your business/);
   assert.doesNotMatch(approve.reply, /Pending change/);
 
   const nowWhat = await handleMessage(session, 'Now what');
-  assert.match(nowWhat.reply, /1\. 🏪 Edit business info/);
+  assert.match(nowWhat.reply, /1\. 🏪 Tell me more about your business/);
   assert.doesNotMatch(nowWhat.reply, /Pending change/);
   console.log('PASS transcript_shaped_immediate_save');
 }

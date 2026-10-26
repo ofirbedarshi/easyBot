@@ -21,7 +21,6 @@ set
       'tone',
       'responseLength',
       'priceDisclosure',
-      'assistantName',
       'openingMessage',
       'approvedAt',
       'draft'
@@ -46,7 +45,6 @@ where exists (
     'tone',
     'responseLength',
     'priceDisclosure',
-    'assistantName',
     'openingMessage',
     'approvedAt',
     'draft'

@@ -22,12 +22,12 @@ const test = (name, fn) => tests.push([name, fn]);
 
 const svc = (name, price, notes = null) => ({ name, price, notes });
 
-test('openingMessage keeps paragraph breaks and curly apostrophes', () => {
+test('openingMessage keeps paragraph breaks and Adam welcome copy', () => {
   const open = openingMessage();
   assert.equal(open.source, 'app');
   assert.equal(
     open.message,
-    "Hi! 👋 So glad you’re here.\n\nI’m here to help you build a smart assistant for your business, one that answers your customers even when you’re busy ✨\n\nIn the next few minutes, I’ll ask you a few short questions to get to know your business, so I can build the right bot for you.\n\nYou’re one of the first to try the product, so you might still come across a few rough edges.\n\nReady? Tell me a little about your business 😊"
+    "Hi, I'm Adam, nice to meet you 👋😊\n\nI'm going to be the one talking to your customers 💬\n\nYou're one of the very first businesses I'm working with, so please be patient with me while I learn 🙈💛\n\nSo let's start by getting to know each other a little, so I can learn about your business ✨\n\nFirst of all, what's your business called, and what does it do?"
   );
   assert.match(open.message, /\n\n/);
   assert.equal(open.message.includes('\n\n'), true);
@@ -42,6 +42,10 @@ test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('askedTopics'));
+  assert.ok(!BUILDER_DRAFT_KEYS.includes('assistantName'));
+  assert.ok(!BUILDER_DRAFT_KEYS.includes('assistantNameReset'));
+  assert.ok(BUILDER_DRAFT_KEYS.includes('openingMessage'));
+  assert.ok(BUILDER_DRAFT_KEYS.includes('openingMessageReset'));
   const root = BUILDER_RESPONSE_SCHEMA.schema;
   assert.equal(root.additionalProperties, false);
   assert.deepEqual([...root.required].sort(), [...Object.keys(root.properties)].sort());
@@ -56,7 +60,7 @@ test('schema requires top-level newFacts and all draft keys', () => {
 test('applyDraftDelta: null / omitted scalars keep previous values', () => {
   const prev = { name: 'Rosa', hours: 'Tue-Sun', tone: 'warm' };
   const next = applyDraftDelta(
-    { name: null, hours: null, whatWeDo: null, tone: null, assistantNameReset: false },
+    { name: null, hours: null, whatWeDo: null, tone: null, openingMessageReset: false },
     prev
   );
   assert.equal(next.name, 'Rosa');
@@ -358,17 +362,16 @@ test('delta output: factEdits and resolvedUnknowns still apply', () => {
   assert.deepEqual(out.unknowns, ['Weekend hours undecided']);
 });
 
-test('delta output: identity reset flag clears assistantName', () => {
-  const current = { assistantName: 'Maya', openingMessage: 'Hi', services: [], otherFacts: [] };
+test('delta output: identity reset flag clears openingMessage', () => {
+  const current = { openingMessage: 'Hi', services: [], otherFacts: [] };
   const out = applyBuilderModelOutput(
     {
-      draft: { assistantName: null, assistantNameReset: true, openingMessage: null },
+      draft: { openingMessage: null, openingMessageReset: true },
       newFacts: [],
     },
     current
   );
-  assert.equal(out.assistantName, null);
-  assert.equal(out.openingMessage, 'Hi');
+  assert.equal(out.openingMessage, null);
 });
 
 test('legacy output still reads draft.newFacts, not top-level', () => {

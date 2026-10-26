@@ -20,17 +20,17 @@ import { LEAD_MENU_LABEL } from './leadIntake.js';
 
 const STRINGS = {
   menu: [
-    '🏪 Edit business info',
-    '❓ Edit Q&A',
-    '💬 Edit how the bot talks (style, name, opening message)',
-    '🤖 Try my bot',
+    '🏪 Tell me more about your business',
+    '❓ Teach me more questions and answers',
+    '💬 Tell me how to talk to your customers',
+    '🤖 Chat with me like a customer',
   ],
-  sections: ['Business info', 'Q&A', 'How the bot talks'],
-  menuFooter: 'Pick a number or just write what you want to change.',
-  returned: 'Back in editing mode. What would you like to do?',
-  setupContinue: "We're still in first-time setup. Tell me more about your business.",
-  ask: 'What would you like to change?',
-  current: 'Current:',
+  sections: ['Your business', 'Questions and answers', 'How I talk'],
+  menuFooter: 'Pick a number, or just tell me what you want me to learn.',
+  returned: "I'm back! What should I learn next?",
+  setupContinue: "I'm still learning about your business. Tell me more and I'll keep going.",
+  ask: 'What should I change?',
+  current: "Here's what I have:",
   was: 'was',
   notSet: '(not set)',
   none: '(none)',
@@ -42,8 +42,8 @@ const STRINGS = {
     hours: 'Hours',
     locationOrArea: 'Location / area',
     unknowns: 'Not decided yet',
-    ownerGoal: 'Bot goal',
-    informationToCollect: 'Details to collect from the customer',
+    ownerGoal: 'My goal',
+    informationToCollect: "I'll ask customers for",
     intakeNotAnswered: '(not decided yet)',
     commonQuestions: 'Questions and answers',
     q: 'Q',
@@ -52,8 +52,6 @@ const STRINGS = {
     tone: 'Style',
     responseLength: 'Reply length',
     priceDisclosure: 'Prices',
-    assistantName: 'Assistant name',
-    noName: '(not set — no name)',
     openingMessage: 'Opening message',
     defaultOpening: (biz) => `(default) “${defaultCustomerOpening({ name: biz })}”`,
   },
@@ -177,31 +175,31 @@ const REVIEW = {
     area: 'Area',
     hours: 'Hours',
     unknowns: 'Not decided',
-    goal: 'Bot goal',
-    intake: 'Asks customers for',
+    goal: 'My goal',
+    intake: "I'll ask customers for",
     faq: 'Q&A',
-    talks: 'How the bot talks',
+    talks: 'How I talk',
   },
   notSet: 'not set',
-  gap: 'not set (bot refers customers to you)',
+  gap: "not set (I'll send them to you)",
   none: 'none',
   nothing: 'nothing',
   notDecided: 'not decided yet',
   faqCount: (n) => `${n} answer${n === 1 ? '' : 's'}`,
-  faqNone: 'none yet (bot refers customers to you)',
+  faqNone: "none yet (I'll send them to you)",
   defaultValue: 'default',
   shortReplies: 'short replies',
   standardReplies: 'standard replies',
   pricesOnRequest: 'prices only when asked',
   pricesRelevant: 'prices when relevant',
   customOpening: 'custom opening',
-  changesIntro: "Saved! Here's what changed:",
+  changesIntro: "Got it, I'll remember that! 🌟 Here's what changed:",
   was: (v) => `(was: ${v})`,
   updated: '(updated)',
-  optionsPrompt: 'What would you like to do next?',
-  options: ['Try my bot', 'Make changes'],
-  optionsFooter: '(or just tell me what to change 🙂)',
-  changeAsk: 'What would you like to change?',
+  optionsPrompt: 'What should we do next?',
+  options: ['🤖 Chat with me like a customer', '✏️ Keep teaching me'],
+  optionsFooter: '(or just tell me what to learn 🙂)',
+  changeAsk: 'What should I change?',
 };
 
 const OTHER_FACTS_LABEL = 'Other facts';
@@ -274,14 +272,13 @@ export function summaryLines(p) {
     tone,
     len === 'short' ? R.shortReplies : len === 'standard' ? R.standardReplies : null,
     price === 'on_request' ? R.pricesOnRequest : price === 'relevant' ? R.pricesRelevant : null,
-    id.assistantName,
     id.openingMessage ? R.customOpening : null,
   ].filter(Boolean);
   add(
     'talks',
     L.talks,
     talks.length ? brief(talks.join(', ')) : R.defaultValue,
-    { tone, len, price, name: id.assistantName, opening: id.openingMessage }
+    { tone, len, price, opening: id.openingMessage }
   );
   return out;
 }
@@ -299,7 +296,7 @@ function changeLines(profile, merged) {
   return lines;
 }
 
-/** Two review options (1 Try my bot, 2 Make changes). */
+/** Two review options (1 Chat with me like a customer, 2 Keep teaching me). */
 export function renderReviewOptions() {
   const R = REVIEW;
   return [
@@ -341,12 +338,12 @@ export function renderChangeMenu(menuOpts) {
   return `${REVIEW.changeAsk}\n\n${renderMenu(menuOpts)}`;
 }
 
-const REVIEW_TRY = new Set(['try my bot', 'try', 'try it']);
-const REVIEW_CHANGE = new Set(['make changes', 'change', 'changes']);
+const REVIEW_TRY = new Set(['chat with me like a customer', 'try', 'try it']);
+const REVIEW_CHANGE = new Set(['keep teaching me', 'change', 'changes']);
 
 const REVIEW_NUMBER = /^\s*([12])\s*[.)]?\s*$/;
 
-/** 1 / "Try my bot" → 'try'; 2 / "Make changes" → 'change'; else null. */
+/** 1 / "chat with me like a customer" → 'try'; 2 / "keep teaching me" → 'change'; else null. */
 export function parseReviewChoice(text) {
   const m = REVIEW_NUMBER.exec(String(text || ''));
   if (m) return m[1] === '1' ? 'try' : 'change';
@@ -429,7 +426,6 @@ function sectionLines(section, p) {
     lines.push(`• ${f.responseLength}: ${lenSet ? len : `${len} ${s.defaultMark}`}`);
     lines.push(`• ${f.priceDisclosure}: ${priceSet ? price : `${price} ${s.defaultMark}`}`);
     const id = assistantIdentityView(p);
-    lines.push(`• ${f.assistantName}: ${id.assistantName || f.noName}`);
     lines.push(
       `• ${f.openingMessage}: ${
         id.openingMessage ? `“${id.openingMessage}”` : f.defaultOpening(p.name)

@@ -15,10 +15,11 @@ import { normalizeCommonQuestions } from './profile.js';
 export const REQUIRED_TOPICS = [
   {
     key: 'commonQuestions',
+    ack: 'Got it! 💛',
     question:
-      'What questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.',
+      'What do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.',
     answerHint:
-      'The owner was just asked which questions customers usually ask and what they answer. Store each one in draft.commonQuestions as { question, answer } with the owner\'s full answer. If they skip, have none, or do not know, leave commonQuestions unchanged and do not ask again.',
+      'The owner was just asked which questions customers usually ask and how you should answer. Store each one in draft.commonQuestions as { question, answer } with the owner\'s full answer. If they skip, have none, or do not know, leave commonQuestions unchanged and do not ask again.',
     isAnswered: (draft) =>
       normalizeCommonQuestions(draft?.commonQuestions).some((q) => q.answer.trim()),
     skippable: true,
@@ -27,10 +28,11 @@ export const REQUIRED_TOPICS = [
   },
   {
     key: 'informationToCollect',
+    ack: 'Perfect, noted! ✨',
     question:
-      'Before we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.',
+      'One last thing before we wrap up 🙌\nShould I collect any details from customers in the chat? For example, their name, phone number, etc.\nIf not, just say "none".',
     answerHint:
-      'The owner was just asked whether the bot should collect information from customers. Set draft.informationToCollect to the listed items, or [] if they said none / no.',
+      'The owner was just asked whether you should collect details from customers. Set draft.informationToCollect to the listed items, or [] if they said none / no.',
     isAnswered: (draft) => Array.isArray(draft?.informationToCollect),
     skippable: false,
     mentions: null,

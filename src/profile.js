@@ -40,13 +40,16 @@ export function normalizeOwnerGoal(value) {
 /** Conversation settings — expression / disclosure, not business facts. */
 export const BEHAVIOR_KEYS = ['tone', 'responseLength', 'priceDisclosure'];
 
+/** Fixed customer-facing name. Not configurable. */
+export const ASSISTANT_NAME = 'Adam';
+
 /**
  * Assistant identity settings — customer-facing introduction, not business facts.
- * null = default (no name; short digital-assistant intro using the business name).
+ * null opening = the Adam default (`defaultCustomerOpening`).
  * Draft-only reset flags (`<key>Reset: true`) clear the live value on approval;
  * an omitted / null / blank draft value preserves the live value.
  */
-export const IDENTITY_KEYS = ['assistantName', 'openingMessage'];
+export const IDENTITY_KEYS = ['openingMessage'];
 
 export function identityResetFlag(key) {
   return `${key}Reset`;
@@ -93,11 +96,6 @@ export const CONFIG_CAPABILITIES = [
     represents: `When approved prices are mentioned: ${PRICE_DISCLOSURE_VALUES.map((v) => `"${v}" (${PRICE_DISCLOSURE_LABELS[v]})`).join(' or ')}.`,
     cannotRepresent:
       'Prices in every reply, a global never-mention-any-prices policy, or discounts/prices not in the facts. How one offering is priced or quoted is a business fact.',
-  },
-  {
-    field: 'assistantName',
-    represents: 'A display name for the Business Bot.',
-    cannotRepresent: 'Presenting the bot as the owner or as a human.',
   },
   {
     field: 'openingMessage',
@@ -322,13 +320,11 @@ export function businessFactsView(profile) {
   };
 }
 
-/** Approved assistant identity (null = default introduction, no invented name). */
+/** Approved assistant identity (null opening = Adam default). */
 export function assistantIdentityView(profile) {
   const p = profile || {};
-  const assistantName = normalizeIdentityText(p.assistantName);
   const openingMessage = normalizeIdentityText(p.openingMessage);
   return {
-    assistantName,
     openingMessage,
     usesDefaultIntroduction: !openingMessage,
   };
@@ -336,21 +332,14 @@ export function assistantIdentityView(profile) {
 
 /**
  * Warm default first-contact line when the owner has not set openingMessage.
- * Uses the approved business name and assistantName when present.
+ * Always Adam; uses the approved business name, or "this business".
  */
 export function defaultCustomerOpening(profile) {
-  const identity = assistantIdentityView(profile);
   const biz =
     typeof profile?.name === 'string' && profile.name.trim()
       ? profile.name.trim()
-      : null;
-  const who = identity.assistantName
-    ? `I'm ${identity.assistantName}, the digital assistant here`
-    : `I'm the digital assistant here`;
-  if (biz) {
-    return `Hi there! 👋 Welcome to ${biz}. ${who}, happy to help with anything you'd like to know 😊`;
-  }
-  return `Hi there! 👋 ${who}, happy to help with anything you'd like to know 😊`;
+      : 'this business';
+  return `Hi! I'm ${ASSISTANT_NAME}, ${biz}'s digital assistant 😊`;
 }
 
 /** Custom openingMessage if set; otherwise the warm default. */
@@ -400,9 +389,7 @@ export function emptyProfile() {
      * null = use DEFAULT_BEHAVIOR.priceDisclosure ('relevant').
      */
     priceDisclosure: null,
-    /** Assistant display name. null = no name (never invented). */
-    assistantName: null,
-    /** Custom opening for a fresh customer conversation. null = default intro. */
+    /** Custom opening for a fresh customer conversation. null = Adam default. */
     openingMessage: null,
     /** Ready timestamp: name + offering, and first-time required topics settled. */
     approvedAt: null,
@@ -514,7 +501,6 @@ export function applyDraftToLive(profile) {
     otherFacts: Array.isArray(merged.otherFacts) ? merged.otherFacts : [],
     responseLength: merged.responseLength ?? null,
     priceDisclosure: merged.priceDisclosure ?? null,
-    assistantName: merged.assistantName ?? null,
     openingMessage: merged.openingMessage ?? null,
     draft: profile.draft,
   });
@@ -662,9 +648,6 @@ function formatFactsBlock(profile) {
     `  Prices: ${formatPriceDisclosureLabel(eff.priceDisclosure, !storedPrice)}`
   );
   const identity = assistantIdentityView(profile);
-  lines.push(
-    `  Assistant name: ${identity.assistantName || '(not set — no name)'}`
-  );
   lines.push(
     `  Opening: ${
       identity.openingMessage
