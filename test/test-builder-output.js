@@ -17,6 +17,7 @@ import {
   BUILDER_RESPONSE_SCHEMA,
   BUILDER_TOP_LEVEL_KEYS,
 } from '../src/builderSchema.js';
+import { formatSummary } from '../src/profile.js';
 import { PARAGRAPH_PROMPT_LINE, formatModelReply } from '../src/formatReply.js';
 
 const tests = [];
@@ -64,8 +65,22 @@ test('schema requires top-level newFacts and all draft keys', () => {
   const newFacts = root.properties.newFacts;
   assert.equal(newFacts.type, 'array');
   assert.match(String(newFacts.description || ''), /do not provide or serve/i);
+  assert.match(String(root.properties.message.description || ''), /first person/i);
+  assert.match(String(root.properties.message.description || ''), /Never use the business name as the speaker/i);
+  assert.match(
+    String(root.properties.draft.properties.informationToCollect.description || ''),
+    /I should ask customers/i
+  );
   assert.equal(root.properties.onPurpose.type, 'boolean');
   assert.match(String(root.properties.onPurpose.description || ''), /poems, homework/i);
+});
+
+test('formatSummary intake label is first-person Adam', () => {
+  assert.match(
+    formatSummary({ name: 'Amen', informationToCollect: ['Name'] }),
+    /I'll ask customers for:\n  • Name/
+  );
+  assert.doesNotMatch(formatSummary({ name: 'Amen', informationToCollect: ['Name'] }), /the bot should collect/);
 });
 
 test('applyDraftDelta: null / omitted scalars keep previous values', () => {

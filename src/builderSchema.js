@@ -94,7 +94,12 @@ const draftObject = {
     hours: nullableString,
     locationOrArea: nullableString,
     commonQuestions: { type: ['array', 'null'], items: faqItem },
-    informationToCollect: { type: ['array', 'null'], items: { type: 'string' } },
+    informationToCollect: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description:
+        'Details I should ask customers for in chat. null if the owner has not answered yet; [] if none.',
+    },
     unknowns: { type: ['array', 'null'], items: { type: 'string' } },
     tone: nullableString,
     responseLength: nullableEnum(RESPONSE_LENGTH_VALUES),
@@ -128,7 +133,11 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'onPurpose',
     ],
     properties: {
-      message: { type: 'string' },
+      message: {
+        type: 'string',
+        description:
+          "Owner-facing reply as Adam in first person (I/I'll). Never use the business name as the speaker.",
+      },
       draft: draftObject,
       newFacts: {
         type: 'array',

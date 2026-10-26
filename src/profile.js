@@ -620,12 +620,12 @@ function formatFactsBlock(profile) {
   }
   if (Array.isArray(profile.informationToCollect)) {
     if (profile.informationToCollect.length) {
-      lines.push('Information the bot should collect:');
+      lines.push("I'll ask customers for:");
       for (const item of profile.informationToCollect) {
         lines.push(`  • ${item}`);
       }
     } else {
-      lines.push('Information the bot should collect: (none)');
+      lines.push("I'll ask customers for: (none)");
     }
   }
   if (profile.unknowns?.length) {
