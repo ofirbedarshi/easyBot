@@ -30,11 +30,17 @@ let { state, reply } = startLeadIntake();
 assert.ok(reply.startsWith('Where would you like the bot to work?'));
 let r = stepLeadIntake(state, 'yes please');
 assert.equal(r.state.step, 'channels');
-assert.ok(r.reply.includes('1. WhatsApp'));
+assert.ok(r.reply.includes('1. 💬 WhatsApp'));
 r = stepLeadIntake(r.state, '1, 5');
 assert.equal(r.state.step, 'channelsOther');
+assert.equal(
+  r.reply,
+  "Tell me briefly where you'd like the bot to work, for example Telegram or your Google Business page."
+);
 r = stepLeadIntake(r.state, 'Telegram');
 assert.equal(r.state.step, 'actions');
+assert.ok(r.reply.includes('beyond answering questions? ✨'));
+assert.ok(r.reply.includes('1. 📅 Book meetings or appointments'));
 r = stepLeadIntake(r.state, '2 3');
 assert.equal(r.state.step, 'dailyInquiries');
 r = stepLeadIntake(r.state, '1, 2');
@@ -46,7 +52,7 @@ assert.equal(r.state.step, 'systemName');
 r = stepLeadIntake(r.state, 'A booking app');
 assert.equal(r.done, true);
 assert.deepEqual(r.state.answers, {
-  channels: ['WhatsApp', 'Other'],
+  channels: ['WhatsApp', 'Other (tell us where)'],
   channelsOther: 'Telegram',
   actions: ['Collect details from interested customers', 'Hand conversations over to a human agent'],
   dailyInquiries: '20-50',
@@ -56,7 +62,9 @@ assert.deepEqual(r.state.answers, {
 
 // Menu: item 1 only when requested
 assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
-assert.ok(renderMenu({ leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business info\n`));
+assert.ok(
+  renderMenu({ leadOption: true }).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n2. 🏪 Edit business info\n`)
+);
 
 // Session flow (memory store)
 const store = createMemoryStore();
@@ -84,7 +92,7 @@ const profileBefore = JSON.stringify(await store.loadProfile(sender));
 assert.equal((await send('1')).event, 'lead_question');
 let res = await send('menu');
 assert.equal(res.event, 'lead_cancelled');
-assert.ok(res.reply.includes(`1. ${LEAD_MENU_LABEL}`));
+assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
 assert.equal(Object.keys(store._dump().leads).length, 0);
 
 // Cancel with /end
@@ -92,14 +100,18 @@ await send('1');
 await send('1');
 res = await send('/end');
 assert.equal(res.event, 'enter_build');
-assert.ok(res.reply.includes(`1. ${LEAD_MENU_LABEL}`));
+assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
 assert.equal((await store.loadSession(sender)).leadIntake, null);
 assert.equal(Object.keys(store._dump().leads).length, 0);
 
 // Full run
 await send('1');
 await send('1 4');
-await send('5');
+res = await send('5');
+assert.equal(
+  res.reply,
+  "Tell me briefly what else you'd like the bot to do for you, for example send appointment reminders."
+);
 await send('Track orders');
 res = await send('lots');
 assert.ok(res.reply.startsWith('Please reply with the number of your choice.'));
@@ -107,7 +119,7 @@ await send('5');
 res = await send('1');
 assert.equal(res.event, 'lead_saved');
 assert.ok(res.reply.startsWith("Thanks! We'll get back to you soon."));
-assert.ok(res.reply.includes('1. Edit business info\n') && res.reply.includes('4. Try my bot'));
+assert.ok(res.reply.includes('1. 🏪 Edit business info\n') && res.reply.includes('4. 🤖 Try my bot'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 
 const lead = store._dump().leads[sender];
@@ -116,7 +128,7 @@ assert.equal(lead.businessName, 'Test Studio');
 assert.ok(lead.createdAt);
 assert.deepEqual(lead.answers, {
   channels: ['WhatsApp', 'My business website'],
-  actions: ['Something else'],
+  actions: ['Other (tell us more)'],
   actionsOther: 'Track orders',
   dailyInquiries: 'Not sure',
   system: 'No',

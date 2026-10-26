@@ -20,10 +20,10 @@ import { LEAD_MENU_LABEL } from './leadIntake.js';
 
 const STRINGS = {
   menu: [
-    'Edit business info',
-    'Edit Q&A',
-    'Edit how the bot talks (style, name, opening message)',
-    'Try my bot',
+    '🏪 Edit business info',
+    '❓ Edit Q&A',
+    '💬 Edit how the bot talks (style, name, opening message)',
+    '🤖 Try my bot',
   ],
   sections: ['Business info', 'Q&A', 'How the bot talks'],
   menuFooter: 'Pick a number or just write what you want to change.',
@@ -151,7 +151,7 @@ export function menuActive(buildHistory) {
 export function renderMenu(menuOpts) {
   const s = STRINGS;
   const label = (item) =>
-    item === 'lead' ? LEAD_MENU_LABEL : item === 'try' ? s.menu[3] : s.menu[item - 1];
+    item === 'lead' ? `🚀 ${LEAD_MENU_LABEL}` : item === 'try' ? s.menu[3] : s.menu[item - 1];
   return [
     ...menuItems(menuOpts).map((item, i) => `${i + 1}. ${label(item)}`),
     '',
