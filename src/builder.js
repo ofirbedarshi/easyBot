@@ -28,7 +28,7 @@ import {
   topicJustAsked,
   topicModelAsked,
 } from './builderTopics.js';
-import { builderResponseFormat } from './builderSchema.js';
+import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 
 export const OWNER_GOAL_QUESTION =
@@ -169,8 +169,8 @@ draft is a delta: null means unchanged this turn (reset flags: false unless the 
 ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit.
 factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
-configRequests, askingTopic, goalSupported, goalUnsupportedPart, readyForReview: as specified above. Arrays empty if none.
-asksQuestion: true only when this reply asks the owner a question they are expected to answer.
+configRequests, askingTopic, goalSupported, goalUnsupportedPart, readyForReview, wantsReview: as specified above. Arrays empty if none.
+asksQuestion: true only when this reply asks a question the owner should answer.
 commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
 informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
 ownerGoal is one of the supported values, or null until the owner answers; never invent it.
@@ -505,6 +505,214 @@ export function applyFactOps(facts, newFacts, edits) {
   return next;
 }
 
+const CONSISTENCY_TEXT_FIELDS = [
+  'name',
+  'whatWeDo',
+  'hours',
+  'locationOrArea',
+  'openingMessage',
+];
+
+function textValue(v) {
+  return typeof v === 'string' && v.trim() ? v.trim() : '';
+}
+
+function serviceSnapshot(row) {
+  return { price: row?.price ?? null, notes: row?.notes ?? null };
+}
+
+/**
+ * Already-stored values that this turn modified or removed.
+ * Derived from the previous vs next draft only (no owner text).
+ * Additions (new services, FAQ, otherFacts, or filling a blank field) are ignored.
+ */
+export function existingValueChanges(previousDraft, nextDraft) {
+  const prev = previousDraft || {};
+  const next = nextDraft || {};
+  const changes = [];
+
+  const prevServices = Array.isArray(prev.services) ? prev.services : [];
+  const nextServices = Array.isArray(next.services) ? next.services : [];
+  for (const old of prevServices) {
+    if (!old?.name) continue;
+    const found = nextServices.find((x) => x && sameKey(x.name, old.name));
+    if (!found) {
+      changes.push({
+        field: 'services',
+        item: old.name,
+        oldValue: serviceSnapshot(old),
+        newValue: null,
+      });
+      continue;
+    }
+    if (
+      !sameKey(old.price ?? '', found.price ?? '') ||
+      !sameKey(old.notes ?? '', found.notes ?? '')
+    ) {
+      changes.push({
+        field: 'services',
+        item: old.name,
+        oldValue: serviceSnapshot(old),
+        newValue: serviceSnapshot(found),
+      });
+    }
+  }
+
+  const prevFaq = Array.isArray(prev.commonQuestions) ? prev.commonQuestions : [];
+  const nextFaq = Array.isArray(next.commonQuestions) ? next.commonQuestions : [];
+  for (const old of prevFaq) {
+    if (!old?.question) continue;
+    const found = nextFaq.find((x) => x && sameKey(x.question, old.question));
+    if (!found) {
+      changes.push({
+        field: 'commonQuestions',
+        item: old.question,
+        oldValue: old.answer ?? '',
+        newValue: null,
+      });
+      continue;
+    }
+    if (!sameKey(old.answer ?? '', found.answer ?? '')) {
+      changes.push({
+        field: 'commonQuestions',
+        item: old.question,
+        oldValue: old.answer ?? '',
+        newValue: found.answer ?? '',
+      });
+    }
+  }
+
+  for (const field of CONSISTENCY_TEXT_FIELDS) {
+    const before = textValue(prev[field]);
+    const after = textValue(next[field]);
+    if (before && !sameKey(before, after)) {
+      changes.push({
+        field,
+        item: null,
+        oldValue: before,
+        newValue: after || null,
+      });
+    }
+  }
+
+  const prevFacts = Array.isArray(prev.otherFacts) ? prev.otherFacts : [];
+  const nextFacts = Array.isArray(next.otherFacts) ? next.otherFacts : [];
+  for (let i = 0; i < prevFacts.length; i++) {
+    const old = prevFacts[i];
+    if (typeof old !== 'string' || !old.trim()) continue;
+    if (nextFacts.some((x) => sameKey(x, old))) continue;
+    changes.push({
+      field: 'otherFacts',
+      item: String(i),
+      oldValue: old,
+      newValue: null,
+    });
+  }
+
+  return changes;
+}
+
+/** Apply consistency-pass updates without preserveFacts (app-owned). */
+export function applyConsistencyUpdates(draft, updates) {
+  const u = updates && typeof updates === 'object' ? updates : {};
+  const next = applyDraftDelta(
+    {
+      name: u.name ?? null,
+      whatWeDo: u.whatWeDo ?? null,
+      hours: u.hours ?? null,
+      locationOrArea: u.locationOrArea ?? null,
+      openingMessage: u.openingMessage ?? null,
+      services: Array.isArray(u.services) ? u.services : [],
+      commonQuestions: Array.isArray(u.commonQuestions) ? u.commonQuestions : [],
+    },
+    draft
+  );
+  if (Array.isArray(u.factEdits) && u.factEdits.length) {
+    next.otherFacts = applyFactOps(draft?.otherFacts, [], u.factEdits);
+  }
+  if (Array.isArray(next.commonQuestions)) {
+    next.commonQuestions = normalizeCommonQuestions(next.commonQuestions);
+  }
+  return next;
+}
+
+const CONSISTENCY_SYSTEM = `You keep stored business text consistent with the latest facts.
+You receive facts that changed or were removed, and the current draft.
+Return updates only for stored text that still states an old fact.
+Do not invent facts. Do not add new items. Null or an empty array means no change.`;
+
+function draftForConsistency(draft) {
+  const d = draft || {};
+  return {
+    name: d.name ?? null,
+    whatWeDo: d.whatWeDo ?? null,
+    services: Array.isArray(d.services) ? d.services : [],
+    hours: d.hours ?? null,
+    locationOrArea: d.locationOrArea ?? null,
+    commonQuestions: Array.isArray(d.commonQuestions) ? d.commonQuestions : [],
+    otherFacts: Array.isArray(d.otherFacts) ? d.otherFacts : [],
+    openingMessage: d.openingMessage ?? null,
+  };
+}
+
+async function requestConsistencyUpdates({ nextDraft, changes, model }) {
+  const client = getClient();
+  const { completion } = await createBuilderCompletion(client, {
+    model,
+    messages: [
+      { role: 'system', content: CONSISTENCY_SYSTEM },
+      {
+        role: 'user',
+        content: JSON.stringify(
+          { changes, draft: draftForConsistency(nextDraft) },
+          null,
+          2
+        ),
+      },
+    ],
+    response_format: consistencyResponseFormat(),
+    temperature: 0,
+  });
+  const choice = completion.choices[0]?.message;
+  if (choice?.refusal) throw new Error('refusal');
+  return parseJsonResponse(choice?.content || '{}');
+}
+
+/**
+ * When an existing stored value was modified or removed, ask a small structured
+ * call to update other stored text that still states the old fact.
+ * Add-only turns skip the call. Failures keep `nextDraft`.
+ */
+export async function runConsistencyPass(previousDraft, nextDraft, opts = {}) {
+  const changes = existingValueChanges(previousDraft, nextDraft);
+  if (!changes.length) {
+    return { draft: nextDraft, ran: false, latencyMs: 0, changes };
+  }
+  const started = Date.now();
+  try {
+    const updates = opts.complete
+      ? await opts.complete({ previousDraft, nextDraft, changes })
+      : await requestConsistencyUpdates({
+          nextDraft,
+          changes,
+          model: opts.model,
+        });
+    return {
+      draft: applyConsistencyUpdates(nextDraft, updates),
+      ran: true,
+      latencyMs: Date.now() - started,
+      changes,
+    };
+  } catch {
+    return {
+      draft: nextDraft,
+      ran: true,
+      latencyMs: Date.now() - started,
+      changes,
+    };
+  }
+}
+
 const DELTA_TEXT_KEYS = [
   'name',
   'whatWeDo',
@@ -759,6 +967,7 @@ export async function runBuilderTurn({
   userMessage,
   model: modelOverride,
   mode = 'delta',
+  consistencyComplete,
 } = {}) {
   const client = getClient();
   const model = modelOverride || process.env.OPENAI_BUILDER_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
@@ -849,6 +1058,7 @@ export async function runBuilderTurn({
       newFacts: [],
       readyForReview: false,
       asksQuestion: false,
+      wantsReview: false,
     };
   }
 
@@ -856,14 +1066,21 @@ export async function runBuilderTurn({
     mode: legacy ? 'legacy' : 'delta',
   });
 
-  const { draft, unresolved } = enforceConfigRequests(
+  const { draft: mergedDraft, unresolved } = enforceConfigRequests(
     preserved,
     currentDraft,
     parsed.configRequests
   );
 
+  const pass = await runConsistencyPass(currentDraft, mergedDraft, {
+    model,
+    complete: consistencyComplete,
+  });
+  const draft = pass.draft;
+
   const readyForReview = !!parsed.readyForReview && !unresolved.length;
   const asksQuestion = parsed.asksQuestion === true;
+  const wantsReview = parsed.wantsReview === true;
 
   const message = parsed.message || 'Tell me a bit more about your business.';
 
@@ -872,6 +1089,9 @@ export async function runBuilderTurn({
     draft,
     readyForReview,
     asksQuestion,
+    wantsReview,
+    consistencyMs: pass.latencyMs,
+    consistencyRan: pass.ran,
     configRequests: normalizeConfigRequests(parsed.configRequests),
     askingTopic: typeof parsed.askingTopic === 'string' ? parsed.askingTopic : null,
     goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
@@ -962,7 +1182,10 @@ function gateTurn(profile, turn) {
   };
 
   // Required topics: before the first review, the app asks each open topic itself.
-  const openTopic = turn.readyForReview ? nextOpenTopic(profile, draft, priorAsked) : null;
+  const openTopic =
+    turn.readyForReview || turn.wantsReview
+      ? nextOpenTopic(profile, draft, priorAsked)
+      : null;
   const modelTopic = openTopic
     ? null
     : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
@@ -988,16 +1211,18 @@ function gateTurn(profile, turn) {
     !!profile.reviewedDraftKey && profile.reviewedDraftKey === key;
   const intakeAnswered = hasAnsweredInformationToCollect(draft);
   let readyForReview = !!turn.readyForReview;
+  const wantsReview = turn.wantsReview === true;
   if (intakeAnswered && profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
     readyForReview = true;
   }
 
-  if (readyForReview && intakeAnswered) {
+  if ((readyForReview || wantsReview) && intakeAnswered) {
     return {
       ...turn,
       draft,
       readyForReview: true,
       presentReview: true,
+      wantsReview,
       asksQuestion: false,
       message: reviewAck(turn.message),
       reviewedDraftKey: key,
@@ -1008,6 +1233,7 @@ function gateTurn(profile, turn) {
     draft,
     readyForReview,
     presentReview: false,
+    wantsReview,
     asksQuestion: !!turn.asksQuestion,
     reviewedDraftKey: reviewCurrent ? key : null,
   };

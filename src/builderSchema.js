@@ -128,6 +128,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'goalUnsupportedPart',
       'readyForReview',
       'asksQuestion',
+      'wantsReview',
     ],
     properties: {
       message: { type: 'string' },
@@ -141,13 +142,56 @@ export const BUILDER_RESPONSE_SCHEMA = {
       goalSupported: nullableBoolean,
       goalUnsupportedPart: nullableString,
       readyForReview: { type: 'boolean' },
-      asksQuestion: { type: 'boolean' },
+      asksQuestion: {
+        type: 'boolean',
+        description:
+          'True only when this reply asks the owner a question they are expected to answer.',
+      },
+      wantsReview: {
+        type: 'boolean',
+        description:
+          'True only when the owner asked to see the current bot, summary, or review.',
+      },
     },
   },
 };
 
 export function builderResponseFormat() {
   return { type: 'json_schema', json_schema: BUILDER_RESPONSE_SCHEMA };
+}
+
+/** Second-call schema: only stale copies of facts that already changed. */
+export const CONSISTENCY_RESPONSE_SCHEMA = {
+  name: 'consistency_pass',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'commonQuestions',
+      'services',
+      'factEdits',
+      'name',
+      'whatWeDo',
+      'hours',
+      'locationOrArea',
+      'openingMessage',
+    ],
+    properties: {
+      commonQuestions: { type: 'array', items: faqItem },
+      services: { type: 'array', items: serviceItem },
+      factEdits: { type: 'array', items: factEditItem },
+      name: nullableString,
+      whatWeDo: nullableString,
+      hours: nullableString,
+      locationOrArea: nullableString,
+      openingMessage: nullableString,
+    },
+  },
+};
+
+export function consistencyResponseFormat() {
+  return { type: 'json_schema', json_schema: CONSISTENCY_RESPONSE_SCHEMA };
 }
 
 /** Keys the model must always return (strict schema / apply path). */

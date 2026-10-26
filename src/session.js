@@ -560,6 +560,9 @@ async function handleBuild(session, userMessage) {
     source: result.source,
     event: 'build_turn',
     readyForReview: result.readyForReview,
+    wantsReview: !!result.wantsReview,
+    consistencyMs: result.consistencyMs ?? 0,
+    consistencyRan: !!result.consistencyRan,
     ...(await getStateAsync(session)),
   };
 }
