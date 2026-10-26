@@ -26,7 +26,7 @@ import {
 } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('builder-nav');
-const MENU_HEAD = '2. Edit business info';
+const MENU_HEAD = '2. 🏪 Edit business info';
 const FOOTER = 'Pick a number or just write what you want to change.';
 
 function clean() {
@@ -216,7 +216,7 @@ async function testReviewWordsAndMakeChangesAfterAnswer() {
   await handleMessage(session, 'how much is a private lesson?');
   const ch = await handleMessage(session, '2');
   assert.equal(ch.event, 'menu');
-  assert.ok(ch.reply.includes('4. Try my bot'), ch.reply);
+  assert.ok(ch.reply.includes('4. 🤖 Try my bot'), ch.reply);
   assert.equal(calls.builder, 2);
 }
 
@@ -423,11 +423,11 @@ async function testMenuLabels() {
   assert.ok(
     end.reply.endsWith(
       [
-        '1. Get this bot for my business',
-        '2. Edit business info',
-        '3. Edit Q&A',
-        '4. Edit how the bot talks (style, name, opening message)',
-        '5. Try my bot',
+        '1. 🚀 Get this bot for my business',
+        '2. 🏪 Edit business info',
+        '3. ❓ Edit Q&A',
+        '4. 💬 Edit how the bot talks (style, name, opening message)',
+        '5. 🤖 Try my bot',
         '',
         'Pick a number or just write what you want to change.',
       ].join('\n')
@@ -495,7 +495,7 @@ async function testMakeChangesShowsMenu() {
   const ch = await handleMessage(session, 'Make changes');
   assert.equal(ch.event, 'menu');
   assert.ok(ch.reply.startsWith('What would you like to change?'), ch.reply);
-  assert.ok(ch.reply.includes('1. Edit business info\n') && ch.reply.includes('4. Try my bot'), ch.reply);
+  assert.ok(ch.reply.includes('1. 🏪 Edit business info\n') && ch.reply.includes('4. 🤖 Try my bot'), ch.reply);
   assert.ok(!ch.reply.includes('Get this bot'), 'no lead item before approval');
   assert.equal(menuActive(session.buildHistory), true);
   assert.equal(readRaw(), before, 'Make changes must not save');
@@ -657,7 +657,7 @@ async function testMenuLayoutStates() {
       assert.equal(parseMenuItem(String(i + 1), opts), menuItems(opts)[i]);
     });
   }
-  assert.ok(renderMenu(noLead).startsWith('1. Edit business info\n'));
+  assert.ok(renderMenu(noLead).startsWith('1. 🏪 Edit business info\n'));
   assert.equal(parseMenuItem('1', lead), 'lead');
   assert.equal(parseMenuItem('2.', lead), 1);
   assert.equal(parseMenuItem('5', lead), 'try');
@@ -668,9 +668,9 @@ async function testMenuLayoutStates() {
   assert.equal(parseMenuItem('0', lead), null);
   assert.equal(parseMenuItem('change Q&A', lead), null);
   const withLead = renderMenu(lead).split('\n');
-  assert.equal(withLead[0], '1. Get this bot for my business');
+  assert.equal(withLead[0], '1. 🚀 Get this bot for my business');
   assert.equal(withLead[1], MENU_HEAD);
-  assert.equal(withLead[4], '5. Try my bot');
+  assert.equal(withLead[4], '5. 🤖 Try my bot');
 }
 
 /** Owner asked to see the summary: app renderReview, never the model's invented text. */

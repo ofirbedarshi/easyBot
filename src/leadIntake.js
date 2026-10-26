@@ -14,22 +14,30 @@ export const LEAD_ALREADY_SENT = "You've already sent your request. We'll get ba
 const QUESTIONS = {
   channels: {
     text: 'Where would you like the bot to work? (you can pick more than one, e.g. "1, 3")',
-    options: ['WhatsApp', 'Instagram', 'Facebook Messenger', 'My business website', 'Other'],
+    options: ['💬 WhatsApp', '📸 Instagram', '💙 Facebook Messenger', '🌐 My business website', '💡 Other (tell us where)'],
     multi: true,
-    followUp: { option: 5, step: 'channelsOther', text: 'Where else would you like the bot to work?' },
+    followUp: {
+      option: 5,
+      step: 'channelsOther',
+      text: "Tell me briefly where you'd like the bot to work, for example Telegram or your Google Business page.",
+    },
     next: 'actions',
   },
   actions: {
-    text: 'What would you like the bot to do beyond answering questions? (you can pick more than one)',
+    text: 'What would you like the bot to do beyond answering questions? ✨ (you can pick more than one)',
     options: [
-      'Book meetings or appointments',
-      'Collect details from interested customers',
-      'Hand conversations over to a human agent',
-      'Connect to a calendar or an existing system',
-      'Something else',
+      '📅 Book meetings or appointments',
+      '📝 Collect details from interested customers',
+      '🙋 Hand conversations over to a human agent',
+      '🔗 Connect to a calendar or an existing system',
+      '💡 Other (tell us more)',
     ],
     multi: true,
-    followUp: { option: 5, step: 'actionsOther', text: 'What else would you like the bot to do?' },
+    followUp: {
+      option: 5,
+      step: 'actionsOther',
+      text: "Tell me briefly what else you'd like the bot to do for you, for example send appointment reminders.",
+    },
     next: 'dailyInquiries',
   },
   dailyInquiries: {
@@ -55,6 +63,11 @@ const FOLLOW_UPS = Object.fromEntries(
 
 const INVALID = 'Please reply with the number of your choice.';
 const INVALID_MULTI = 'Please reply with one or more numbers, e.g. "1, 3".';
+
+/** Stored / admin labels omit the leading option emoji. */
+function optionStoreLabel(label) {
+  return String(label).replace(/^\p{Extended_Pictographic}\uFE0F?\s+/u, '');
+}
 
 function renderQuestion(id) {
   const q = QUESTIONS[id];
@@ -113,7 +126,7 @@ export function stepLeadIntake(state, text) {
       done: false,
     };
   }
-  const labels = picks.map((n) => q.options[n - 1]);
+  const labels = picks.map((n) => optionStoreLabel(q.options[n - 1]));
   answers[step] = q.multi ? labels : labels[0];
   if (q.followUp && picks.includes(q.followUp.option)) {
     return { state: { step: q.followUp.step, answers }, reply: q.followUp.text, done: false };
