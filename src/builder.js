@@ -30,6 +30,11 @@ import {
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
+import {
+  generateWithIdenticalRetry,
+  lastOutgoingMessage,
+  messagesWithRetryNote,
+} from './identicalReply.js';
 
 export const OWNER_GOAL_QUESTION =
   "Now tell me, how can I help you the most? 🌟\n\nFor example, I can:\n💬 Answer your customers' questions\n📝 Ask customers for their details and pass them on to you\n\nOr anything else you have in mind 😊";
@@ -978,8 +983,9 @@ export async function runBuilderTurn({
   model: modelOverride,
   mode = 'delta',
   consistencyComplete,
+  client: clientOverride,
 } = {}) {
-  const client = getClient();
+  const client = clientOverride || getClient();
   const model = modelOverride || process.env.OPENAI_BUILDER_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
   const legacy = mode === 'legacy';
 
@@ -1045,32 +1051,48 @@ export async function runBuilderTurn({
     ...buildHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: userMessage },
   ];
+  const responseFormat = legacy ? { type: 'json_object' } : builderResponseFormat();
+  const previousOutgoing = lastOutgoingMessage(buildHistory);
 
-  const started = Date.now();
-  const { completion, params: requestParams } = await createBuilderCompletion(client, {
-    model,
-    messages,
-    response_format: legacy ? { type: 'json_object' } : builderResponseFormat(),
+  const completeOnce = async (retryNote) => {
+    const started = Date.now();
+    const { completion, params: requestParams } = await createBuilderCompletion(client, {
+      model,
+      messages: retryNote ? messagesWithRetryNote(messages, retryNote) : messages,
+      response_format: responseFormat,
+    });
+    const latencyMs = Date.now() - started;
+    const choice = completion.choices[0]?.message;
+    const raw = choice?.content || '{}';
+    let parsed;
+    try {
+      if (choice?.refusal) throw new Error('refusal');
+      parsed = parseJsonResponse(raw);
+    } catch {
+      parsed = {
+        message: raw && !choice?.refusal ? raw : 'Tell me a bit more about your business.',
+        draft: currentDraft,
+        newFacts: [],
+        readyForReview: false,
+        asksQuestion: false,
+        wantsReview: false,
+        onPurpose: true,
+      };
+    }
+    return { completion, requestParams, latencyMs, parsed };
+  };
+
+  const sentText = (parsed) =>
+    parsed?.onPurpose === false
+      ? OFF_PURPOSE_OWNER_REPLY
+      : formatModelReply(parsed?.message || '');
+
+  const { completion, requestParams, latencyMs, parsed } = await generateWithIdenticalRetry({
+    generate: completeOnce,
+    extractText: (result) => sentText(result.parsed),
+    previousOutgoing,
+    label: 'Builder',
   });
-  const latencyMs = Date.now() - started;
-
-  const choice = completion.choices[0]?.message;
-  const raw = choice?.content || '{}';
-  let parsed;
-  try {
-    if (choice?.refusal) throw new Error('refusal');
-    parsed = parseJsonResponse(raw);
-  } catch {
-    parsed = {
-      message: raw && !choice?.refusal ? raw : 'Tell me a bit more about your business.',
-      draft: currentDraft,
-      newFacts: [],
-      readyForReview: false,
-      asksQuestion: false,
-      wantsReview: false,
-      onPurpose: true,
-    };
-  }
 
   if (parsed.onPurpose === false) {
     return {
