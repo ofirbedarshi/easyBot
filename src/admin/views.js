@@ -1,4 +1,20 @@
 import { stageLabel } from './stage.js';
+import {
+  OWNER_GOAL_LABELS,
+  PRICE_DISCLOSURE_LABELS,
+  RESPONSE_LENGTH_LABELS,
+  assistantIdentityView,
+  draftDiffersFromLive,
+  effectiveBehavior,
+  mergeDraft,
+  normalizeCommonQuestions,
+  normalizeOwnerGoal,
+  normalizePriceDisclosure,
+  normalizeResponseLength,
+} from '../profile.js';
+
+/** All dashboard clocks and calendar days use this zone. */
+export const DASHBOARD_TIME_ZONE = 'Asia/Bangkok';
 
 const LEAD_ANSWER_LABELS = {
   channels: 'Where the bot should work',
@@ -57,29 +73,74 @@ export function relativeTime(iso, now = Date.now()) {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
-export function formatStamp(iso) {
-  if (!iso) return '';
+function parseDate(iso) {
+  if (!iso) return null;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatDay(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = new Date();
-  const yday = new Date(today);
-  yday.setUTCDate(today.getUTCDate() - 1);
-  const key = d.toISOString().slice(0, 10);
-  if (key === today.toISOString().slice(0, 10)) return 'Today';
-  if (key === yday.toISOString().slice(0, 10)) return 'Yesterday';
-  return d.toLocaleDateString('en-GB', {
+function bangkokDateKey(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DASHBOARD_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function shiftDateKey(key, days) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** Clock time in the dashboard zone, e.g. 04:41. */
+export function formatTime(iso) {
+  const d = parseDate(iso);
+  if (!d) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: DASHBOARD_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(d);
+}
+
+/** Full date and time in the dashboard zone, e.g. 22 Oct 2026, 11:41. */
+export function formatStamp(iso) {
+  const d = parseDate(iso);
+  if (!d) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: DASHBOARD_TIME_ZONE,
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    timeZone: 'UTC',
-  });
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(d);
+}
+
+/** Calendar day in the dashboard zone: Today, Yesterday, or 22 Oct 2026. */
+export function formatDay(iso, now = new Date()) {
+  const d = parseDate(iso);
+  if (!d) return '';
+  const key = bangkokDateKey(d);
+  const todayKey = bangkokDateKey(now);
+  if (key === todayKey) return 'Today';
+  if (key === shiftDateKey(todayKey, -1)) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: DASHBOARD_TIME_ZONE,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(d);
+}
+
+/** Compact last-active label: clock when it is today in Bangkok, otherwise the full stamp. */
+export function formatWhen(iso, now = new Date()) {
+  if (!parseDate(iso)) return '—';
+  if (formatDay(iso, now) === 'Today') return formatTime(iso);
+  return formatStamp(iso);
 }
 
 function modeLabel(mode) {
@@ -330,10 +391,45 @@ form.inline { margin: 0; }
   margin: 0 0 8px; font-size: 0.72rem; letter-spacing: .07em;
   text-transform: uppercase; color: var(--muted); font-weight: 750;
 }
-pre.sum { white-space: pre-wrap; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0; color: #2b3330; }
 dl { margin: 0; }
 dt { font-size: 0.74rem; color: var(--muted); margin-top: 9px; }
 dd { margin: 2px 0 0; }
+.profile-card { padding-bottom: 10px; }
+.profile-rows { display: grid; gap: 0; }
+.profile-row {
+  display: grid; gap: 2px; padding: 8px 0 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+.profile-row:last-child { border-bottom: 0; }
+.profile-row dt {
+  margin: 0; font-size: 0.7rem; font-weight: 750;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.profile-row dd { margin: 0; word-break: break-word; line-height: 1.45; }
+.profile-block { margin-top: 12px; }
+.profile-block h4, .profile-settings h4 {
+  margin: 0 0 8px; font-size: 0.7rem; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); font-weight: 750;
+}
+.profile-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.profile-list li { word-break: break-word; }
+.svc-name { font-weight: 650; }
+.svc-price { font-weight: 500; color: var(--muted); }
+.svc-notes, .faq-a { color: var(--muted); font-size: 0.92rem; margin-top: 2px; }
+.faq-q { font-weight: 650; }
+.profile-settings {
+  margin-top: 14px; padding: 12px 12px 6px;
+  background: color-mix(in srgb, var(--sand) 70%, #fff);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.profile-banner {
+  margin: 0 0 8px; font-size: 0.78rem; font-weight: 750; color: var(--teal-ink);
+}
+.profile-banner.pending { margin-top: 16px; color: var(--warn); }
+.unset { color: var(--muted); }
+@media (min-width: 520px) and (max-width: 1099px) {
+  .profile-row { grid-template-columns: 9.2rem minmax(0, 1fr); gap: 6px 16px; align-items: start; }
+}
 .thread-col {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
   background:
@@ -438,9 +534,10 @@ ${body}
 }
 
 function pills(user, { count = false } = {}) {
+  const showLeadBadge = user.isLead && user.stage !== 'lead';
   return `<div class="pills">
   <span class="pill ${esc(user.stage)}">${esc(stageLabel(user.stage))}</span>
-  ${user.isLead ? '<span class="badge-lead">Lead</span>' : ''}
+  ${showLeadBadge ? '<span class="badge-lead">Lead</span>' : ''}
   ${count ? `<span class="muted">${user.messageCount} message${user.messageCount === 1 ? '' : 's'}</span>` : ''}
 </div>`;
 }
@@ -512,8 +609,145 @@ function leadBlock(user) {
   </dl>`;
 }
 
+function unsetHtml() {
+  return '<span class="unset">Not set</span>';
+}
+
+function textOrUnset(value) {
+  const s = value == null ? '' : String(value).trim();
+  return s ? esc(s) : unsetHtml();
+}
+
+function profileRow(label, valueHtml) {
+  return `<div class="profile-row"><dt>${esc(label)}</dt><dd>${valueHtml}</dd></div>`;
+}
+
+function profileBlock(title, inner) {
+  return `<div class="profile-block"><h4>${esc(title)}</h4>${inner}</div>`;
+}
+
+function serviceItem(service) {
+  const name = esc(service?.name || 'Unnamed');
+  const price =
+    service?.price != null && String(service.price).trim()
+      ? ` <span class="svc-price">${esc(service.price)}</span>`
+      : '';
+  const notes = service?.notes
+    ? `<div class="svc-notes">${esc(service.notes)}</div>`
+    : '';
+  return `<li><div class="svc-name">${name}${price}</div>${notes}</li>`;
+}
+
+function profileFactsHtml(profile) {
+  const p = profile || {};
+  const goal = normalizeOwnerGoal(p.ownerGoal);
+  const goalLabel = goal ? OWNER_GOAL_LABELS[goal] : '';
+  const services = Array.isArray(p.services) ? p.services : [];
+  const faqs = normalizeCommonQuestions(p.commonQuestions);
+  const collect = Array.isArray(p.informationToCollect)
+    ? p.informationToCollect
+    : null;
+  const unknowns = Array.isArray(p.unknowns) ? p.unknowns : [];
+  const other = Array.isArray(p.otherFacts) ? p.otherFacts : [];
+  const storedLen = normalizeResponseLength(p.responseLength);
+  const storedPrice = normalizePriceDisclosure(p.priceDisclosure);
+  const storedTone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : '';
+  const eff = effectiveBehavior(p);
+  const identity = assistantIdentityView(p);
+  const tone = storedTone || `${eff.tone} (default)`;
+  const replyLength = `${RESPONSE_LENGTH_LABELS[eff.responseLength] || RESPONSE_LENGTH_LABELS.standard}${storedLen ? '' : ' (default)'}`;
+  const prices = `${PRICE_DISCLOSURE_LABELS[eff.priceDisclosure] || PRICE_DISCLOSURE_LABELS.relevant}${storedPrice ? '' : ' (default)'}`;
+  const opening = identity.openingMessage
+    ? identity.openingMessage
+    : `(default) short introduction as the digital assistant of ${p.name || 'this business'}`;
+
+  const extras = [];
+  extras.push(
+    profileBlock(
+      'Services',
+      services.length
+        ? `<ul class="profile-list">${services.map(serviceItem).join('')}</ul>`
+        : '<p class="unset">None yet</p>'
+    )
+  );
+  if (faqs.length) {
+    extras.push(
+      profileBlock(
+        'Common questions',
+        `<ul class="profile-list">${faqs
+          .map(
+            (faq) =>
+              `<li><div class="faq-q">${esc(faq.question)}</div><div class="faq-a">${
+                faq.answer ? esc(faq.answer) : '<span class="unset">Not recorded yet</span>'
+              }</div></li>`
+          )
+          .join('')}</ul>`
+      )
+    );
+  }
+  if (collect) {
+    extras.push(
+      profileBlock(
+        'Information to collect',
+        collect.length
+          ? `<ul class="profile-list">${collect.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`
+          : '<p class="unset">None</p>'
+      )
+    );
+  }
+  if (unknowns.length) {
+    extras.push(
+      profileBlock(
+        'Unknown / undecided',
+        `<ul class="profile-list">${unknowns.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`
+      )
+    );
+  }
+  if (other.length) {
+    extras.push(
+      profileBlock(
+        'Other facts',
+        `<ul class="profile-list">${other.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`
+      )
+    );
+  }
+  extras.push(`<div class="profile-settings">
+    <h4>Conversation settings</h4>
+    <div class="profile-rows">
+      ${profileRow('Tone', esc(tone))}
+      ${profileRow('Reply length', esc(replyLength))}
+      ${profileRow('Prices', esc(prices))}
+      ${profileRow('Assistant name', identity.assistantName ? esc(identity.assistantName) : unsetHtml())}
+      ${profileRow('Opening', esc(opening))}
+    </div>
+  </div>`);
+
+  return `<div class="profile-rows">
+    ${profileRow('Business', textOrUnset(p.name))}
+    ${profileRow('What they do', textOrUnset(p.whatWeDo))}
+    ${profileRow('Bot goal', goalLabel ? esc(goalLabel) : unsetHtml())}
+    ${profileRow('Hours', textOrUnset(p.hours))}
+    ${profileRow('Location', textOrUnset(p.locationOrArea))}
+  </div>${extras.join('')}`;
+}
+
+function profileCardHtml(profile) {
+  const draft = profile?.draft;
+  if (profile?.approvedAt && draft && draftDiffersFromLive(profile, draft)) {
+    const pending = mergeDraft(profile, draft);
+    return `<div class="profile-split">
+      <p class="profile-banner">Live approved</p>
+      ${profileFactsHtml(profile)}
+      <p class="profile-banner pending">Pending approval</p>
+      ${profileFactsHtml(pending)}
+    </div>`;
+  }
+  const view = draft ? mergeDraft(profile, draft) : profile;
+  return profileFactsHtml(view);
+}
+
 function factsHtml(user) {
-  return `<div class="section"><h3>Profile</h3><pre class="sum">${esc(user.summary || '')}</pre></div>
+  return `<div class="section profile-card"><h3>Profile</h3>${profileCardHtml(user.profile)}</div>
     <div class="section"><h3>Lead</h3>${leadBlock(user)}</div>`;
 }
 
@@ -534,7 +768,7 @@ function threadHtml(user) {
     }
     return `${sep}<div class="msg ${side}">
   <div class="body">${esc(m.body)}</div>
-  <div class="meta"><span class="mode">${esc(modeLabel(m.mode))}</span><span>${esc(who)}</span><span>${esc(formatStamp(m.createdAt))}</span></div>
+  <div class="meta"><span class="mode">${esc(modeLabel(m.mode))}</span><span>${esc(who)}</span><span>${esc(formatTime(m.createdAt))}</span></div>
 </div>`;
   });
   return `${user.truncated ? '<p class="muted note">Showing the latest 2000 messages.</p>' : ''}
@@ -556,10 +790,10 @@ function listCards({ users, selectedId, q, stage, truncated }) {
       return `<a class="user${on}" href="${esc(userHref(u.senderId, q, stage))}" data-name="${esc((u.businessName || '').toLowerCase())}" data-phone="${esc((u.phoneE164 || '').toLowerCase())}"${current}>
   ${avatarHtml(title)}
   <div>
-    <div class="row"><span class="name">${esc(title)}</span><span class="muted">${esc(relativeTime(u.lastMessageAt || u.firstSeenAt))}</span></div>
+    <div class="row"><span class="name">${esc(title)}</span><span class="muted">${esc(formatWhen(u.lastMessageAt || u.firstSeenAt))}</span></div>
     <div class="phone">${esc(u.phoneE164 || '—')}</div>
     <div class="preview">${preview}</div>
-    <div class="seen">First seen ${esc(relativeTime(u.firstSeenAt))}</div>
+    <div class="seen">First seen ${esc(formatStamp(u.firstSeenAt) || '—')}</div>
     ${pills(u, { count: true })}
   </div>
 </a>`;
@@ -587,7 +821,7 @@ function detailPane(selected, q = '', stage = '') {
       <h2>${esc(title)}</h2>
       <div class="phone">${esc(selected.phoneE164 || '—')}</div>
       ${pills(selected, { count: true })}
-      <p class="muted" style="margin:8px 0 0">First seen ${esc(relativeTime(selected.firstSeenAt))}</p>
+      <p class="muted seen-meta" style="margin:8px 0 0">First seen ${esc(formatStamp(selected.firstSeenAt) || '—')}<br>Last active ${esc(formatStamp(selected.lastMessageAt || selected.firstSeenAt) || '—')}</p>
     </div>
   </div>
 </div>

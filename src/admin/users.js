@@ -62,6 +62,7 @@ export function buildUserDetail(args) {
   return {
     ...row,
     summary: formatSummary(prof),
+    profile: prof,
     lead,
     messages,
     truncated,

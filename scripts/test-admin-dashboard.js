@@ -15,6 +15,13 @@ import {
   passwordsEqual,
 } from '../src/admin/auth.js';
 import { deriveStage } from '../src/admin/stage.js';
+import {
+  DASHBOARD_TIME_ZONE,
+  formatDay,
+  formatStamp,
+  formatTime,
+  formatWhen,
+} from '../src/admin/views.js';
 
 const PASSWORD = 'test-admin-password-for-suite';
 
@@ -311,6 +318,8 @@ async function testListAndDetail() {
     assert.ok(html.text.includes('Tried the bot'));
     assert.ok(html.text.includes('>Lead<') || html.text.includes('Lead</span>'));
     assert.ok(html.text.includes('First seen'));
+    assert.ok(!html.text.includes(' UTC'));
+    assert.ok(!html.text.includes('class="badge-lead"'));
 
     const bloom = await req(origin, '/admin/api/users?q=bloom', { cookie });
     assert.equal(bloom.json.users.length, 1);
@@ -344,7 +353,51 @@ async function testListAndDetail() {
     assert.ok(leadHtml.text.includes('Inquiries per day'));
     assert.ok(leadHtml.text.includes('5-20'));
     assert.ok(leadHtml.text.includes('Thanks! We&#39;ll get back to you soon.') || leadHtml.text.includes('Thanks!'));
+    assert.ok(!leadHtml.text.includes('<pre'));
+    assert.ok(!leadHtml.text.includes('class="badge-lead"'));
+    assert.ok(!leadHtml.text.includes(' UTC'));
+    assert.ok(leadHtml.text.includes('First seen'));
+    assert.ok(leadHtml.text.includes('Last active'));
+    assert.ok(leadHtml.text.includes('Business'));
+    assert.ok(leadHtml.text.includes('What they do'));
+    assert.ok(leadHtml.text.includes('Bot goal'));
+    assert.ok(leadHtml.text.includes('Hours'));
+    assert.ok(leadHtml.text.includes('Location'));
+    assert.ok(leadHtml.text.includes('Conversation settings'));
+    assert.ok(leadHtml.text.includes('Lead Bakery'));
+    assert.ok(leadHtml.text.includes('Bread'));
+    assert.equal(
+      (leadHtml.text.match(/class="pill lead">Lead<\/span>/g) || []).length,
+      2,
+      'one Lead stage pill on the list card and one on the detail header'
+    );
+    assert.ok(leadHtml.text.includes(formatStamp('2026-10-04T12:00:00.000Z')));
+    assert.ok(leadHtml.text.includes('Today') || leadHtml.text.includes(formatDay(new Date().toISOString())));
   });
+}
+
+async function testDashboardPolish() {
+  assert.equal(DASHBOARD_TIME_ZONE, 'Asia/Bangkok');
+  const noonUtc = '2026-10-04T12:00:00.000Z';
+  assert.equal(formatStamp(noonUtc), '4 Oct 2026, 19:00');
+  assert.equal(formatTime(noonUtc), '19:00');
+  assert.equal(formatDay(noonUtc, new Date('2026-10-20T00:00:00.000Z')), '4 Oct 2026');
+  assert.ok(!formatStamp(noonUtc).includes('UTC'));
+  assert.ok(!formatTime(noonUtc).includes('UTC'));
+
+  const bangkokNow = new Date();
+  assert.equal(formatDay(bangkokNow.toISOString(), bangkokNow), 'Today');
+  const todayKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: DASHBOARD_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(bangkokNow);
+  const [y, m, d] = todayKey.split('-').map(Number);
+  const yesterdayNoonUtc = new Date(Date.UTC(y, m - 1, d - 1, 5, 0, 0));
+  assert.equal(formatDay(yesterdayNoonUtc.toISOString(), bangkokNow), 'Yesterday');
+  assert.equal(formatWhen(noonUtc, new Date('2026-10-04T10:00:00.000Z')), '19:00');
+  assert.equal(formatWhen(noonUtc, new Date('2026-10-20T00:00:00.000Z')), '4 Oct 2026, 19:00');
 }
 
 async function testLogoutAndHelpers() {
@@ -390,6 +443,7 @@ async function main() {
   await testRateLimit();
   await testAuthzAndChatUntouched();
   await testListAndDetail();
+  await testDashboardPolish();
   await testLogoutAndHelpers();
   console.log('admin-dashboard: ok');
 }
