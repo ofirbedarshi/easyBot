@@ -669,8 +669,8 @@
       releaseSend() {
         send.classList.remove('pressed');
       },
-      scrollToBottom() {
-        scrollLog(true);
+      scrollToBottom(smooth = true) {
+        scrollLog(smooth !== false);
       },
       reset() {
         log.innerHTML = '';
@@ -692,6 +692,53 @@
     growComposer();
     syncSendAffordance();
 
+    function boxOf(el) {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    }
+
+    function publishLayout() {
+      const phone = document.querySelector('.phone');
+      const sendBox = boxOf(send);
+      const formBox = boxOf(form);
+      const inputBox = boxOf(input);
+      const phoneBox = boxOf(phone);
+      const logBox = boxOf(log);
+      const chips = [...log.querySelectorAll('.day-chip')].map((el) => ({
+        text: el.textContent,
+        ...boxOf(el),
+      }));
+      const strongs = [...log.querySelectorAll('.msg .body strong')].map((el) => el.textContent);
+      const layout = {
+        cue: demo.cue || '',
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+        phone: phoneBox,
+        form: formBox,
+        send: sendBox,
+        input: inputBox,
+        log: logBox,
+        inputHeight: inputBox.h,
+        inputValueLen: input.value.length,
+        sendHasText: send.classList.contains('has-text'),
+        subtitle: online.textContent,
+        chips,
+        strongs,
+        messageCount: log.querySelectorAll('.msg').length,
+        sendInsideForm:
+          sendBox.x >= formBox.x - 0.5 &&
+          sendBox.x + sendBox.w <= formBox.x + formBox.w + 0.5 &&
+          sendBox.y >= formBox.y - 0.5 &&
+          sendBox.y + sendBox.h <= formBox.y + formBox.h + 0.5,
+        sendInsidePhone:
+          sendBox.x >= phoneBox.x - 0.5 &&
+          sendBox.x + sendBox.w <= phoneBox.x + phoneBox.w + 0.5,
+      };
+      window.__easybotBoxes = layout;
+      document.documentElement.dataset.demoReady = '1';
+      document.documentElement.dataset.boxes = JSON.stringify(layout);
+      window.__easybotDemoReady = true;
+    }
+
     if (demo.name) {
       input.readOnly = true;
       startDemoPlayback({
@@ -700,6 +747,12 @@
         autostart: demo.autostart,
         cue: demo.cue,
         ui,
+      }).then(() => {
+        growComposer();
+        if (demo.cue && demo.cue !== 'idle' && demo.cue !== 'typing-long-owner') {
+          scrollLog(false);
+        }
+        publishLayout();
       });
     } else {
       start();

@@ -218,14 +218,16 @@ export function applyCue(script, cue, ui = emptyUi()) {
     if (ev.type === 'chip') {
       ui.addChip?.(ev.text);
     } else if (ev.type === 'incoming') {
-      ui.addMsg?.('assistant', ev.text, { instantRead: true });
+      ui.addMsg?.('assistant', ev.text, { instantRead: true, smooth: false });
     } else if (ev.type === 'outgoing') {
-      ui.addMsg?.('user', ev.text, { instantRead: true });
+      ui.addMsg?.('user', ev.text, { instantRead: true, smooth: false });
     }
     if (name === 'summary' && isSummaryEvent(ev)) {
+      ui.scrollToBottom?.(false);
       return { cue: name };
     }
   }
+  ui.scrollToBottom?.(false);
   return { cue: 'final' };
 }
 
