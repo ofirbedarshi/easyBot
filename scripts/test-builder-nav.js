@@ -11,7 +11,10 @@ import {
   handleMessage,
 } from '../src/session.js';
 import {
+  interveningBuilderQuestion,
   isMenuRequest,
+  isReviewNumberChoice,
+  lastShownNav,
   menuActive,
   menuItems,
   parseMenuChoice,
@@ -178,6 +181,136 @@ async function testFreeTextAfterSection() {
   assert.match(r.reply, /1\. Try my bot\n2\. Make changes/);
   assert.ok(!r.reply.includes(MENU_HEAD), r.reply);
   assert.doesNotMatch(withoutOptionsPrompt(r.reply), /\?/);
+}
+
+/** After a review, a customer-style answer does not clear 1 / 2 / Try my bot. */
+async function testReviewChoiceAfterInterveningAnswer() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: "A private lesson is 200 ILS.", draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  assert.equal(lastShownNav(session.buildHistory), 'review');
+  const q = await handleMessage(session, 'how much is a private lesson?');
+  assert.equal(q.event, 'build_turn');
+  assert.equal(session.mode, 'BUILD');
+  assert.equal(reviewActive(session.buildHistory), true);
+  assert.equal(interveningBuilderQuestion(session.buildHistory), false);
+  assert.equal(calls.builder, 2);
+
+  const tryIt = await handleMessage(session, '1');
+  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(calls.builder, 2, '1 must not reach the Builder after a non-question reply');
+}
+
+/** Same as above: option wording and 2 still follow the last shown review. */
+async function testReviewWordsAndMakeChangesAfterAnswer() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: "A private lesson is 200 ILS.", draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  await handleMessage(session, 'how much is a private lesson?');
+  const ch = await handleMessage(session, '2');
+  assert.equal(ch.event, 'menu');
+  assert.ok(ch.reply.includes('6. Try my bot'), ch.reply);
+  assert.equal(calls.builder, 2);
+}
+
+async function testTryMyBotWordsAfterAnswer() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: "A private lesson is 200 ILS.", draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  await handleMessage(session, 'how much is a private lesson?');
+  const tryIt = await handleMessage(session, 'Try my bot');
+  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(calls.builder, 2);
+}
+
+/** Correction ack with no question: last shown review still accepts 1. */
+async function testReviewChoiceAfterCorrectionAck() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: 'Got it, thanks!', draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  const ack = await handleMessage(session, 'the hours are already correct');
+  assert.equal(ack.event, 'build_turn');
+  assert.equal(reviewActive(session.buildHistory), true);
+  assert.equal(interveningBuilderQuestion(session.buildHistory), false);
+  const tryIt = await handleMessage(session, '1');
+  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(calls.builder, 2);
+}
+
+/** Intervening Builder question: bare 1/2 answer it; option wording still selects. */
+async function testNumberAfterInterveningQuestionGoesToBuilder() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: 'How many instructors work there?', draft: f, readyForReview: false },
+    { message: 'Noted one instructor.', draft: f, readyForReview: true },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  await handleMessage(session, 'staff size');
+  assert.equal(interveningBuilderQuestion(session.buildHistory), true);
+  const ans = await handleMessage(session, '1');
+  assert.equal(ans.event, 'build_turn');
+  assert.equal(session.mode, 'BUILD');
+  assert.equal(calls.builder, 3);
+  assert.match(ans.reply, /1\. Try my bot\n2\. Make changes/);
+}
+
+async function testTryMyBotWordsAfterInterveningQuestion() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: 'How many instructors work there?', draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  await handleMessage(session, 'staff size');
+  const tryIt = await handleMessage(session, 'Try my bot');
+  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(calls.builder, 2);
+}
+
+/** Re-presenting the same draft shows the summary with no model line in front. */
+async function testUnchangedReviewOmitsAck() {
+  clean();
+  const f = facts();
+  const { session } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: '**Studio Yoga** is a yoga studio in Tel Aviv.', draft: f, readyForReview: true },
+  ]);
+  await handleMessage(session, 'hi');
+  const first = await handleMessage(session, 'I run Studio Yoga');
+  assert.ok(first.reply.startsWith('Got it, thanks!\n\n'), first.reply);
+  const shown = await handleMessage(session, 'please show the current bot');
+  assert.equal(shown.readyForReview, true);
+  assert.ok(shown.reply.startsWith("Here's your bot for Studio Yoga:"), shown.reply);
+  assert.ok(!shown.reply.includes('**Studio Yoga**'), shown.reply);
+  assert.match(shown.reply, /1\. Try my bot\n2\. Make changes/);
 }
 
 /** Numbers without menu context go to the Builder (e.g. a price answer). */
@@ -443,6 +576,28 @@ async function testReviewRenderHelpers() {
   assert.equal(parseReviewChoice('2.'), 'change');
   assert.equal(parseReviewChoice('Make changes'), 'change');
   assert.equal(parseReviewChoice('3'), null);
+  assert.equal(isReviewNumberChoice('1'), true);
+  assert.equal(isReviewNumberChoice('2.'), true);
+  assert.equal(isReviewNumberChoice('Try my bot'), false);
+  assert.equal(
+    lastShownNav([
+      { role: 'assistant', content: 'review', nav: 'review' },
+      { role: 'user', content: 'q' },
+      { role: 'assistant', content: 'A private lesson is 200 ILS.' },
+    ]),
+    'review'
+  );
+  assert.equal(
+    interveningBuilderQuestion([{ role: 'assistant', content: 'How many instructors?' }]),
+    true
+  );
+  assert.equal(
+    interveningBuilderQuestion([
+      { role: 'assistant', content: 'review', nav: 'review' },
+      { role: 'assistant', content: 'Got it, thanks!' },
+    ]),
+    false
+  );
 }
 
 /** Menu numbering per state: lead item first only when shown; numbers map to what is rendered. */
@@ -480,6 +635,13 @@ async function main() {
   await test('typed_approve_is_builder_turn', testTypedApproveIsBuilderTurn);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
   await test('free_text_after_section', testFreeTextAfterSection);
+  await test('review_choice_after_intervening_answer', testReviewChoiceAfterInterveningAnswer);
+  await test('review_words_and_make_changes_after_answer', testReviewWordsAndMakeChangesAfterAnswer);
+  await test('try_my_bot_words_after_answer', testTryMyBotWordsAfterAnswer);
+  await test('review_choice_after_correction_ack', testReviewChoiceAfterCorrectionAck);
+  await test('number_after_intervening_question_goes_to_builder', testNumberAfterInterveningQuestionGoesToBuilder);
+  await test('try_my_bot_words_after_intervening_question', testTryMyBotWordsAfterInterveningQuestion);
+  await test('unchanged_review_omits_ack', testUnchangedReviewOmitsAck);
   await test('number_without_menu_context', testNumberWithoutMenuContext);
   await test('six_and_end', testSixAndEnd);
   await test('six_enters_test_when_approved', testSixEntersTestWhenApproved);

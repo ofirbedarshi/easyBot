@@ -25,6 +25,8 @@ import {
   parseMenuChoice,
   parseMenuItem,
   renderMenu,
+  interveningBuilderQuestion,
+  isReviewNumberChoice,
   parseReviewChoice,
   renderChangeMenu,
   renderReturnToEditing,
@@ -238,7 +240,9 @@ export async function handleMessage(session, text) {
 /**
  * Editing-menu navigation (BUILD only). Menu words require an approved bot.
  * A review offers two options: 1 "Try my bot" (approves a pending review, then
- * TEST) and 2 "Make changes" (full editing menu). From the editing menu, the
+ * TEST) and 2 "Make changes" (full editing menu). Those stay active while the
+ * last shown nav is still the review, except a bare number after an intervening
+ * Builder question (no nav) is an answer to that question. From the editing menu, the
  * section items are read-only (never save the profile) and the last item
  * behaves like "Try my bot". After approval, until a lead is submitted, item 1
  * is "Get this bot for my business" and the rest shift down by one.
@@ -247,18 +251,22 @@ export async function handleMessage(session, text) {
 async function handleNavigation(session, text) {
   if (reviewActive(session.buildHistory)) {
     const pick = parseReviewChoice(text);
-    if (pick === 'try') return tryMyBot(session, text);
-    if (pick === 'change') {
-      const reply = renderChangeMenu(leadMenuOpts(session, await loadAsync(session)));
-      session.buildHistory.push({ role: 'user', content: text });
-      session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
-      return {
-        ok: true,
-        reply,
-        source: 'app',
-        event: 'menu',
-        ...(await getStateAsync(session)),
-      };
+    const numberAnswersQuestion =
+      isReviewNumberChoice(text) && interveningBuilderQuestion(session.buildHistory);
+    if (pick && !numberAnswersQuestion) {
+      if (pick === 'try') return tryMyBot(session, text);
+      if (pick === 'change') {
+        const reply = renderChangeMenu(leadMenuOpts(session, await loadAsync(session)));
+        session.buildHistory.push({ role: 'user', content: text });
+        session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+        return {
+          ok: true,
+          reply,
+          source: 'app',
+          event: 'menu',
+          ...(await getStateAsync(session)),
+        };
+      }
     }
   }
 
@@ -522,6 +530,8 @@ async function handleBuild(session, userMessage) {
   }
 
   result = applyReviewGate(profile, result, userMessage);
+  const draftChanged =
+    draftReviewKey(profile, profile.draft) !== draftReviewKey(profile, result.draft);
   profile.draft = result.draft;
   profile.reviewedDraftKey = result.reviewedDraftKey;
   await saveAsync(session, profile);
@@ -529,7 +539,7 @@ async function handleBuild(session, userMessage) {
   let reply;
   let nav = null;
   if (result.presentReview) {
-    const ack = (result.message || '').trim();
+    const ack = draftChanged ? (result.message || '').trim() : '';
     reply = [ack, renderReview(profile)].filter(Boolean).join('\n\n');
     nav = 'review';
   } else {

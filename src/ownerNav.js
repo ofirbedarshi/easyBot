@@ -119,13 +119,31 @@ export function parseMenuItem(text, menuOpts) {
   return n == null ? null : items[n - 1];
 }
 
-/** True when the latest assistant Builder entry was a menu. */
-export function menuActive(buildHistory) {
+/** Latest assistant Builder entry, or null. */
+export function lastAssistant(buildHistory) {
   const list = Array.isArray(buildHistory) ? buildHistory : [];
   for (let i = list.length - 1; i >= 0; i -= 1) {
-    if (list[i]?.role === 'assistant') return list[i].nav === 'menu';
+    if (list[i]?.role === 'assistant') return list[i];
   }
-  return false;
+  return null;
+}
+
+/**
+ * Last navigation the app actually showed (`review`, `menu`, `section:N`).
+ * Intervening Builder replies have no `nav` and do not replace this.
+ */
+export function lastShownNav(buildHistory) {
+  const list = Array.isArray(buildHistory) ? buildHistory : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const m = list[i];
+    if (m?.role === 'assistant' && m.nav) return m.nav;
+  }
+  return null;
+}
+
+/** True when the latest assistant Builder entry was a menu. */
+export function menuActive(buildHistory) {
+  return lastAssistant(buildHistory)?.nav === 'menu';
 }
 
 /**
@@ -344,9 +362,11 @@ export function renderChangeMenu(menuOpts) {
 const REVIEW_TRY = new Set(['try my bot', 'try', 'try it']);
 const REVIEW_CHANGE = new Set(['make changes', 'change', 'changes']);
 
+const REVIEW_NUMBER = /^\s*([12])\s*[.)]?\s*$/;
+
 /** 1 / "Try my bot" → 'try'; 2 / "Make changes" → 'change'; else null. */
 export function parseReviewChoice(text) {
-  const m = /^\s*([12])\s*[.)]?\s*$/.exec(String(text || ''));
+  const m = REVIEW_NUMBER.exec(String(text || ''));
   if (m) return m[1] === '1' ? 'try' : 'change';
   const s = normalizeShort(text);
   if (REVIEW_TRY.has(s)) return 'try';
@@ -354,13 +374,24 @@ export function parseReviewChoice(text) {
   return null;
 }
 
-/** True when the latest assistant Builder entry was a review (two options). */
+/** Standalone 1 or 2 (optional trailing "." or ")"), matching the review options. */
+export function isReviewNumberChoice(text) {
+  return REVIEW_NUMBER.test(String(text || ''));
+}
+
+/**
+ * Latest assistant turn is a Builder question, not an app menu/review/section.
+ * A bare number after that is an answer, not a review option.
+ */
+export function interveningBuilderQuestion(buildHistory) {
+  const last = lastAssistant(buildHistory);
+  if (!last || last.nav) return false;
+  return String(last.content || '').includes('?');
+}
+
+/** True when the last navigation the app showed was the two-option review. */
 export function reviewActive(buildHistory) {
-  const list = Array.isArray(buildHistory) ? buildHistory : [];
-  for (let i = list.length - 1; i >= 0; i -= 1) {
-    if (list[i]?.role === 'assistant') return list[i].nav === 'review';
-  }
-  return false;
+  return lastShownNav(buildHistory) === 'review';
 }
 
 function sectionLines(section, p) {
