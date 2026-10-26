@@ -9,6 +9,8 @@ import {
   normalizeBehaviorSettings,
   normalizeCommonQuestions,
 } from '../profile.js';
+import { phoneE164FromSenderId } from '../phone.js';
+import { modeFromSessionPreview } from '../conversationLog.js';
 
 export function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -29,8 +31,16 @@ export function createSupabaseStore() {
     client: sb,
 
     async ensureSender(senderId) {
+      const phoneE164 = phoneE164FromSenderId(senderId);
+      if (!phoneE164) {
+        throw new Error('ensureSender: invalid sender phone');
+      }
       const { error } = await sb.from('easybot_senders').upsert(
-        { id: senderId, updated_at: new Date().toISOString() },
+        {
+          id: senderId,
+          phone_e164: phoneE164,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'id' }
       );
       if (error) throw new Error(`ensureSender: ${error.message}`);
@@ -160,6 +170,81 @@ export function createSupabaseStore() {
       if (error && error.code !== '23505') throw new Error(`saveLead: ${error.message}`);
     },
 
+    async appendMessage({
+      senderId,
+      direction,
+      body,
+      twilioMessageSid,
+      mode,
+      inReplyToSid,
+    }) {
+      await this.ensureSender(senderId);
+      const { data, error } = await sb
+        .from('easybot_messages')
+        .insert({
+          sender_id: senderId,
+          direction,
+          body: body ?? '',
+          twilio_message_sid: twilioMessageSid ?? null,
+          mode,
+          in_reply_to_sid: inReplyToSid ?? null,
+        })
+        .select('*')
+        .single();
+      if (error) {
+        if (error.code === '23505' && twilioMessageSid) {
+          const { data: existing } = await sb
+            .from('easybot_messages')
+            .select('*')
+            .eq('twilio_message_sid', twilioMessageSid)
+            .single();
+          return { inserted: false, row: existing };
+        }
+        throw new Error(`appendMessage: ${error.message}`);
+      }
+      return { inserted: true, row: data };
+    },
+
+    async updateMessageModeBySid(twilioMessageSid, mode) {
+      if (!twilioMessageSid) return;
+      const { error } = await sb
+        .from('easybot_messages')
+        .update({ mode })
+        .eq('twilio_message_sid', twilioMessageSid);
+      if (error) throw new Error(`updateMessageModeBySid: ${error.message}`);
+    },
+
+    async setMessageSid(id, twilioMessageSid) {
+      const { error } = await sb
+        .from('easybot_messages')
+        .update({ twilio_message_sid: twilioMessageSid ?? null })
+        .eq('id', id);
+      if (error) throw new Error(`setMessageSid: ${error.message}`);
+    },
+
+    async findOutboundForInbound(inboundSid) {
+      const { data, error } = await sb
+        .from('easybot_messages')
+        .select('*')
+        .eq('direction', 'outbound')
+        .eq('in_reply_to_sid', inboundSid)
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(`findOutboundForInbound: ${error.message}`);
+      return data || null;
+    },
+
+    async listMessages(senderId) {
+      const { data, error } = await sb
+        .from('easybot_messages')
+        .select('*')
+        .eq('sender_id', senderId)
+        .order('id', { ascending: true });
+      if (error) throw new Error(`listMessages: ${error.message}`);
+      return data || [];
+    },
+
     async enqueueInbound({ messageSid, senderId, body }) {
       await this.ensureSender(senderId);
       const { data, error } = await sb
@@ -180,10 +265,26 @@ export function createSupabaseStore() {
             .select('*')
             .eq('message_sid', messageSid)
             .single();
+          const session = await this.loadSession(senderId);
+          await this.appendMessage({
+            senderId,
+            direction: 'inbound',
+            body: existing?.body ?? body ?? '',
+            twilioMessageSid: messageSid,
+            mode: modeFromSessionPreview(session),
+          });
           return { inserted: false, row: existing };
         }
         throw new Error(`enqueueInbound: ${error.message}`);
       }
+      const session = await this.loadSession(senderId);
+      await this.appendMessage({
+        senderId,
+        direction: 'inbound',
+        body: body ?? '',
+        twilioMessageSid: messageSid,
+        mode: modeFromSessionPreview(session),
+      });
       return { inserted: true, row: data };
     },
 
