@@ -1015,7 +1015,7 @@ async function testIdentityApprovePropagates() {
   const sys = buildCustomerSystemPrompt(diskLive);
   assert.match(sys, /Assistant name: Maya\./);
   assert.doesNotMatch(sys, /Use the opening ONLY/);
-  assert.equal(customerOpeningText(liveMock.approvals[0]), MAYA_OPENING);
+  assert.equal(customerOpeningText(diskLive), MAYA_OPENING);
   assert.match(sys, /on request only/i);
   const disk = loadProfile(PROFILE);
   assert.equal(disk.assistantName, 'Maya');
