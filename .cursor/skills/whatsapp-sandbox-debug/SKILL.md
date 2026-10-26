@@ -22,7 +22,7 @@ WhatsApp → Twilio → POST /webhooks/twilio/whatsapp (easybot-app)
   → inbound worker claims row → handleMessage (Builder or Business Bot)
   → sendWhatsAppReply (Messages API)
 
-Approve → live at once (no sync step). /test → Business Bot = one OpenAI
+Builder saves live at once (no pending/approval). /test → Business Bot = one OpenAI
 chat completion per message with the last 20 messages of test_history.
 ```
 
@@ -79,7 +79,7 @@ for (const r of data) console.log(JSON.stringify({ t:r.created_at, status:r.stat
 EOF
 ```
 
-Also load `easybot_sessions` (`build_history`, `test_history`, `mode`) and `easybot_business_profiles.profile` (`approvedAt`, `draft`, `reviewedDraftKey`).
+Also load `easybot_sessions` (`build_history`, `test_history`, `mode`) and `easybot_business_profiles.profile` (`approvedAt`, `draft`).
 
 Inbound columns: `id, message_sid, sender_id, body, status, error, reply_sid, reply_body, created_at, claimed_at, finished_at` — no `updated_at` / `processed_at`.
 
@@ -96,9 +96,9 @@ Useful filters: `--text "Business Bot"`, `--text inbound`, `--text Twilio`, `--p
 
 | User-visible / reply pattern | Likely cause | Next check |
 |---|---|---|
-| `Bot updated ✅` (+ editing menu after **approve**; TEST line after Try my bot) | Approval saved; bot live | Profile `approvedAt` |
+| `Saved! Here's what changed:` | Draft applied to live on that turn | Profile live fields |
 | `Business Bot error: no reply could be generated…` | OpenAI call failed in TEST | App logs `Business Bot reply failed:` (status only); `OPENAI_API_KEY` / `OPENAI_MODEL` |
-| `Nothing approved yet…` on `/test` | No `approvedAt` | Finish review + **approve** |
+| `Add a business name and what you do…` on `/test` | Missing name + offering | `hasEnoughForFirstBot` |
 | `Builder error: … maximum context length` | Bloated `build_history` | Truncate history or `/reset` |
 | `Twilio signature rejected` / no reply at all | Bad token or `PUBLIC_BASE_URL` mismatch | App logs; Twilio webhook URL vs health `publicBaseUrl` |
 | `Sorry, something went wrong…` | Worker threw; row `status=failed` | `error` column + app logs for that `message_sid` |
@@ -107,7 +107,7 @@ Useful filters: `--text "Business Bot"`, `--text inbound`, `--text Twilio`, `--p
 ### 5. After fix
 
 1. If history is poisoned: `/reset` or shorten the oversized turn in `easybot_sessions`.
-2. `approvedAt` set before `/test`.
+2. `/test` needs name + offering (`hasEnoughForFirstBot`).
 
 ## Do not
 

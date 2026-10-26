@@ -178,7 +178,6 @@ async function runInterview(scenario, model) {
     spent += costOf(model, raw.usage);
     const turn = applyReviewGate(profile, raw, userMessage);
     profile.draft = turn.draft;
-    if (turn.reviewedDraftKey) profile.reviewedDraftKey = turn.reviewedDraftKey;
     buildHistory.push({ role: 'user', content: userMessage });
     buildHistory.push({ role: 'assistant', content: turn.message });
     turns.push({

@@ -1,6 +1,5 @@
 import {
   assistantIdentityView,
-  draftDiffersFromLive,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
@@ -13,9 +12,9 @@ import {
 import { LEAD_MENU_LABEL } from './leadIntake.js';
 
 /**
- * App-rendered owner navigation: editing menu, section views, review summary,
- * and sync / return-to-editing messages. Templates only (no LLM).
- * Navigation never modifies the profile, draft, or review state.
+ * App-rendered owner navigation: editing menu, section views, save card,
+ * and return-to-editing messages. Templates only (no LLM).
+ * Navigation never modifies the profile or draft.
  */
 
 const STRINGS = {
@@ -27,14 +26,10 @@ const STRINGS = {
   ],
   sections: ['Business info', 'Q&A', 'How the bot talks'],
   menuFooter: 'Pick a number or just write what you want to change.',
-  synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
-  syncedShort: 'Bot updated ✅',
   returned: 'Back in editing mode. What would you like to do?',
   setupContinue: "We're still in first-time setup. Tell me more about your business.",
   ask: 'What would you like to change?',
   current: 'Current:',
-  live: 'Live now:',
-  pending: 'Pending change (not live until you approve):',
   was: 'was',
   notSet: '(not set)',
   none: '(none)',
@@ -159,16 +154,7 @@ export function renderMenu(menuOpts) {
   ].join('\n');
 }
 
-export function renderSyncSuccess(menuOpts) {
-  return `${STRINGS.synced}\n\n${renderMenu(menuOpts)}`;
-}
-
-/** Short "Bot updated ✅" line (used before entering TEST after the Try my bot menu item). */
-export function renderSyncedShort() {
-  return STRINGS.syncedShort;
-}
-
-/** /end before anything is approved: no editing menu during first-time setup. */
+/** /end before the bot is ready: no editing menu during first-time setup. */
 export function renderSetupContinue() {
   return STRINGS.setupContinue;
 }
@@ -209,7 +195,7 @@ const REVIEW = {
   pricesOnRequest: 'prices only when asked',
   pricesRelevant: 'prices when relevant',
   customOpening: 'custom opening',
-  changesIntro: "Here's what will change:",
+  changesIntro: "Saved! Here's what changed:",
   was: (v) => `(was: ${v})`,
   updated: '(updated)',
   optionsPrompt: 'What would you like to do next?',
@@ -325,24 +311,29 @@ export function renderReviewOptions() {
 }
 
 /**
- * Owner-facing review: short `Label: value` summary in the same field order
- * (gaps shown), then two options. When already approved and the draft differs
- * from live, shows only the changed lines with their previous value.
+ * Save confirmation: changed lines with previous values, then next-step options.
+ */
+export function renderSavedChanges(before, after) {
+  const R = REVIEW;
+  return [
+    [R.changesIntro, '', ...changeLines(before, after)].join('\n'),
+    renderReviewOptions(),
+  ].join('\n\n');
+}
+
+/**
+ * Owner-facing current-bot card: short `Label: value` summary, then two options.
  */
 export function renderReview(profile) {
   const R = REVIEW;
   const draft = profile?.draft;
-  const merged = draft ? mergeDraft(profile, draft) : profile || {};
-  const parts = [];
-  if (profile?.approvedAt && draft && draftDiffersFromLive(profile, draft)) {
-    parts.push([R.changesIntro, '', ...changeLines(profile, merged)].join('\n'));
-  } else {
-    const name = textOrNull(merged.name);
-    parts.push(name ? R.intro(name) : R.introNoName);
-    parts.push(summaryLines(merged).map((l) => `${l.label}: ${l.value}`).join('\n'));
-  }
-  parts.push(renderReviewOptions());
-  return parts.join('\n\n');
+  const view = draft ? mergeDraft(profile, draft) : profile || {};
+  const name = textOrNull(view.name);
+  return [
+    name ? R.intro(name) : R.introNoName,
+    summaryLines(view).map((l) => `${l.label}: ${l.value}`).join('\n'),
+    renderReviewOptions(),
+  ].join('\n\n');
 }
 
 /** "Make changes" reply: ask, then the full editing menu. */
@@ -449,30 +440,10 @@ function sectionLines(section, p) {
 }
 
 /**
- * Section view (1–3). Before first approval, shows the merged draft. After
- * approval, shows live values; when an unapproved draft changes this section,
- * shows live and pending separately.
+ * Section view (1–3). Shows the current values (merged draft = live after save).
  */
 export function renderSection(section, profile) {
   const s = STRINGS;
   const title = s.sections[section - 1];
-  const draft = profile?.draft;
-  if (!profile?.approvedAt) {
-    const view = draft ? mergeDraft(profile, draft) : profile;
-    return [title, s.current, ...sectionLines(section, view), '', s.ask].join('\n');
-  }
-  const live = sectionLines(section, profile);
-  let pending = null;
-  if (draft && draftDiffersFromLive(profile, draft)) {
-    const p = sectionLines(section, mergeDraft(profile, draft));
-    if (p.join('\n') !== live.join('\n')) pending = p;
-  }
-  const parts = [title];
-  if (pending) {
-    parts.push(s.live, ...live, '', s.pending, ...pending);
-  } else {
-    parts.push(s.current, ...live);
-  }
-  parts.push('', s.ask);
-  return parts.join('\n');
+  return [title, s.current, ...sectionLines(section, profile), '', s.ask].join('\n');
 }

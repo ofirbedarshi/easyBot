@@ -4,7 +4,6 @@ import {
   PRICE_DISCLOSURE_LABELS,
   RESPONSE_LENGTH_LABELS,
   assistantIdentityView,
-  draftDiffersFromLive,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
@@ -734,15 +733,6 @@ function profileFactsHtml(profile) {
 
 function profileCardHtml(profile) {
   const draft = profile?.draft;
-  if (profile?.approvedAt && draft && draftDiffersFromLive(profile, draft)) {
-    const pending = mergeDraft(profile, draft);
-    return `<div class="profile-split">
-      <p class="profile-banner">Live approved</p>
-      ${profileFactsHtml(profile)}
-      <p class="profile-banner pending">Pending approval</p>
-      ${profileFactsHtml(pending)}
-    </div>`;
-  }
   const view = draft ? mergeDraft(profile, draft) : profile;
   return profileFactsHtml(view);
 }

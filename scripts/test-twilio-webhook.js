@@ -267,17 +267,14 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   assert.equal(pb.name, 'Sender B Biz');
   ok('two senders keep isolated profiles and modes');
 
-  // /test blocked without approval
-  await store.saveProfile(a, {
-    ...pa,
-    approvedAt: null,
-  });
+  // /test blocked until name + offering
+  await store.saveProfile(a, emptyProfile());
   const sa2 = await createSenderSession(store, a);
   sa2.mode = 'BUILD';
   const blocked = await handleMessage(sa2, '/test');
   assert.equal(blocked.ok, false);
-  assert.ok(/not live|Try my bot/i.test(blocked.reply));
-  ok('/test blocked when nothing is approved');
+  assert.match(blocked.reply, /business name and what you do/);
+  ok('/test blocked until name and offering are set');
 }
 
 // --- Builder/test commands through webhook (MOCKED; no OpenAI network) ---

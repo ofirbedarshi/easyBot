@@ -13,7 +13,6 @@ import fs from 'fs';
 import { attachCostTracker } from './lib/modelCost.js';
 import { createSession, handleMessage } from '../src/session.js';
 import {
-  draftReviewKey,
   emptyProfile,
   saveProfile,
   loadProfile,
@@ -60,10 +59,11 @@ function draft() {
 
 function seededProfile() {
   const d = draft();
-  const base = { ...emptyProfile(), draft: d };
   return {
-    ...base,
-    reviewedDraftKey: draftReviewKey(base, d),
+    ...emptyProfile(),
+    ...d,
+    approvedAt: '2026-01-01T00:00:00.000Z',
+    draft: d,
   };
 }
 

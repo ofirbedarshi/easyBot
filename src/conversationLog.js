@@ -19,7 +19,6 @@ const EVENT_MODE = {
   enter_test: 'command',
   enter_build: 'command',
   reset: 'command',
-  approved_enter_test: 'command',
   menu: 'menu',
   menu_section: 'menu',
   lead_question: 'lead',
