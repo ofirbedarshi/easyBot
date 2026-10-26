@@ -166,6 +166,7 @@ ownerEdits: every already-stored value in services, commonQuestions, name, whatW
 factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
 configRequests, askingTopic, goalSupported, goalUnsupportedPart, readyForReview: as specified above. Arrays empty if none.
+asksQuestion: true only when this reply asks the owner a question they are expected to answer.
 commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
 informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
 ownerGoal is one of the supported values, or null until the owner answers; never invent it.
@@ -722,6 +723,7 @@ export async function runBuilderTurn({
       draft: currentDraft,
       newFacts: [],
       readyForReview: false,
+      asksQuestion: false,
     };
   }
 
@@ -736,6 +738,7 @@ export async function runBuilderTurn({
   );
 
   const readyForReview = !!parsed.readyForReview && !unresolved.length;
+  const asksQuestion = parsed.asksQuestion === true;
 
   const message = parsed.message || 'Tell me a bit more about your business.';
 
@@ -743,6 +746,7 @@ export async function runBuilderTurn({
     message,
     draft,
     readyForReview,
+    asksQuestion,
     configRequests: normalizeConfigRequests(parsed.configRequests),
     askingTopic: typeof parsed.askingTopic === 'string' ? parsed.askingTopic : null,
     goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
@@ -865,6 +869,7 @@ function gateTurn(profile, turn) {
       },
       readyForReview: false,
       presentReview: false,
+      asksQuestion: true,
       message: withSingleQuestion(lead, askTopic.question),
       reviewedDraftKey: null,
     };
@@ -885,6 +890,7 @@ function gateTurn(profile, turn) {
       draft,
       readyForReview: true,
       presentReview: true,
+      asksQuestion: false,
       message: reviewAck(turn.message),
       reviewedDraftKey: key,
     };
@@ -894,6 +900,7 @@ function gateTurn(profile, turn) {
     draft,
     readyForReview,
     presentReview: false,
+    asksQuestion: !!turn.asksQuestion,
     reviewedDraftKey: reviewCurrent ? key : null,
   };
 }

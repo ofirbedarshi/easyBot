@@ -15,7 +15,13 @@ import {
   saveProfile,
   testProfilePath,
 } from '../src/profile.js';
-import { lastShownNav, renderReview, reviewActive } from '../src/ownerNav.js';
+import {
+  interveningBuilderQuestion,
+  lastAssistant,
+  lastShownNav,
+  renderReview,
+  reviewActive,
+} from '../src/ownerNav.js';
 
 process.env.OPENAI_BUILDER_MODEL = process.env.OPENAI_BUILDER_MODEL || 'gpt-6-luna';
 
@@ -90,6 +96,19 @@ function line(role, text) {
   return `[${role}] ${clipped}`;
 }
 
+function flagLine(session, extra) {
+  const last = lastAssistant(session.buildHistory);
+  return [
+    `reviewActive=${reviewActive(session.buildHistory)}`,
+    `lastNav=${lastShownNav(session.buildHistory)}`,
+    `asksQuestion=${last?.asksQuestion === true}`,
+    `intervening=${interveningBuilderQuestion(session.buildHistory)}`,
+    extra,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 async function main() {
   if (!process.env.OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY missing');
@@ -97,29 +116,55 @@ async function main() {
   }
 
   const transcript = [];
-  const { session, profile } = seedSession();
+  const results = [];
+
   transcript.push(`model=${MODEL}`);
-  transcript.push(`reviewActive=${reviewActive(session.buildHistory)} lastNav=${lastShownNav(session.buildHistory)}`);
-  transcript.push(`reviewPending=${reviewPending(profile)}`);
-  transcript.push(line('APP', session.buildHistory.at(-1).content));
 
-  const q = 'how much is a womens haircut?';
-  transcript.push(line('OWNER', q));
-  const mid = await handleMessage(session, q);
-  transcript.push(`event=${mid.event} source=${mid.source} mode=${session.mode} reviewActive=${reviewActive(session.buildHistory)}`);
+  // Case A: customer-style answer / courtesy closer must not block 1.
+  const courtesy = seedSession();
+  transcript.push('');
+  transcript.push('--- courtesy / answer (must not block 1) ---');
+  transcript.push(flagLine(courtesy.session, `reviewPending=${reviewPending(courtesy.profile)}`));
+  transcript.push(line('APP', courtesy.session.buildHistory.at(-1).content));
+  const priceQ = 'how much is a womens haircut?';
+  transcript.push(line('OWNER', priceQ));
+  const mid = await handleMessage(courtesy.session, priceQ);
+  transcript.push(`event=${mid.event} source=${mid.source} mode=${courtesy.session.mode} ${flagLine(courtesy.session)}`);
   transcript.push(line('APP', mid.reply));
-
-  const one = await handleMessage(session, '1');
+  const oneA = await handleMessage(courtesy.session, '1');
   transcript.push(line('OWNER', '1'));
-  transcript.push(`event=${one.event} source=${one.source} mode=${session.mode} approved=${!!one.approved}`);
-  transcript.push(line('APP', one.reply));
+  transcript.push(`event=${oneA.event} source=${oneA.source} mode=${courtesy.session.mode} approved=${!!oneA.approved}`);
+  transcript.push(line('APP', oneA.reply));
+  const okCourtesy =
+    oneA.event === 'approved_enter_test' &&
+    courtesy.session.mode === 'TEST' &&
+    /TEST mode/.test(oneA.reply);
+  results.push(okCourtesy ? 'PASS courtesy/answer then 1 entered TEST' : 'FAIL courtesy/answer then 1 did not enter TEST');
 
-  const okTry =
-    one.event === 'approved_enter_test' &&
-    session.mode === 'TEST' &&
-    /TEST mode/.test(one.reply);
+  // Case B: a real interview question, then 1 is the answer.
+  const question = seedSession();
+  transcript.push('');
+  transcript.push('--- real question (1 must be the answer) ---');
+  const staffQ =
+    'I have not given you our stylist count. Ask me how many stylists we have before you store anything about staffing — I will answer with a number next.';
+  transcript.push(line('OWNER', staffQ));
+  const asked = await handleMessage(question.session, staffQ);
+  transcript.push(`event=${asked.event} source=${asked.source} mode=${question.session.mode} ${flagLine(question.session)}`);
+  transcript.push(line('APP', asked.reply));
+  const questionFlag = lastAssistant(question.session.buildHistory)?.asksQuestion === true;
+  const oneB = await handleMessage(question.session, '1');
+  transcript.push(line('OWNER', '1'));
+  transcript.push(`event=${oneB.event} source=${oneB.source} mode=${question.session.mode} approved=${!!oneB.approved}`);
+  transcript.push(line('APP', oneB.reply));
+  const okQuestionTurn =
+    questionFlag && oneB.event === 'build_turn' && question.session.mode === 'BUILD' && !oneB.approved;
+  results.push(
+    okQuestionTurn
+      ? 'PASS real question then 1 stayed in BUILD (answer, not Try my bot)'
+      : `FAIL real question then 1 event=${oneB.event} mode=${question.session.mode} asksQuestion=${questionFlag}`
+  );
 
-  // Second session: re-present the same draft; ack must not be prepended.
+  // Same-draft re-present: no prepended ack.
   const second = seedSession();
   const show = 'please show the current bot';
   transcript.push('');
@@ -128,22 +173,20 @@ async function main() {
   const shown = await handleMessage(second.session, show);
   transcript.push(`event=${shown.event} readyForReview=${shown.readyForReview} presentStarts=${JSON.stringify(String(shown.reply || '').slice(0, 80))}`);
   transcript.push(line('APP', shown.reply));
-  const cleanSummary =
-    shown.readyForReview === true &&
-    String(shown.reply || '').startsWith("Here's your bot for Scissors and Sage Salon:");
+  if (shown.readyForReview) {
+    const clean = String(shown.reply || '').startsWith("Here's your bot for Scissors and Sage Salon:");
+    results.push(clean ? 'PASS same-draft review has no prepended ack' : 'FAIL same-draft review prepended extra text');
+  } else {
+    results.push('SKIP same-draft review (model did not present a review)');
+  }
 
   const text = transcript.join('\n');
   console.log(text);
   console.log('');
-  console.log(okTry ? 'PASS 1 after intervening turn entered Try my bot / TEST' : 'FAIL 1 did not enter TEST');
-  if (shown.readyForReview) {
-    console.log(cleanSummary ? 'PASS same-draft review has no prepended ack' : 'FAIL same-draft review prepended extra text');
-  } else {
-    console.log('SKIP same-draft review (model did not present a review)');
-  }
+  for (const r of results) console.log(r);
 
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
-  if (!okTry) process.exit(1);
+  if (!okCourtesy || !okQuestionTurn) process.exit(1);
 }
 
 main().catch((err) => {

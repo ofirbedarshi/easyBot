@@ -242,7 +242,8 @@ export async function handleMessage(session, text) {
  * A review offers two options: 1 "Try my bot" (approves a pending review, then
  * TEST) and 2 "Make changes" (full editing menu). Those stay active while the
  * last shown nav is still the review, except a bare number after an intervening
- * Builder question (no nav) is an answer to that question. From the editing menu, the
+ * Builder question (`asksQuestion` on that turn, no nav) is an answer to that
+ * question. From the editing menu, the
  * section items are read-only (never save the profile) and the last item
  * behaves like "Try my bot". After approval, until a lead is submitted, item 1
  * is "Get this bot for my business" and the rest shift down by one.
@@ -546,11 +547,12 @@ async function handleBuild(session, userMessage) {
     reply = result.message;
   }
 
-  session.buildHistory.push(
-    nav
-      ? { role: 'assistant', content: reply, nav }
-      : { role: 'assistant', content: reply }
-  );
+  session.buildHistory.push({
+    role: 'assistant',
+    content: reply,
+    ...(nav ? { nav } : {}),
+    asksQuestion: !nav && !!result.asksQuestion,
+  });
 
   return {
     ok: true,

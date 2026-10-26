@@ -20,6 +20,7 @@ const svc = (name, price, notes = null) => ({ name, price, notes });
 
 test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('newFacts'));
+  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('asksQuestion'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));

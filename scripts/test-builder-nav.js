@@ -259,13 +259,32 @@ async function testReviewChoiceAfterCorrectionAck() {
   assert.equal(calls.builder, 2);
 }
 
+/** Courtesy closer with a ? still lets 1 enter Try my bot unless asksQuestion. */
+async function testCourtesyCloserDoesNotBlockReviewNumber() {
+  clean();
+  const f = facts();
+  const { session, calls } = makeSession([
+    { message: 'Got it, thanks!', draft: f, readyForReview: true },
+    { message: "A private lesson is 200 ILS. Anything else?", draft: f, readyForReview: false },
+  ]);
+  await handleMessage(session, 'hi');
+  await handleMessage(session, 'I run Studio Yoga');
+  const q = await handleMessage(session, 'how much is a private lesson?');
+  assert.equal(q.event, 'build_turn');
+  assert.equal(interveningBuilderQuestion(session.buildHistory), false);
+  const tryIt = await handleMessage(session, '1');
+  assert.equal(tryIt.event, 'approved_enter_test');
+  assert.equal(session.mode, 'TEST');
+  assert.equal(calls.builder, 2);
+}
+
 /** Intervening Builder question: bare 1/2 answer it; option wording still selects. */
 async function testNumberAfterInterveningQuestionGoesToBuilder() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
     { message: 'Got it, thanks!', draft: f, readyForReview: true },
-    { message: 'How many instructors work there?', draft: f, readyForReview: false },
+    { message: 'How many instructors work there?', draft: f, readyForReview: false, asksQuestion: true },
     { message: 'Noted one instructor.', draft: f, readyForReview: true },
   ]);
   await handleMessage(session, 'hi');
@@ -284,7 +303,7 @@ async function testTryMyBotWordsAfterInterveningQuestion() {
   const f = facts();
   const { session, calls } = makeSession([
     { message: 'Got it, thanks!', draft: f, readyForReview: true },
-    { message: 'How many instructors work there?', draft: f, readyForReview: false },
+    { message: 'How many instructors work there?', draft: f, readyForReview: false, asksQuestion: true },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
@@ -588,8 +607,16 @@ async function testReviewRenderHelpers() {
     'review'
   );
   assert.equal(
-    interveningBuilderQuestion([{ role: 'assistant', content: 'How many instructors?' }]),
+    interveningBuilderQuestion([
+      { role: 'assistant', content: 'How many stylists do you have?', asksQuestion: true },
+    ]),
     true
+  );
+  assert.equal(
+    interveningBuilderQuestion([
+      { role: 'assistant', content: "A women's cut is $45. Anything else?" },
+    ]),
+    false
   );
   assert.equal(
     interveningBuilderQuestion([
@@ -639,6 +666,7 @@ async function main() {
   await test('review_words_and_make_changes_after_answer', testReviewWordsAndMakeChangesAfterAnswer);
   await test('try_my_bot_words_after_answer', testTryMyBotWordsAfterAnswer);
   await test('review_choice_after_correction_ack', testReviewChoiceAfterCorrectionAck);
+  await test('courtesy_closer_does_not_block_review_number', testCourtesyCloserDoesNotBlockReviewNumber);
   await test('number_after_intervening_question_goes_to_builder', testNumberAfterInterveningQuestionGoesToBuilder);
   await test('try_my_bot_words_after_intervening_question', testTryMyBotWordsAfterInterveningQuestion);
   await test('unchanged_review_omits_ack', testUnchangedReviewOmitsAck);

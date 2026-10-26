@@ -380,13 +380,14 @@ export function isReviewNumberChoice(text) {
 }
 
 /**
- * Latest assistant turn is a Builder question, not an app menu/review/section.
+ * Latest assistant turn is a Builder question the owner is expected to answer
+ * (`asksQuestion` on the history entry), not an app menu/review/section.
  * A bare number after that is an answer, not a review option.
  */
 export function interveningBuilderQuestion(buildHistory) {
   const last = lastAssistant(buildHistory);
   if (!last || last.nav) return false;
-  return String(last.content || '').includes('?');
+  return last.asksQuestion === true;
 }
 
 /** True when the last navigation the app showed was the two-option review. */
