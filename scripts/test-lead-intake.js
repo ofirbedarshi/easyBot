@@ -130,7 +130,7 @@ assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 // One-time: after submission the lead item is hidden and 1 is the first edit item
 res = await send('1');
 assert.equal(res.event, 'menu_section');
-assert.ok(res.reply.startsWith('Business\nCurrent:'), res.reply);
+assert.ok(res.reply.startsWith('Business info\nCurrent:'), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
 
 // Not offered before first approval: 7 falls through to the Builder
