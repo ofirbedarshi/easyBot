@@ -261,18 +261,23 @@ async function handleNavigation(session, text) {
 
   const wantsMenu = isMenuRequest(text);
   const numbered = menuActive(session.buildHistory) && parseMenuChoice(text, 9) != null;
-  if (!wantsMenu && !numbered) return null;
+  // Label on the last menu item — not a bare 1/2, which still means those menu numbers.
+  const tryWords =
+    menuActive(session.buildHistory) &&
+    parseReviewChoice(text) === 'try' &&
+    !isReviewNumberChoice(text);
+  if (!wantsMenu && !numbered && !tryWords) return null;
   const profile = await loadAsync(session);
   // Same visibility rule as every rendered menu, so numbers match what was shown.
   const choice = numbered ? parseMenuItem(text, leadMenuOpts(session, profile)) : null;
-  if (!wantsMenu && choice == null) return null;
+  if (!wantsMenu && choice == null && !tryWords) return null;
 
   // Menu words only after the bot is ready; numbers work from a save card too.
   if (wantsMenu && !profile.approvedAt) return null;
-  if (!profile.approvedAt && choice == null) return null;
+  if (!profile.approvedAt && choice == null && !tryWords) return null;
 
   if (choice === 'lead') return beginLeadIntake(session);
-  if (choice === 'try') return tryMyBot(session, text, profile);
+  if (tryWords || choice === 'try') return tryMyBot(session);
 
   const reply = wantsMenu
     ? renderMenu(leadMenuOpts(session, profile))

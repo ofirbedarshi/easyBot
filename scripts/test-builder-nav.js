@@ -231,7 +231,8 @@ async function testTryMyBotWordsAfterAnswer() {
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
   await handleMessage(session, 'how much is a private lesson?');
-  const tryIt = await handleMessage(session, '5');
+  assert.equal(menuActive(session.buildHistory), true);
+  const tryIt = await handleMessage(session, 'Try my bot');
   assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   assert.equal(calls.builder, 2);
