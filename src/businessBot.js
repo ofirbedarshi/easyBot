@@ -1,5 +1,6 @@
 import { getClient } from './builder.js';
 import { buildCustomerSystemPrompt } from './customerPrompt.js';
+import { formatModelReply } from './formatReply.js';
 import {
   generateWithIdenticalRetry,
   lastOutgoingMessage,
@@ -68,7 +69,7 @@ export async function businessBotReply({ profile, history, question, client }) {
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: retryNote ? messagesWithRetryNote(messages, retryNote) : messages,
     });
-    return (completion.choices?.[0]?.message?.content || '').trim();
+    return formatModelReply(completion.choices?.[0]?.message?.content || '');
   };
   const reply = await generateWithIdenticalRetry({
     generate: completeOnce,

@@ -241,6 +241,40 @@ test('Builder non-identical reply is a single completion', async () => {
   assert.equal(turn.message, 'Amen — I love that name. What do you serve?');
 });
 
+test('Business Bot treats || vs blank-line as the same formatted reply', async () => {
+  resetChatCompletionShapeCache();
+  const formatted = 'A cut is 100 shekel.\n\nAnything else I can help with?';
+  const marked = 'A cut is 100 shekel. || Anything else I can help with?';
+  const client = queueClient([marked, 'A cut is 100 shekel. Saturday is open.']);
+  const reply = await businessBotReply({
+    profile: { ...emptyProfile(), name: 'Amen', whatWeDo: 'Coffee' },
+    history: [{ role: 'assistant', content: formatted }],
+    question: 'Saturday?',
+    client,
+  });
+  assert.equal(client.requests.length, 2);
+  assert.equal(reply, 'A cut is 100 shekel. Saturday is open.');
+});
+
+test('Builder treats || vs blank-line as the same formatted reply', async () => {
+  resetBuilderChatParamCache();
+  const formatted = 'A coffee shop sounds lovely ✨\n\nWhat is the name?';
+  const marked = 'A coffee shop sounds lovely ✨ || What is the name?';
+  const client = queueClient([
+    builderPayload(marked),
+    builderPayload('Amen — I love that name. What do you serve?'),
+  ]);
+  const turn = await runBuilderTurn({
+    buildHistory: [{ role: 'assistant', content: formatted }],
+    profile: emptyProfile(),
+    userMessage: 'Amen',
+    client,
+    consistencyComplete: async () => ({}),
+  });
+  assert.equal(client.requests.length, 2);
+  assert.equal(turn.message, 'Amen — I love that name. What do you serve?');
+});
+
 test('Builder still-identical reply is sent after one retry', async () => {
   resetBuilderChatParamCache();
   const client = queueClient([

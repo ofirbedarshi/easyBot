@@ -29,6 +29,7 @@ import {
 } from './builderTopics.js';
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
+import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
 import {
   generateWithIdenticalRetry,
   lastOutgoingMessage,
@@ -178,7 +179,10 @@ asksQuestion: true only when this reply asks a question the owner should answer.
 commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
 informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
 ownerGoal is one of the supported values, or null until the owner answers; never invent it.
-responseLength and priceDisclosure are an allowed enum value or null.`;
+responseLength and priceDisclosure are an allowed enum value or null.
+${PARAGRAPH_PROMPT_LINE}`;
+
+export { SYSTEM as BUILDER_SYSTEM };
 
 export function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -1079,7 +1083,9 @@ export async function runBuilderTurn({
   };
 
   const sentText = (parsed) =>
-    parsed?.onPurpose === false ? OFF_PURPOSE_OWNER_REPLY : parsed?.message || '';
+    parsed?.onPurpose === false
+      ? OFF_PURPOSE_OWNER_REPLY
+      : formatModelReply(parsed?.message || '');
 
   const { completion, requestParams, latencyMs, parsed } = await generateWithIdenticalRetry({
     generate: completeOnce,
@@ -1131,7 +1137,9 @@ export async function runBuilderTurn({
   const asksQuestion = parsed.asksQuestion === true;
   const wantsReview = parsed.wantsReview === true;
 
-  const message = parsed.message || 'Tell me a bit more about your business.';
+  const message = formatModelReply(
+    parsed.message || 'Tell me a bit more about your business.'
+  );
 
   return {
     message,

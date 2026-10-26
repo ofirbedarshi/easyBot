@@ -6,6 +6,7 @@ import {
   buildCustomerSystemPrompt,
   intakeGoalEnabled,
 } from '../src/customerPrompt.js';
+import { PARAGRAPH_PROMPT_LINE } from '../src/formatReply.js';
 import {
   DEFAULT_BEHAVIOR,
   customerOpeningText,
@@ -450,6 +451,10 @@ function testStayOnBusinessRule() {
   assert.match(prompt, /one short, warm steer back to the business/);
   assert.doesNotMatch(prompt, /happy to help with anything/i);
   assert.doesNotMatch(prompt, /Keep replies concise and helpful/);
+  assert.ok(
+    prompt.includes(PARAGRAPH_PROMPT_LINE),
+    'Business Bot prompt includes the one-line paragraph instruction'
+  );
 }
 
 function main() {

@@ -223,6 +223,47 @@ async function testFirstTurnOpeningPrefixed() {
   console.log('PASS first_turn_opening_prefixed');
 }
 
+async function testModelReplyParagraphBreaks() {
+  const profile = approvedProfile();
+  const client = fakeClient(
+    "Private lessons are 200 ILS for 60 minutes. || Want me to take your name and a time that works?"
+  );
+  const reply = await businessBotReply({
+    profile,
+    history: turns(1),
+    question: 'How much?',
+    client,
+  });
+  assert.equal(
+    reply,
+    'Private lessons are 200 ILS for 60 minutes.\n\nWant me to take your name and a time that works?'
+  );
+  assert.equal(reply.includes('||'), false);
+
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15550011';
+  await store.saveProfile(sender, profile);
+  const session = await createSenderSession(store, sender, {
+    deps: {
+      businessBotReply: (args) =>
+        businessBotReply({
+          ...args,
+          client: fakeClient('A cut is 100 shekel. || Anything else I can help with?'),
+        }),
+    },
+  });
+  session.buildHistory.push({ role: 'assistant', content: '(opened)' });
+  assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
+  const first = await handleMessage(session, 'How much?');
+  const open = customerOpeningText(profile);
+  const expected =
+    `${open}\n\nA cut is 100 shekel.\n\nAnything else I can help with?`;
+  assert.equal(first.reply, expected);
+  assert.equal(session.testHistory.at(-1).content, expected);
+  assert.equal(first.reply.includes('||'), false);
+  console.log('PASS model_reply_paragraph_breaks_and_history');
+}
+
 async function testTestModeFirstMessageGetsOpening() {
   const store = createMemoryStore();
   const sender = 'whatsapp:+15550009';
@@ -413,6 +454,7 @@ async function main() {
   await testRequestShape();
   await testReasoningModelFallback();
   await testFirstTurnOpeningPrefixed();
+  await testModelReplyParagraphBreaks();
   await testTestModeFirstMessageGetsOpening();
   testHistoryBounded();
   await testMemoryPersistsThroughStore();
