@@ -55,6 +55,7 @@ const TEST_TURNS = [
   'can i book a cut for tomorrow at 3pm?',
   'ok, can i just walk in on saturday instead?',
   'sure - Dana Cohen, 614-555-0132, saturday around 11',
+  "great, so i'm booked for saturday at 11?",
 ];
 
 function refuseKeepingDetails(text) {
@@ -73,6 +74,22 @@ function confirmsDetails(text) {
   return /thank|got (it|your)|have your|i have/i.test(text);
 }
 
+function redirectsToOwner(text) {
+  return /message the owner|contact the owner|ask the owner|reach (the )?owner|owner directly/i.test(
+    text
+  );
+}
+
+function answersColorProcess(text) {
+  return /consult/i.test(text) && !/i don'?t know the price/i.test(text);
+}
+
+function deniesBooking(text) {
+  return /can'?t (confirm a )?book|not booked|no booking|haven't booked|have not booked|can't make a booking/i.test(
+    text
+  );
+}
+
 async function replayBusinessBot() {
   const history = [];
   const transcript = [];
@@ -88,14 +105,29 @@ async function replayBusinessBot() {
     console.log(`\n[CUSTOMER] ${question}`);
     console.log(`[APP] ${reply}`);
   }
-  const last = transcript.at(-1).reply;
+  const color = transcript.find((t) => /color my whole head/i.test(t.question))?.reply || '';
+  const intake = transcript.find((t) => /Dana Cohen/i.test(t.question))?.reply || '';
+  const booked = transcript.find((t) => /i'?m booked/i.test(t.question))?.reply || '';
   const score = {
-    confirms: confirmsDetails(last),
-    refusesKeeping: refuseKeepingDetails(last),
-    claimsBooking: claimsBooking(last),
+    colorProcess: answersColorProcess(color),
+    colorNoOwnerRedirect: !redirectsToOwner(color),
+    confirms: confirmsDetails(intake),
+    refusesKeeping: refuseKeepingDetails(intake),
+    claimsBooking: claimsBooking(intake) || claimsBooking(booked),
+    intakeNoOwnerRedirect: !redirectsToOwner(intake),
+    deniesBooking: deniesBooking(booked),
+    bookedNoOwnerRedirect: !redirectsToOwner(booked),
   };
-  score.pass = score.confirms && !score.refusesKeeping && !score.claimsBooking;
-  return { transcript, last, score };
+  score.pass =
+    score.colorProcess &&
+    score.colorNoOwnerRedirect &&
+    score.confirms &&
+    !score.refusesKeeping &&
+    !score.claimsBooking &&
+    score.intakeNoOwnerRedirect &&
+    score.deniesBooking &&
+    score.bookedNoOwnerRedirect;
+  return { transcript, last: booked || intake, score };
 }
 
 async function replayBuilderGoal() {

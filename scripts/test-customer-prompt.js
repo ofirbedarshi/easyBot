@@ -160,6 +160,41 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
   assert.match(prompt, /thank the customer and confirm them back/i);
   assert.doesNotMatch(prompt, /this chat has no save\/send\/handoff/i);
   assert.doesNotMatch(prompt, /never imply collected information was saved/i);
+  assert.doesNotMatch(
+    prompt,
+    /already gathered[\s\S]*message the owner/i
+  );
+  assert.match(
+    prompt,
+    /do not send them elsewhere because this chat cannot book/i
+  );
+  assert.match(
+    prompt,
+    /if they ask whether they are booked, say they are not/i
+  );
+}
+
+function testPricingProcessIsCompleteAnswer() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Test Biz',
+    whatWeDo: 'Services',
+    services: [{ name: 'A', price: '$1', notes: null }],
+    informationToCollect: [],
+    unknowns: [],
+  });
+  assert.match(
+    prompt,
+    /if facts give a pricing process instead of a number, state that process/i
+  );
+  assert.match(prompt, /that is the answer, not a gap/i);
+  assert.match(
+    prompt,
+    /suggest messaging the owner only when a real fact gap remains/i
+  );
+  assert.doesNotMatch(
+    prompt,
+    /optional suggestion to message the owner for booking/i
+  );
 }
 
 function testConversationSettingsSectionSeparated() {
@@ -272,6 +307,7 @@ function main() {
   testEmptyIntakeAndNullOwnerGoal();
   testNoForcedBookingProcess();
   testIntakeConfirmDoesNotRefuseKeepingDetails();
+  testPricingProcessIsCompleteAnswer();
   testConversationSettingsSectionSeparated();
   testOnRequestPolicyOnlyWhenSet();
   testLegacyDefaultsInPrompt();

@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   businessFactsView,
+  CONFIG_CAPABILITIES,
   DEFAULT_BEHAVIOR,
   draftDiffersFromLive,
   effectiveBehavior,
@@ -1307,6 +1308,19 @@ async function testTypedApproveIsBuilderTurn() {
   console.log('PASS try_my_bot_first_time_after_review');
 }
 
+/** Catalog: per-offering quote/process rules are facts; global never-prices is not. */
+function testConfigCapabilitiesQuoteRules() {
+  const facts = CONFIG_CAPABILITIES.find((c) => c.field === 'business facts');
+  const price = CONFIG_CAPABILITIES.find((c) => c.field === 'priceDisclosure');
+  assert.ok(facts && price, 'catalog entries exist');
+  assert.match(facts.represents, /otherFacts/);
+  assert.match(facts.represents, /priced or quoted/);
+  assert.doesNotMatch(facts.cannotRepresent, /how the bot behaves/i);
+  assert.match(price.cannotRepresent, /global never-mention-any-prices/);
+  assert.match(price.cannotRepresent, /one offering is priced or quoted is a business fact/);
+  console.log('PASS config_capabilities_quote_rules');
+}
+
 /** Unsupported/ambiguous config requests cannot change the draft, whatever the field. */
 function testEnforceConfigRequests() {
   const prev = {
@@ -1388,6 +1402,7 @@ function testIntakeGateAsksOneQuestion() {
 }
 
 async function main() {
+  testConfigCapabilitiesQuoteRules();
   testEnforceConfigRequests();
   testIntakeGateAsksOneQuestion();
   testRequiredTopicsGate();

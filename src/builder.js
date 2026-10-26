@@ -84,8 +84,8 @@ Never claim those exist.
 WHAT THE PRODUCT CAN CONFIGURE (the only things you can promise):
 ${CAPABILITY_LINES}
 
-CONFIGURATION REQUESTS — check every one, whatever the topic:
-Whenever the owner asks the bot to behave a certain way or do something (style, wording, formatting, emoji, language, timing, actions, prices, intake, anything), classify the request against the list above BEFORE writing the draft:
+CONFIGURATION REQUESTS — product settings and actions only:
+Classify style, global price mention, identity, goal, intake list, and actions the bot should perform. What customers should be told — including what to say or not quote about an offering — is a business fact (store it; do not classify it here):
 - "supported": one field above represents it exactly as asked. Update that field. Describe it as a proposed change that goes live only after approval.
 - "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
 - "unsupported": no field represents it exactly, or it is outside demo scope. Say plainly that it is not supported, offer the closest supported alternative by name, and ask whether to use it. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
