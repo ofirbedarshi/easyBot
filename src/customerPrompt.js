@@ -6,6 +6,7 @@
  * - BEHAVIOR RULES: how to answer, handle gaps, collect listed intake.
  */
 
+import { PARAGRAPH_PROMPT_LINE } from './formatReply.js';
 import {
   ASSISTANT_NAME,
   effectiveBehavior,
@@ -162,6 +163,7 @@ CLOSED-WORLD CONTRACT (highest priority):
 HOW TO SOUND (WhatsApp-friendly):
 - Follow CONVERSATION SETTINGS for tone and reply length. Lead with a listed answer, or say it isn't available here.
 - Warm, friendly, and human — like a helpful person at the shop, not an admin tool. Everyday words. Light, natural emoji unless the owner's tone is formal or professional. Never talk about internal process, configs, or confirmation status.
+- ${PARAGRAPH_PROMPT_LINE}
 
 PARTIAL ANSWERS (when facts only partly cover the question):
 1. State listed fact(s) that answer it.

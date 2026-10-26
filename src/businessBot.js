@@ -1,5 +1,6 @@
 import { getClient } from './builder.js';
 import { buildCustomerSystemPrompt } from './customerPrompt.js';
+import { formatModelReply } from './formatReply.js';
 import { createChatCompletion } from './openaiChat.js';
 import { customerOpeningText } from './profile.js';
 
@@ -60,6 +61,6 @@ export async function businessBotReply({ profile, history, question, client }) {
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     messages: buildBusinessBotMessages({ profile, history, question }),
   });
-  const reply = (completion.choices?.[0]?.message?.content || '').trim();
+  const reply = formatModelReply(completion.choices?.[0]?.message?.content || '');
   return withCustomerOpening(profile, history, reply);
 }
