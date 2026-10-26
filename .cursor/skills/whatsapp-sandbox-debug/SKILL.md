@@ -32,7 +32,7 @@ State is **per WhatsApp `From`** in Supabase (`easybot_*`), not `data/business-p
 |---|---|
 | Webhook | `src/twilio/webhook.js` |
 | Worker | `src/twilio/worker.js` |
-| Session / `/test` `/end` `/reset` | `src/session.js` |
+| Session / `/test` `stop` `/reset` | `src/session.js` |
 | Business Bot reply (OpenAI) | `src/businessBot.js` |
 | Store | `src/store/supabaseStore.js` |
 
