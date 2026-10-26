@@ -62,7 +62,7 @@ const SALON = {
   },
   customerQuestions: [
     { q: 'how much is a womens haircut?', must: [/45/], deny: /i don'?t know/i },
-    { q: 'do you also do gel manicures?', must: [/nail/i], deny: /i don'?t know/i },
+    { q: 'do you also do gel manicures?', must: [/nail|manicur/i], deny: /i don'?t know/i },
   ],
 };
 
@@ -178,6 +178,8 @@ async function runInterview(scenario, model) {
     if (i === scenario.afterCorrectionFrom) {
       console.log('  correction-turn newFacts:', JSON.stringify(raw.modelJson?.newFacts));
       console.log('  correction-turn ownerEdits:', JSON.stringify(raw.modelJson?.ownerEdits));
+      console.log('  correction-turn delta.services:', JSON.stringify(raw.modelJson?.draft?.services));
+      console.log('  correction-turn delta.locationOrArea:', raw.modelJson?.draft?.locationOrArea);
     }
     if (i >= scenario.afterCorrectionFrom && !draftAfterCorrection) {
       draftAfterCorrection = structuredClone(turn.draft);

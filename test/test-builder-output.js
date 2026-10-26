@@ -143,6 +143,25 @@ test('delta output: ownerEdits still change a stored service price', () => {
   assert.deepEqual(out.services, [svc('Sourdough', '$10')]);
 });
 
+test('partial services delta applies the new price even without ownerEdits', () => {
+  const current = {
+    services: [svc('Women\'s cut', '$45'), svc('Men\'s cut', '$28'), svc('Blowout', '$35')],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: { services: [svc('Men\'s cut', '$30')] },
+      newFacts: [],
+      ownerEdits: [],
+    },
+    current
+  );
+  assert.equal(out.services.find((s) => s.name === 'Men\'s cut').price, '$30');
+  assert.equal(out.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+  assert.equal(out.services.length, 3);
+});
+
 test('correction of one overlapping service name keeps siblings and order', () => {
   const current = {
     services: [

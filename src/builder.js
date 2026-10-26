@@ -412,15 +412,20 @@ function restoreOmittedStrings(prevList, incoming) {
  * `otherFacts` are code-owned (see applyFactOps).
  * Relies on the model reporting edits; an unreported edit is reverted.
  */
-export function preserveFacts(draft, currentDraft, ownerEdits) {
+export function preserveFacts(draft, currentDraft, ownerEdits, incomingDelta) {
   if (!currentDraft) return draft;
   const next = { ...draft };
   const prev = currentDraft;
   const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
+  const delta = incomingDelta && typeof incomingDelta === 'object' ? incomingDelta : {};
 
   const guardList = (field, key, valueKeys) => {
     if (!Array.isArray(prev[field])) return;
     const incoming = Array.isArray(next[field]) ? next[field] : [];
+    const rawDelta = Array.isArray(delta[field]) ? delta[field] : [];
+    const proposed = new Set(
+      rawDelta.filter((x) => x && x[key]).map((x) => foldKey(x[key]))
+    );
     const storedItems = prev[field].map((x) => x?.[key]).filter(Boolean);
     const used = new Set();
     const list = [];
@@ -437,7 +442,7 @@ export function preserveFacts(draft, currentDraft, ownerEdits) {
         continue;
       }
       used.add(i);
-      if (edit) {
+      if (edit || proposed.has(foldKey(old[key]))) {
         list.push(incoming[i]);
         continue;
       }
@@ -583,7 +588,8 @@ export function applyBuilderModelOutput(parsed, currentDraft, { mode = 'delta' }
   const { newFacts: _dropped, ...guarded } = preserveFacts(
     reconciled,
     currentDraft,
-    parsed?.ownerEdits
+    parsed?.ownerEdits,
+    mode === 'legacy' ? null : incoming
   );
   return {
     ...guarded,
