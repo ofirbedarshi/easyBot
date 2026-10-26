@@ -5,6 +5,7 @@ import {
 } from './validate.js';
 import { emptyTwiml } from './send.js';
 import { checkMessageLength } from '../limits.js';
+import { phoneE164FromSenderId } from '../phone.js';
 
 /**
  * Fast ingest: validate signature → durable enqueue → empty TwiML.
@@ -41,7 +42,7 @@ export function createTwilioWhatsAppRouter(store) {
       const from = params.From;
       const body = params.Body ?? '';
 
-      if (!messageSid || !from) {
+      if (!messageSid || !from || !phoneE164FromSenderId(from)) {
         return res.status(400).type('text/plain').send('Bad Request');
       }
 
