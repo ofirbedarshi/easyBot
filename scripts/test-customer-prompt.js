@@ -101,7 +101,7 @@ function testFactsFaqUnknownsIntakeRendered() {
   assert.ok(prompt.includes('preferred pickup time'));
   assert.ok(/whitelist/i.test(prompt), 'intake whitelist guidance present');
   assert.ok(
-    /message the owner directly/i.test(prompt),
+    /messaging the owner directly/i.test(prompt),
     'owner redirect guidance present'
   );
   assert.match(
