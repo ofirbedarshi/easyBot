@@ -4,7 +4,7 @@
  * production keyword matching.
  *
  *   node scripts/eval-closed-world-gaps.js --dump-prompts <file>
- *   node scripts/eval-closed-world-gaps.js [--baseline <file>] [--live]
+ *   node scripts/eval-closed-world-gaps.js [--baseline <file>] [--live] [--runs 3]
  *
  * Default: compare --baseline (frozen current-prompt strings) vs live
  * buildCustomerSystemPrompt. Models default to gpt-4o-mini / 4.1-mini / 4o.
@@ -244,6 +244,7 @@ function parseArgs(argv) {
     models: MODELS,
     rescore: null,
     cap: DEFAULT_CAP_USD,
+    runs: RUNS,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -253,6 +254,7 @@ function parseArgs(argv) {
     else if (a === '--models') args.models = argv[++i].split(',');
     else if (a === '--rescore') args.rescore = argv[++i];
     else if (a === '--cap') args.cap = Number(argv[++i]);
+    else if (a === '--runs') args.runs = Number(argv[++i]);
   }
   if (args.rescore) return args;
   if (!args.dump && !args.baseline && !args.live) {
@@ -315,12 +317,13 @@ function promptVariants(args) {
 
 function jobsFor(args) {
   const jobs = [];
+  const runs = Number.isFinite(args.runs) && args.runs > 0 ? args.runs : RUNS;
   for (const variant of promptVariants(args)) {
     for (const model of args.models) {
       for (const c of CASES) {
         const system = variant.prompts[c.profile];
         if (!system) throw new Error(`missing prompt for profile ${c.profile} (${variant.name})`);
-        for (let run = 1; run <= RUNS; run += 1) {
+        for (let run = 1; run <= runs; run += 1) {
           jobs.push({ variant: variant.name, model, caseId: c.id, run, system, case: c });
         }
       }
@@ -499,21 +502,33 @@ async function main() {
   console.log(text);
   console.log(`\nwrote ${jsonPath}`);
 
-  const liveMini = [...groups.values()].find(
-    (g) => g.variant === 'reworded' && g.model === 'gpt-4o-mini'
-  );
-  if (liveMini) {
-    const falseNo = liveMini.gap.filter((r) => !r.pass).length;
-    const factsOk = liveMini.facts.filter((r) => r.pass).length;
-    if (falseNo === 0 && factsOk === liveMini.facts.length) {
-      console.log('\nPASS bar: gpt-4o-mini reworded 0 false-no and all facts-present ok');
+  const barModels = args.models.length === 1 ? args.models : ['gpt-4o-mini'];
+  const barVariant =
+    args.baseline && args.live ? 'reworded' : args.live ? 'reworded' : 'current';
+  let missed = false;
+  for (const model of barModels) {
+    const group = [...groups.values()].find(
+      (g) => g.variant === barVariant && g.model === model
+    );
+    if (!group) {
+      console.log(`\nPASS bar missed: no ${barVariant} rows for ${model}`);
+      missed = true;
+      continue;
+    }
+    const falseNo = group.gap.filter((r) => !r.pass).length;
+    const factsOk = group.facts.filter((r) => r.pass).length;
+    if (falseNo === 0 && factsOk === group.facts.length) {
+      console.log(
+        `\nPASS bar: ${model} ${barVariant} 0 false-no and all facts-present ok`
+      );
     } else {
       console.log(
-        `\nPASS bar missed: gpt-4o-mini reworded false-no ${falseNo}/${liveMini.gap.length}, facts ${factsOk}/${liveMini.facts.length}`
+        `\nPASS bar missed: ${model} ${barVariant} false-no ${falseNo}/${group.gap.length}, facts ${factsOk}/${group.facts.length}`
       );
-      process.exitCode = 2;
+      missed = true;
     }
   }
+  if (missed) process.exit(1);
 }
 
 main().catch((err) => {

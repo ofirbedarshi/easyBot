@@ -33,7 +33,7 @@ For each acceptance criterion, record: pass | fail | blocked | needs_decision, p
 
 When criteria involve Builder, Business Bot, approval, `/test`, or `/end`:
 
-- Prefer deterministic scripts: `npm run test:approval`, `test:nav`, `test:customer-prompt`, `test:twilio`.
+- Prefer `npm test` (all deterministic suites). When criteria need a live model, `npm run regress` (gpt-6-luna; never print env values).
 - Smoke the running app (`/api/health`, chat flows) when criteria require it.
 - Do **not** introduce or call an AI evaluation / judge framework.
 

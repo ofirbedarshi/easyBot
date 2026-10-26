@@ -80,8 +80,9 @@ Sandbox is **not** a public number you can advertise.
 
 | Kind | Command / action | Status |
 |---|---|---|
+| Deterministic | `npm test` | All no-network suites (also GitHub Actions on PR / push to main) |
 | Mocked | `npm run test:twilio` | Ran — signatures, dupes, isolation, order, `/test`+/`/end` |
-| Deterministic | `npm run test:approval` / `test:nav` / `test:customer-prompt` / `test:lead` / `test:business-bot` | Product-behavior checks |
+| Live model | `npm run regress` | Manual gpt-6-luna replays (a few cents; optional `Live regress` workflow_dispatch) |
 | Sandbox | Message Sandbox after Render URL live | **Not run** — Twilio number still in progress |
 | Live | Real WhatsApp number E2E | **Not run** — not public-ready |
 

@@ -10,6 +10,7 @@ import 'dotenv/config';
 import { applyReviewGate, runBuilderTurn } from '../src/builder.js';
 import { businessBotReply } from '../src/businessBot.js';
 import { emptyProfile } from '../src/profile.js';
+import { attachCostTracker } from './lib/modelCost.js';
 
 const MODEL = process.env.OPENAI_MODEL || process.env.OPENAI_BUILDER_MODEL || 'gpt-6-luna';
 
@@ -170,6 +171,7 @@ async function main() {
     console.error('OPENAI_API_KEY missing');
     process.exit(1);
   }
+  const cost = attachCostTracker(MODEL);
   console.log(`Model: ${MODEL}`);
   console.log('\n======= Business Bot (salon TEST) =======');
   const bot = await replayBusinessBot();
@@ -181,6 +183,7 @@ async function main() {
   console.log(JSON.stringify(builder, null, 2));
 
   const ok = bot.score.pass && !builder.hasUnavailableLine;
+  cost.print();
   if (!ok) {
     console.error('\nREPLAY FAIL');
     process.exit(1);

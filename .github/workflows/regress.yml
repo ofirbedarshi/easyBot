@@ -1,0 +1,40 @@
+# Manual live replay against gpt-6-luna. Costs a few cents per run.
+# Requires repo secret OPENAI_API_KEY. Do not run on pull_request or push.
+
+name: Live regress
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: regress-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  regress:
+    name: npm run regress
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Live regress
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "add repo secret OPENAI_API_KEY" >&2
+            exit 1
+          fi
+          npm run regress

@@ -66,13 +66,17 @@ Milestone handoffs live in [`cto-workflow/`](cto-workflow/). Start/resume paste 
 ## Scripts
 
 ```bash
+npm test                      # ALL deterministic suites (no network, no OpenAI)
 npm run test:approval         # deterministic approval boundaries (no network)
 npm run test:nav              # deterministic Builder editing-menu nav (no network)
 npm run test:customer-prompt  # deterministic customer-prompt structure checks
 npm run test:twilio           # MOCKED signature / dupe / isolation / order (no Twilio network)
 npm run test:lead             # deterministic lead questionnaire checks
 npm run test:business-bot     # Business Bot request shape + conversation memory (fake OpenAI)
+npm run regress               # live gpt-6-luna replays (needs OPENAI_API_KEY; a few cents)
 ```
+
+`npm test` is the GitHub Actions check on every pull request and push to main (no secrets). `npm run regress` is local or the manual `Live regress` workflow (`OPENAI_API_KEY` repo secret).
 
 ### Test labels
 

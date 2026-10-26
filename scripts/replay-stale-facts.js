@@ -10,6 +10,7 @@
  */
 import 'dotenv/config';
 import fs from 'fs';
+import { attachCostTracker } from './lib/modelCost.js';
 import { createSession, handleMessage } from '../src/session.js';
 import {
   draftReviewKey,
@@ -112,6 +113,7 @@ async function main() {
     process.exit(1);
   }
 
+  const cost = attachCostTracker(MODEL);
   const session = seedSession();
   const lines = [`model=${MODEL}`, ''];
   const results = [];
@@ -162,6 +164,7 @@ async function main() {
   console.log(`\nconsistencyMs=${corrected.consistencyMs ?? 0}`);
 
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
+  cost.print();
 
   const failed = results.some((r) => r.startsWith('FAIL'));
   process.exit(failed ? 1 : 0);
