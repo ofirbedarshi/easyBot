@@ -1007,7 +1007,7 @@ async function testIdentityDraftIsolatesLive() {
   assert.equal(r.event, 'build_turn');
   assert.equal(liveMock.approvals.length, 0);
   assert.equal(r.readyForReview, true, 'settings-only edit is presented for review');
-  assert.match(r.reply, /what will change:\n\nName & opening: Maya, custom opening \(was: default\)/);
+  assert.match(r.reply, /what will change:\n\nHow the bot talks: Maya, custom opening \(was: default\)/);
   assert.match(r.reply, /1\. Try my bot\n2\. Make changes/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
   const disk = loadProfile(PROFILE);

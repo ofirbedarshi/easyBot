@@ -20,14 +20,12 @@ import { LEAD_MENU_LABEL } from './leadIntake.js';
 
 const STRINGS = {
   menu: [
-    'Edit business',
-    'Edit bot goal & customer details',
+    'Edit business info',
     'Edit Q&A',
-    'Edit style & prices',
-    'Edit name & opening',
+    'Edit how the bot talks (style, name, opening message)',
     'Try my bot',
   ],
-  sections: ['Business', 'Bot goal & customer details', 'Q&A', 'Style & prices', 'Name & opening'],
+  sections: ['Business info', 'Q&A', 'How the bot talks'],
   menuFooter: 'Pick a number or just write what you want to change.',
   synced: "Bot updated ✅\nYou're in editing mode. What would you like to do?",
   syncedShort: 'Bot updated ✅',
@@ -97,19 +95,19 @@ export function isMenuRequest(text) {
 }
 
 /** Standalone 1–max (optional trailing "." or ")"), else null. */
-export function parseMenuChoice(text, max = 6) {
+export function parseMenuChoice(text, max = 5) {
   const m = /^\s*(\d)\s*[.)]?\s*$/.exec(String(text || ''));
   const n = m ? Number(m[1]) : 0;
   return n >= 1 && n <= max ? n : null;
 }
 
 /**
- * Ordered editing-menu items: 'lead', sections 1–5 (numbers), 'try'.
+ * Ordered editing-menu items: 'lead', sections 1–3 (numbers), 'try'.
  * Rendering and number parsing both use this list, so a picked number always
  * maps to the item shown at that position.
  */
 export function menuItems({ leadOption = false } = {}) {
-  return [...(leadOption ? ['lead'] : []), 1, 2, 3, 4, 5, 'try'];
+  return [...(leadOption ? ['lead'] : []), 1, 2, 3, 'try'];
 }
 
 /** Bare menu number → item from `menuItems(menuOpts)`, else null. */
@@ -153,7 +151,7 @@ export function menuActive(buildHistory) {
 export function renderMenu(menuOpts) {
   const s = STRINGS;
   const label = (item) =>
-    item === 'lead' ? LEAD_MENU_LABEL : item === 'try' ? s.menu[5] : s.menu[item - 1];
+    item === 'lead' ? LEAD_MENU_LABEL : item === 'try' ? s.menu[3] : s.menu[item - 1];
   return [
     ...menuItems(menuOpts).map((item, i) => `${i + 1}. ${label(item)}`),
     '',
@@ -188,7 +186,7 @@ const REVIEW = {
   intro: (name) => `Here's your bot for ${name}:`,
   introNoName: "Here's your bot:",
   labels: {
-    business: 'Business',
+    business: 'Business info',
     services: 'Services',
     area: 'Area',
     hours: 'Hours',
@@ -196,8 +194,7 @@ const REVIEW = {
     goal: 'Bot goal',
     intake: 'Asks customers for',
     faq: 'Q&A',
-    style: 'Style',
-    identity: 'Name & opening',
+    talks: 'How the bot talks',
   },
   notSet: 'not set',
   gap: 'not set (bot refers customers to you)',
@@ -230,9 +227,9 @@ function brief(text) {
 }
 
 /**
- * Review summary: one `Label: value` line per item, in editing-menu order
- * (the five edit items). `full` holds the underlying data so the changes view can
- * detect edits that the trimmed `value` hides.
+ * Review summary: one `Label: value` line per item (business fields, bot goal
+ * and intake, Q&A, then how the bot talks). `full` holds the underlying data so
+ * the changes view can detect edits that the trimmed `value` hides.
  */
 export function summaryLines(p) {
   const R = REVIEW;
@@ -286,20 +283,19 @@ export function summaryLines(p) {
   const tone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : null;
   const len = normalizeResponseLength(p.responseLength);
   const price = normalizePriceDisclosure(p.priceDisclosure);
-  const style = [
+  const id = assistantIdentityView(p);
+  const talks = [
     tone,
     len === 'short' ? R.shortReplies : len === 'standard' ? R.standardReplies : null,
     price === 'on_request' ? R.pricesOnRequest : price === 'relevant' ? R.pricesRelevant : null,
+    id.assistantName,
+    id.openingMessage ? R.customOpening : null,
   ].filter(Boolean);
-  add('style', L.style, style.length ? brief(style.join(', ')) : R.defaultValue, { tone, len, price });
-
-  const id = assistantIdentityView(p);
-  const identity = [id.assistantName, id.openingMessage ? R.customOpening : null].filter(Boolean);
   add(
-    'identity',
-    L.identity,
-    identity.length ? identity.join(', ') : R.defaultValue,
-    { name: id.assistantName, opening: id.openingMessage }
+    'talks',
+    L.talks,
+    talks.length ? brief(talks.join(', ')) : R.defaultValue,
+    { tone, len, price, name: id.assistantName, opening: id.openingMessage }
   );
   return out;
 }
@@ -329,7 +325,7 @@ export function renderReviewOptions() {
 }
 
 /**
- * Owner-facing review: short `Label: value` summary in editing-menu order
+ * Owner-facing review: short `Label: value` summary in the same field order
  * (gaps shown), then two options. When already approved and the draft differs
  * from live, shows only the changed lines with their previous value.
  */
@@ -419,16 +415,6 @@ function sectionLines(section, p) {
       for (const fact of p.otherFacts) lines.push(`   - ${fact}`);
     }
   } else if (section === 2) {
-    const goal = normalizeOwnerGoal(p.ownerGoal);
-    lines.push(`• ${f.ownerGoal}: ${goal ? OWNER_GOAL_LABELS[goal] : s.notSet}`);
-    if (!Array.isArray(p.informationToCollect)) {
-      lines.push(`• ${f.informationToCollect}: ${f.intakeNotAnswered}`);
-    } else if (!p.informationToCollect.length) {
-      lines.push(`• ${f.informationToCollect}: ${s.none}`);
-    } else {
-      lines.push(`• ${f.informationToCollect}: ${p.informationToCollect.join(', ')}`);
-    }
-  } else if (section === 3) {
     const faq = (Array.isArray(p.commonQuestions) ? p.commonQuestions : [])
       .map(normalizeFaqItem)
       .filter(Boolean);
@@ -440,7 +426,7 @@ function sectionLines(section, p) {
         lines.push(`  ${f.a}: ${item.answer || f.noAnswer}`);
       }
     }
-  } else if (section === 4) {
+  } else if (section === 3) {
     const eff = effectiveBehavior(p);
     const toneSet = typeof p.tone === 'string' && p.tone.trim();
     const tone = toneSet ? p.tone.trim() : `${eff.tone} ${s.defaultMark}`;
@@ -451,7 +437,6 @@ function sectionLines(section, p) {
     lines.push(`• ${f.tone}: ${tone}`);
     lines.push(`• ${f.responseLength}: ${lenSet ? len : `${len} ${s.defaultMark}`}`);
     lines.push(`• ${f.priceDisclosure}: ${priceSet ? price : `${price} ${s.defaultMark}`}`);
-  } else if (section === 5) {
     const id = assistantIdentityView(p);
     lines.push(`• ${f.assistantName}: ${id.assistantName || f.noName}`);
     lines.push(
@@ -464,7 +449,7 @@ function sectionLines(section, p) {
 }
 
 /**
- * Section view (1–5). Before first approval, shows the merged draft. After
+ * Section view (1–3). Before first approval, shows the merged draft. After
  * approval, shows live values; when an unapproved draft changes this section,
  * shows live and pending separately.
  */
