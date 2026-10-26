@@ -104,6 +104,23 @@ function testFactsFaqUnknownsIntakeRendered() {
     /message the owner directly/i.test(prompt),
     'owner redirect guidance present'
   );
+  assert.match(
+    prompt,
+    /If not listed, say it is not available here; do not say it is or is not offered/
+  );
+  assert.match(
+    prompt,
+    /Lead with a listed answer, or say it isn't available here/
+  );
+  assert.match(
+    prompt,
+    /If none do, say it isn't available here\. Not a no/
+  );
+  assert.match(
+    prompt,
+    /Warmly invite messaging the owner directly to ask — at most once per reply, only on a real gap/
+  );
+  assert.doesNotMatch(prompt, /say you do not know/);
   assert.ok(/CLOSED-WORLD CONTRACT/i.test(prompt));
 }
 
