@@ -565,6 +565,56 @@ function testRequiredTopicsGate() {
     'Great, so the goal is answering questions.\n\nWhat questions do customers usually ask you, and what do you answer? Share a few in your own words — or say skip if you prefer not to now.'
   );
   assert.deepEqual(own.draft.askedTopics, ['commonQuestions']);
+
+  // wantsReview with an open required topic → ask the topic, not review.
+  const wantOpen = applyReviewGate(
+    emptyProfile(),
+    {
+      message: 'Here is the updated summary:\nQ&A:\n- invented $99',
+      draft: facts,
+      readyForReview: false,
+      wantsReview: true,
+    },
+    'show me the summary'
+  );
+  assert.equal(wantOpen.presentReview, false);
+  assert.match(wantOpen.message, /What questions do customers usually ask/);
+
+  // wantsReview with intake answered → review; model summary text is stripped.
+  const readyFacts = {
+    ...facts,
+    commonQuestions: [{ question: 'Online lessons?', answer: 'No, only at home.' }],
+  };
+  const wantReview = applyReviewGate(
+    emptyProfile(),
+    {
+      message: 'Here is the updated summary:\nQ&A:\n- invented $99',
+      draft: readyFacts,
+      readyForReview: false,
+      wantsReview: true,
+    },
+    'show me the summary'
+  );
+  assert.equal(wantReview.presentReview, true);
+  assert.equal(wantReview.readyForReview, true);
+  assert.doesNotMatch(wantReview.message, /invented|\$99|updated summary/i);
+
+  // A changed draft with asksQuestion and no review flags does not force a review.
+  const midQ = applyReviewGate(
+    emptyProfile(),
+    {
+      message: 'How many instructors work there?',
+      draft: { ...readyFacts, services: [{ name: 'Lesson', price: '$90 per hour', notes: null }] },
+      readyForReview: false,
+      wantsReview: false,
+      asksQuestion: true,
+    },
+    'the lesson is 90 now'
+  );
+  assert.equal(midQ.presentReview, false);
+  assert.equal(midQ.asksQuestion, true);
+  assert.equal(midQ.draft.services[0].price, '$90 per hour');
+
   // Owner skips → review next, FAQ not repeated.
   const own2 = applyReviewGate({ ...emptyProfile(), draft: own.draft }, turn, 'skip');
   assert.equal(own2.presentReview, true);

@@ -2,10 +2,13 @@ import { strict as assert } from 'assert';
 import {
   adjustChatParamsOnError,
   applyBuilderModelOutput,
+  applyConsistencyUpdates,
   applyDraftDelta,
   applyFactOps,
   builderChatParams,
+  existingValueChanges,
   preserveFacts,
+  runConsistencyPass,
 } from '../src/builder.js';
 import {
   BUILDER_DRAFT_KEYS,
@@ -21,6 +24,7 @@ const svc = (name, price, notes = null) => ({ name, price, notes });
 test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('newFacts'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('asksQuestion'));
+  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('wantsReview'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));
@@ -324,6 +328,154 @@ test('chat params start with temperature; drop it and try lowest effort on 400',
   assert.equal(adjustChatParamsOnError(start, { message: 'insufficient_quota' }), null);
 });
 
+test('existingValueChanges: price edit is a change; add-only is not', () => {
+  const prev = {
+    services: [svc('Item A', '$10'), svc('Item B', '$20')],
+    commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $10.' }],
+    otherFacts: ['Item A is $10 on weekdays.'],
+    hours: 'Tue–Sat 9–5',
+    openingMessage: 'Welcome — Item A starts at $10.',
+  };
+  const addOnly = {
+    ...prev,
+    services: [...prev.services, svc('Item C', '$8')],
+    commonQuestions: [
+      ...prev.commonQuestions,
+      { question: 'Do you do Item C?', answer: 'Yes, Item C is $8.' },
+    ],
+    otherFacts: [...prev.otherFacts, 'We also offer Item C.'],
+  };
+  assert.deepEqual(existingValueChanges(prev, addOnly), []);
+
+  const priceEdit = {
+    ...prev,
+    services: [svc('Item A', '$12'), svc('Item B', '$20')],
+  };
+  const changes = existingValueChanges(prev, priceEdit);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].field, 'services');
+  assert.equal(changes[0].item, 'Item A');
+  assert.deepEqual(changes[0].oldValue, { price: '$10', notes: null });
+  assert.deepEqual(changes[0].newValue, { price: '$12', notes: null });
+});
+
+test('existingValueChanges: removal and text-field rewrite count; filling a blank does not', () => {
+  const prev = {
+    services: [svc('Item A', '$10')],
+    commonQuestions: [{ question: 'Hours?', answer: 'Tue–Sat 9–5' }],
+    hours: 'Tue–Sat 9–5',
+    whatWeDo: null,
+    otherFacts: ['Bring a photo ID.'],
+  };
+  const removed = {
+    services: [],
+    commonQuestions: prev.commonQuestions,
+    hours: prev.hours,
+    whatWeDo: 'Repairs',
+    otherFacts: [],
+  };
+  const changes = existingValueChanges(prev, removed);
+  assert.ok(changes.some((c) => c.field === 'services' && c.newValue === null));
+  assert.ok(changes.some((c) => c.field === 'otherFacts' && c.oldValue === 'Bring a photo ID.'));
+  assert.ok(!changes.some((c) => c.field === 'whatWeDo'));
+
+  const hoursEdit = { ...prev, hours: 'Tue–Fri 9–5' };
+  const hourChanges = existingValueChanges(prev, hoursEdit);
+  assert.equal(hourChanges.length, 1);
+  assert.equal(hourChanges[0].field, 'hours');
+  assert.equal(hourChanges[0].oldValue, 'Tue–Sat 9–5');
+});
+
+test('applyConsistencyUpdates writes FAQ and otherFacts without preserveFacts revert', () => {
+  const prev = {
+    services: [svc('Item A', '$12')],
+    commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $10.' }],
+    otherFacts: ['Item A is $10 on weekdays.'],
+    openingMessage: 'Welcome — Item A starts at $10.',
+  };
+  const next = applyConsistencyUpdates(prev, {
+    commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $12.' }],
+    factEdits: [{ index: 0, text: 'Item A is $12 on weekdays.' }],
+    openingMessage: 'Welcome — Item A starts at $12.',
+    services: [],
+    name: null,
+    whatWeDo: null,
+    hours: null,
+    locationOrArea: null,
+  });
+  assert.deepEqual(next.commonQuestions, [
+    { question: 'What does Item A cost?', answer: 'Item A is $12.' },
+  ]);
+  assert.deepEqual(next.otherFacts, ['Item A is $12 on weekdays.']);
+  assert.equal(next.openingMessage, 'Welcome — Item A starts at $12.');
+  assert.deepEqual(next.services, [svc('Item A', '$12')]);
+
+  const reverted = preserveFacts(
+    {
+      ...prev,
+      commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $12.' }],
+    },
+    prev,
+    []
+  );
+  assert.equal(reverted.commonQuestions[0].answer, 'Item A is $10.');
+});
+
+test('runConsistencyPass skips add-only and applies stubbed updates on a price edit', async () => {
+  const prev = {
+    services: [svc('Item A', '$10')],
+    commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $10.' }],
+    otherFacts: ['Item A is $10 on weekdays.'],
+    openingMessage: 'Welcome — Item A starts at $10.',
+  };
+  let addCalls = 0;
+  const added = await runConsistencyPass(
+    prev,
+    {
+      ...prev,
+      services: [svc('Item A', '$10'), svc('Item B', '$8')],
+    },
+    {
+      complete: async () => {
+        addCalls += 1;
+        return {};
+      },
+    }
+  );
+  assert.equal(added.ran, false);
+  assert.equal(addCalls, 0);
+  assert.equal(added.draft.commonQuestions[0].answer, 'Item A is $10.');
+
+  let editCalls = 0;
+  const edited = await runConsistencyPass(
+    prev,
+    { ...prev, services: [svc('Item A', '$12')] },
+    {
+      complete: async ({ changes }) => {
+        editCalls += 1;
+        assert.equal(changes.length, 1);
+        assert.equal(changes[0].field, 'services');
+        return {
+          commonQuestions: [{ question: 'What does Item A cost?', answer: 'Item A is $12.' }],
+          factEdits: [{ index: 0, text: 'Item A is $12 on weekdays.' }],
+          openingMessage: 'Welcome — Item A starts at $12.',
+          services: [],
+          name: null,
+          whatWeDo: null,
+          hours: null,
+          locationOrArea: null,
+        };
+      },
+    }
+  );
+  assert.equal(edited.ran, true);
+  assert.equal(editCalls, 1);
+  assert.equal(edited.draft.commonQuestions[0].answer, 'Item A is $12.');
+  assert.equal(edited.draft.otherFacts[0], 'Item A is $12 on weekdays.');
+  assert.equal(edited.draft.openingMessage, 'Welcome — Item A starts at $12.');
+  assert.ok(!JSON.stringify(edited.draft).includes('$10'));
+});
+
 test('preserveFacts / applyFactOps still exported for existing tests', () => {
   const r = preserveFacts(
     { services: [svc('A', '$1')] },
@@ -337,7 +489,7 @@ test('preserveFacts / applyFactOps still exported for existing tests', () => {
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
-    fn();
+    await fn();
     console.log(`PASS ${name}`);
   } catch (e) {
     failed++;

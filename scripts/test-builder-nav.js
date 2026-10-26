@@ -679,6 +679,50 @@ async function testMenuLayoutStates() {
   assert.equal(withLead[6], '7. Try my bot');
 }
 
+/** Owner asked to see the summary: app renderReview, never the model's invented text. */
+async function testWantsReviewUsesRenderReview() {
+  clean();
+  const f = facts();
+  const { session } = makeSession([
+    {
+      message:
+        "Here's the updated summary for Studio Yoga:\nQ&A:\n- What are your prices? A private lesson is $99 invented.\nColor prices are given at the free consultation",
+      draft: f,
+      readyForReview: false,
+      wantsReview: true,
+    },
+  ]);
+  await handleMessage(session, 'hi');
+  const r = await handleMessage(session, 'show me the updated summary');
+  assert.equal(r.event, 'build_turn');
+  assert.equal(reviewActive(session.buildHistory), true);
+  assert.equal(lastShownNav(session.buildHistory), 'review');
+  const review = renderReview(loadProfile(PROFILE));
+  assert.ok(r.reply.includes(review), r.reply);
+  assert.match(r.reply, /Here's your bot for Studio Yoga:/);
+  assert.match(r.reply, /\nQ&A: 1 answer\n/);
+  assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?/);
+}
+
+/** Without wantsReview or readyForReview, a model-written dump is not replaced. */
+async function testNoWantsReviewKeepsModelMessage() {
+  clean();
+  const f = facts();
+  const { session } = makeSession([
+    {
+      message: 'A private lesson is 200 ILS.',
+      draft: f,
+      readyForReview: false,
+      wantsReview: false,
+    },
+  ]);
+  await handleMessage(session, 'hi');
+  const r = await handleMessage(session, 'how much is a lesson?');
+  assert.equal(r.event, 'build_turn');
+  assert.equal(lastShownNav(session.buildHistory), null);
+  assert.equal(r.reply, 'A private lesson is 200 ILS.');
+}
+
 async function main() {
   await test('typed_approve_is_builder_turn', testTypedApproveIsBuilderTurn);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
@@ -703,6 +747,8 @@ async function main() {
   await test('try_approves_pending_edit', testTryApprovesPendingEdit);
   await test('sections_before_approval_show_draft', testSectionsBeforeApprovalShowDraft);
   await test('review_render_helpers', testReviewRenderHelpers);
+  await test('wants_review_uses_render_review', testWantsReviewUsesRenderReview);
+  await test('no_wants_review_keeps_model_message', testNoWantsReviewKeepsModelMessage);
   await test('menu_layout_states', testMenuLayoutStates);
   clean();
   const failed = results.filter((r) => !r.pass);
