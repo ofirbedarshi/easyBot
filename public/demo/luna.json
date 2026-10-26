@@ -1,0 +1,82 @@
+{
+  "id": "luna",
+  "contactName": "easyBot",
+  "events": [
+    {
+      "type": "chip",
+      "text": "Illustrative demo · fictional business"
+    },
+    {
+      "type": "chip",
+      "text": "Build your bot"
+    },
+    {
+      "type": "incoming",
+      "text": "Hi! Tell me about your business."
+    },
+    {
+      "type": "outgoing",
+      "text": "I run Luna Hair Studio in Austin. Women's haircuts are $45, men's haircuts are $30, and highlights start at $90. We're open Tuesday to Saturday, 9am to 6pm, closed Sundays and Mondays. Customers book by messaging us here."
+    },
+    {
+      "type": "incoming",
+      "text": "What would you like your bot to help with?"
+    },
+    {
+      "type": "outgoing",
+      "text": "Answer questions about our prices and hours, and collect the customer's name and preferred appointment time."
+    },
+    {
+      "type": "incoming",
+      "text": "Your bot is ready to try!"
+    },
+    {
+      "type": "incoming",
+      "text": "*Luna Hair Studio*\n• Women's haircut: $45\n• Men's haircut: $30\n• Highlights: from $90\n• Hours: Tuesday–Saturday, 9am–6pm\n• Closed: Sunday and Monday\n• Booking: by message\n• Collect: name and preferred appointment time\n\n1. Try my bot\n2. Make changes"
+    },
+    {
+      "type": "outgoing",
+      "text": "Try my bot"
+    },
+    {
+      "type": "incoming",
+      "text": "Test mode is on. Ask a question as if you were a customer."
+    },
+    {
+      "type": "chip",
+      "text": "Try it as a customer"
+    },
+    {
+      "type": "outgoing",
+      "text": "How much is a women's haircut?"
+    },
+    {
+      "type": "incoming",
+      "text": "A women's haircut is $45."
+    },
+    {
+      "type": "outgoing",
+      "text": "Are you open on Sunday?"
+    },
+    {
+      "type": "incoming",
+      "text": "We're closed on Sundays and Mondays. We're open Tuesday to Saturday, 9am to 6pm."
+    },
+    {
+      "type": "outgoing",
+      "text": "I'd like to book a haircut."
+    },
+    {
+      "type": "incoming",
+      "text": "What's your name, and what day and time would you prefer?"
+    },
+    {
+      "type": "outgoing",
+      "text": "Sarah. Thursday at 10am."
+    },
+    {
+      "type": "incoming",
+      "text": "Thanks, Sarah! Your request is for Thursday at 10am. The salon still needs to confirm availability."
+    }
+  ]
+}
