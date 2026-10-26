@@ -718,7 +718,6 @@ function profileFactsHtml(profile) {
       ${profileRow('Tone', esc(tone))}
       ${profileRow('Reply length', esc(replyLength))}
       ${profileRow('Prices', esc(prices))}
-      ${profileRow('Assistant name', identity.assistantName ? esc(identity.assistantName) : unsetHtml())}
       ${profileRow('Opening', esc(opening))}
     </div>
   </div>`);

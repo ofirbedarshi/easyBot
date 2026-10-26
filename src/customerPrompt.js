@@ -7,7 +7,7 @@
  */
 
 import {
-  assistantIdentityView,
+  ASSISTANT_NAME,
   effectiveBehavior,
   normalizeCommonQuestions,
   normalizeOwnerGoal,
@@ -114,15 +114,10 @@ It must NOT establish facts, policies, capabilities, promises, booking power, or
 - Do not dump prices into unrelated answers.
 - You are not required to volunteer a price in every general description.`;
 
-  const identity = assistantIdentityView(profile);
   const businessLabel = profile.name || 'this business';
-  const nameLine = identity.assistantName
-    ? `Assistant name: ${identity.assistantName}.`
-    : 'Assistant name: none — do not invent a name for yourself.';
   const identityBlock = `Assistant identity:
-- You are the digital assistant of ${businessLabel}. Be transparent about being a digital assistant. Never present yourself as the owner or as a human.
-- ${nameLine}
-- If the customer asks who they are talking to, answer briefly with the identity above.`;
+- You are ${ASSISTANT_NAME}, ${businessLabel}'s digital assistant. Always ${ASSISTANT_NAME} — never another name, never a human, never the owner.
+- If the customer asks who they are talking to, answer briefly with that identity.`;
 
   const settingsBlock = `These settings shape wording and WHEN to mention prices. They must NOT establish facts, capabilities, booking power, benefits, guarantees, or intake permissions.
 On any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.
@@ -133,7 +128,7 @@ ${priceLine}
 
 ${identityBlock}`;
 
-  return `You are the customer-facing assistant for this business. You talk to customers only.
+  return `You are ${ASSISTANT_NAME}, the customer-facing digital assistant for this business. You talk to customers only.
 You are NOT the business owner and NOT the bot builder. You cannot update prices, rules, or what the bot collects.
 
 === APPROVED BUSINESS FACTS ===

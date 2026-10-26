@@ -193,7 +193,7 @@ export async function handleMessage(session, text) {
     session.testSessionId = `test-${Date.now()}`;
     return {
       ok: true,
-      reply: 'Session cleared. Send any message to start again.',
+      reply: "All cleared. Send any message and I'll start fresh.",
       source: 'app',
       event: 'reset',
       ...(await getStateAsync(session)),
@@ -227,8 +227,8 @@ export async function handleMessage(session, text) {
 
 /**
  * Editing-menu navigation (BUILD only). Menu words require `approvedAt`.
- * A save card offers 1 "Try my bot" (TEST) and 2
- * "Make changes" (full editing menu). Those stay active while the last shown
+ * A save card offers 1 "Chat with me like a customer" (TEST) and 2
+ * "Keep teaching me" (full editing menu). Those stay active while the last shown
  * nav is still the card, except a bare number after an intervening Builder
  * question (`asksQuestion` on that turn, no nav) is an answer to that question.
  * Section items are read-only. Until a lead is submitted, item 1 is
@@ -297,7 +297,7 @@ async function handleNavigation(session, text) {
   };
 }
 
-/** "Try my bot": enter TEST when the profile has enough to answer. */
+/** "Chat with me like a customer": enter TEST when the profile has enough to answer. */
 async function tryMyBot(session) {
   return enterTest(session);
 }
@@ -306,7 +306,7 @@ async function enterTest(session) {
   const profile = await loadAsync(session);
   if (!hasEnoughForFirstBot(profile)) {
     const reply =
-      'Add a business name and what you do (or a service) before you can try the bot.';
+      'Tell me your business name and what you do (or a service) before I can chat as your assistant.';
     return {
       ok: false,
       reply,
@@ -318,7 +318,7 @@ async function enterTest(session) {
   session.testHistory = [];
   session.testSessionId = `test-${Date.now()}`;
   const reply =
-    'TEST mode — you are now a customer talking to your business bot . Type "/end" to return to BUILD mode.';
+    "You're now chatting with me as a customer. Type /end when you want to keep teaching me.";
   return {
     ok: true,
     reply,

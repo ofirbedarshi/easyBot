@@ -45,13 +45,13 @@ assert.equal(r.done, false);
 assert.equal(r.state.step, 'channels');
 assert.equal(r.state.answers.contactConsent, 'Yes, sure');
 assert.ok(r.reply.startsWith(LEAD_BRIDGE));
-assert.ok(r.reply.includes('Where would you like the bot to work?'));
+assert.ok(r.reply.includes('Where would you like me to work?'));
 assert.ok(r.reply.includes('1. 💬 WhatsApp'));
 r = stepLeadIntake(r.state, '1, 5');
 assert.equal(r.state.step, 'channelsOther');
 assert.equal(
   r.reply,
-  "Tell me briefly where you'd like the bot to work, for example Telegram or your Google Business page."
+  "Tell me briefly where you'd like me to work, for example Telegram or your Google Business page."
 );
 r = stepLeadIntake(r.state, 'Telegram');
 assert.equal(r.state.step, 'actions');
@@ -94,7 +94,7 @@ assert.equal(r.state.answers.contactConsent, 'No, thanks');
 // Menu: item 1 only when requested
 assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
 assert.ok(
-  renderMenu({ leadOption: true }).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n2. 🏪 Edit business info\n`)
+  renderMenu({ leadOption: true }).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n2. 🏪 Tell me more about your business\n`)
 );
 
 // Session flow (memory store)
@@ -144,12 +144,12 @@ await send('1');
 res = await send('1');
 assert.equal(res.event, 'lead_question');
 assert.ok(res.reply.startsWith(LEAD_BRIDGE));
-assert.ok(res.reply.includes('Where would you like the bot to work?'));
+assert.ok(res.reply.includes('Where would you like me to work?'));
 await send('1 4');
 res = await send('5');
 assert.equal(
   res.reply,
-  "Tell me briefly what else you'd like the bot to do for you, for example send appointment reminders."
+  "Tell me briefly what else you'd like me to do for you, for example send appointment reminders."
 );
 await send('Track orders');
 res = await send('lots');
@@ -159,8 +159,8 @@ res = await send('1');
 assert.equal(res.event, 'lead_saved');
 assert.equal(res.reply, LEAD_THANKS_YES);
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, true);
-assert.ok(!res.reply.includes('Edit business info'));
-assert.ok(!res.reply.includes('Try my bot'));
+assert.ok(!res.reply.includes('Tell me more about your business'));
+assert.ok(!res.reply.includes('Chat with me like a customer'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 
 const lead = store._dump().leads[sender];
@@ -184,12 +184,12 @@ assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 // Next BUILD message shows the 4-item menu (no lead item), then 1 is Edit business info
 res = await send('hello');
 assert.equal(res.event, 'menu');
-assert.ok(res.reply.includes('Edit business info') && res.reply.includes('Try my bot'));
+assert.ok(res.reply.includes('Tell me more about your business') && res.reply.includes('Chat with me like a customer'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
 res = await send('1');
 assert.equal(res.event, 'menu_section');
-assert.ok(res.reply.startsWith('Business info\nCurrent:'), res.reply);
+assert.ok(res.reply.startsWith("Your business\nHere's what I have:"), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
 
 // Not offered before first approval: 7 falls through to the Builder

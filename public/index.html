@@ -393,7 +393,7 @@
         </svg>
       </div>
       <div class="header-text">
-        <h1 id="contact-name">easyBot</h1>
+        <h1 id="contact-name">Adam</h1>
         <p class="header-sub">
           <span id="mode" class="mode build">BUILD</span>
           <span id="online">online</span>
@@ -460,7 +460,7 @@
     const params = new URLSearchParams(location.search);
     const demo = parseDemoParams(location.search);
     const DEV = params.get('dev') === '1' && !demo.name;
-    const contactName = (params.get('name') || '').trim() || 'easyBot';
+    const contactName = (params.get('name') || '').trim() || 'Adam';
 
     document.body.classList.toggle('dev', DEV);
     document.title = 'easyBot';

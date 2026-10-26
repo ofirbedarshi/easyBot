@@ -8,8 +8,8 @@
  * resumeMenu: the next BUILD message shows the owner menu.
  */
 
-export const LEAD_MENU_LABEL = 'Get this bot for my business';
-export const LEAD_INTRO = "Awesome! So glad the bot caught your interest 🙌";
+export const LEAD_MENU_LABEL = 'Get me working for your business';
+export const LEAD_INTRO = "Awesome! So glad you're interested 🙌";
 export const LEAD_BRIDGE =
   "Great! To get things moving, I'd love you to answer a few quick questions 😊";
 export const LEAD_THANKS_YES = "Thanks! We'll get back to you soon 🙏";
@@ -25,18 +25,18 @@ const QUESTIONS = {
     nextIntro: LEAD_BRIDGE,
   },
   channels: {
-    text: 'Where would you like the bot to work? (you can pick more than one, e.g. "1, 3")',
+    text: 'Where would you like me to work? (you can pick more than one, e.g. "1, 3")',
     options: ['💬 WhatsApp', '📸 Instagram', '💙 Facebook Messenger', '🌐 My business website', '💡 Other (tell us where)'],
     multi: true,
     followUp: {
       option: 5,
       step: 'channelsOther',
-      text: "Tell me briefly where you'd like the bot to work, for example Telegram or your Google Business page.",
+      text: "Tell me briefly where you'd like me to work, for example Telegram or your Google Business page.",
     },
     next: 'actions',
   },
   actions: {
-    text: 'What would you like the bot to do beyond answering questions? ✨ (you can pick more than one)',
+    text: 'What would you like me to do beyond answering questions? ✨ (you can pick more than one)',
     options: [
       '📅 Book meetings or appointments',
       '📝 Collect details from interested customers',
@@ -48,7 +48,7 @@ const QUESTIONS = {
     followUp: {
       option: 5,
       step: 'actionsOther',
-      text: "Tell me briefly what else you'd like the bot to do for you, for example send appointment reminders.",
+      text: "Tell me briefly what else you'd like me to do for you, for example send appointment reminders.",
     },
     next: 'dailyInquiries',
   },

@@ -376,7 +376,7 @@ async function testApprovalIsLiveImmediately() {
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   await handleMessage(session, 'Change hours to Sun–Fri 8–14');
   assert.equal((await store.loadProfile(sender)).hours, 'Sun–Fri 8–14');
-  const tryIt = await handleMessage(session, 'Try my bot');
+  const tryIt = await handleMessage(session, 'chat with me like a customer');
   assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
   await handleMessage(session, 'When are you open?');

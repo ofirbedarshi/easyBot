@@ -385,14 +385,17 @@ function testOpeningNotInStandingPrompt() {
 function testDefaultOpeningText() {
   assert.equal(
     defaultCustomerOpening({ name: 'BurgerBarber' }),
-    "Hi there! 👋 Welcome to BurgerBarber. I'm the digital assistant here, happy to help with anything you'd like to know 😊"
+    "Hi! I'm Adam, BurgerBarber's digital assistant 😊"
+  );
+  assert.equal(
+    defaultCustomerOpening({}),
+    "Hi! I'm Adam, this business's digital assistant 😊"
   );
   assert.equal(
     customerOpeningText({
       name: 'BurgerBarber',
-      assistantName: 'Maya',
     }),
-    "Hi there! 👋 Welcome to BurgerBarber. I'm Maya, the digital assistant here, happy to help with anything you'd like to know 😊"
+    "Hi! I'm Adam, BurgerBarber's digital assistant 😊"
   );
   assert.equal(
     customerOpeningText({
@@ -429,6 +432,8 @@ function testLegacyDefaultsInPrompt() {
   assert.ok(settings.includes('warm and calm'));
   assert.ok(/Reply length: standard/i.test(settings));
   assert.ok(/Price disclosure: relevant/i.test(settings));
+  assert.match(settings, /You are Adam, Legacy Biz's digital assistant/);
+  assert.doesNotMatch(settings, /Assistant name:/);
   assert.ok(!/^Tone:/m.test(prompt.split('===')[0]), 'no top-level Tone line');
 }
 

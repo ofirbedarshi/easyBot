@@ -82,9 +82,7 @@ const draftObject = {
     'tone',
     'responseLength',
     'priceDisclosure',
-    'assistantName',
     'openingMessage',
-    'assistantNameReset',
     'openingMessageReset',
   ],
   properties: {
@@ -101,9 +99,7 @@ const draftObject = {
     tone: nullableString,
     responseLength: nullableEnum(RESPONSE_LENGTH_VALUES),
     priceDisclosure: nullableEnum(PRICE_DISCLOSURE_VALUES),
-    assistantName: nullableString,
     openingMessage: nullableString,
-    assistantNameReset: { type: 'boolean' },
     openingMessageReset: { type: 'boolean' },
   },
 };
