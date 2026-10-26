@@ -56,7 +56,7 @@ assert.deepEqual(r.state.answers, {
 
 // Menu: item 1 only when requested
 assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
-assert.ok(renderMenu({ leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business\n`));
+assert.ok(renderMenu({ leadOption: true }).startsWith(`1. ${LEAD_MENU_LABEL}\n2. Edit business info\n`));
 
 // Session flow (memory store)
 const store = createMemoryStore();
@@ -107,7 +107,7 @@ await send('5');
 res = await send('1');
 assert.equal(res.event, 'lead_saved');
 assert.ok(res.reply.startsWith("Thanks! We'll get back to you soon."));
-assert.ok(res.reply.includes('1. Edit business\n') && res.reply.includes('6. Try my bot'));
+assert.ok(res.reply.includes('1. Edit business info\n') && res.reply.includes('4. Try my bot'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 
 const lead = store._dump().leads[sender];
@@ -130,7 +130,7 @@ assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 // One-time: after submission the lead item is hidden and 1 is the first edit item
 res = await send('1');
 assert.equal(res.event, 'menu_section');
-assert.ok(res.reply.startsWith('Business\nCurrent:'), res.reply);
+assert.ok(res.reply.startsWith('Business info\nCurrent:'), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
 
 // Not offered before first approval: 7 falls through to the Builder

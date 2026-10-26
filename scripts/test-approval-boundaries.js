@@ -1007,7 +1007,7 @@ async function testIdentityDraftIsolatesLive() {
   assert.equal(r.event, 'build_turn');
   assert.equal(liveMock.approvals.length, 0);
   assert.equal(r.readyForReview, true, 'settings-only edit is presented for review');
-  assert.match(r.reply, /what will change:\n\nName & opening: Maya, custom opening \(was: default\)/);
+  assert.match(r.reply, /what will change:\n\nHow the bot talks: friendly, prices only when asked, Maya, custom opening \(was: friendly, prices only when asked\)/);
   assert.match(r.reply, /1\. Try my bot\n2\. Make changes/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
   const disk = loadProfile(PROFILE);
@@ -1309,7 +1309,7 @@ async function testTypedApproveIsBuilderTurn() {
   assert.ok(diskYes.reviewedDraftKey, 'review of new draft presented');
   assert.match(
     rYes.reply,
-    /what will change:\n\nStyle: friendly, prices when relevant \(was: friendly, prices only when asked\)/,
+    /what will change:\n\nHow the bot talks: friendly, prices when relevant \(was: friendly, prices only when asked\)/,
     'shows the pending change when yes applies a new draft change'
   );
   console.log('PASS typed_yes_with_new_change_keeps_draft');
