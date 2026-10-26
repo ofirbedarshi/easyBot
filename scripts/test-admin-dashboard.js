@@ -173,7 +173,8 @@ async function seedUsers(store) {
       channels: ['WhatsApp'],
       actions: ['Book meetings or appointments'],
       dailyInquiries: '5-20',
-      system: 'No',
+      chatTools: 'No, I reply to customers myself',
+      contactConsent: 'Yes, sure',
     },
     createdAt: '2026-10-04T12:00:00.000Z',
   });
@@ -187,7 +188,7 @@ async function seedUsers(store) {
   await store.appendMessage({
     senderId: lead,
     direction: 'outbound',
-    body: "Thanks! We'll get back to you soon.",
+    body: "Thanks! We'll get back to you soon 🙏",
     twilioMessageSid: 'SMout4',
     mode: 'lead',
   });
@@ -352,6 +353,10 @@ async function testListAndDetail() {
     assert.ok(leadHtml.text.includes('detail-pane'));
     assert.ok(leadHtml.text.includes('Inquiries per day'));
     assert.ok(leadHtml.text.includes('5-20'));
+    assert.ok(leadHtml.text.includes('Chat tools'));
+    assert.ok(leadHtml.text.includes('No, I reply to customers myself'));
+    assert.ok(leadHtml.text.includes('Contact consent'));
+    assert.ok(leadHtml.text.includes('Yes, sure'));
     assert.ok(leadHtml.text.includes('Thanks! We&#39;ll get back to you soon.') || leadHtml.text.includes('Thanks!'));
     assert.ok(!leadHtml.text.includes('<pre'));
     assert.ok(!leadHtml.text.includes('class="badge-lead"'));

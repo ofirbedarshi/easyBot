@@ -4,11 +4,15 @@
  * buildHistory, or Builder prompts.
  *
  * session.leadIntake is null, an in-progress `{ step, answers }`, or
- * `{ submittedAt }` once a lead was saved (one lead per sender).
+ * `{ submittedAt, resumeMenu? }` once a lead was saved (one lead per sender).
+ * resumeMenu: the next BUILD message shows the owner menu.
  */
 
 export const LEAD_MENU_LABEL = 'Get this bot for my business';
-export const LEAD_THANKS = "Thanks! We'll get back to you soon.";
+export const LEAD_INTRO =
+  "Awesome! So glad the bot caught your interest 🙌 To get it set up for you, I just need a few quick answers.";
+export const LEAD_THANKS_YES = "Thanks! We'll get back to you soon 🙏";
+export const LEAD_THANKS_NO = "Thanks! We got your details 🙏";
 export const LEAD_ALREADY_SENT = "You've already sent your request. We'll get back to you soon.";
 
 const QUESTIONS = {
@@ -44,13 +48,28 @@ const QUESTIONS = {
     text: 'About how many customer inquiries do you get per day?',
     options: ['Up to 5', '5-20', '20-50', 'More than 50', 'Not sure'],
     multi: false,
-    next: 'system',
+    next: 'chatTools',
   },
-  system: {
-    text: 'Do you currently use a system for managing customers or appointments?',
-    options: ['No', 'Yes'],
+  chatTools: {
+    text: 'Do you already use a tool to manage your customer chats? 💬',
+    options: [
+      '❌ No, I reply to customers myself',
+      '📱 Yes, the WhatsApp Business app',
+      '🤖 Yes, a bot or automation platform (for example ManyChat)',
+      '💡 Other (tell us which)',
+    ],
     multi: false,
-    followUp: { option: 2, step: 'systemName', text: 'Which system do you use?' },
+    followUp: {
+      option: 4,
+      step: 'chatToolsOther',
+      text: 'Tell me briefly which tool you use, for example ManyChat or a CRM.',
+    },
+    next: 'contactConsent',
+  },
+  contactConsent: {
+    text: 'Can we contact you on this number to follow up and help you get started? 📞',
+    options: ['✅ Yes, sure', '❌ No, thanks'],
+    multi: false,
     next: null,
   },
 };
@@ -98,15 +117,20 @@ export function leadSubmitted(state) {
   return !!state?.submittedAt;
 }
 
+/** After a save, the next BUILD message should show the owner menu. */
+export function leadResumePending(state) {
+  return !!state?.submittedAt && state.resumeMenu === true;
+}
+
 export function startLeadIntake() {
   const first = 'channels';
-  return { state: { step: first, answers: {} }, reply: renderQuestion(first) };
+  return { state: { step: first, answers: {} }, reply: `${LEAD_INTRO}\n\n${renderQuestion(first)}` };
 }
 
 /**
  * One questionnaire turn.
  * @returns {{ state: object, reply: string|null, done: boolean }}
- *   done → `state.answers` is complete; caller saves the lead.
+ *   done → `state.answers` is complete; `reply` is the closing thanks.
  */
 export function stepLeadIntake(state, text) {
   const answers = { ...state.answers };
@@ -131,10 +155,15 @@ export function stepLeadIntake(state, text) {
   if (q.followUp && picks.includes(q.followUp.option)) {
     return { state: { step: q.followUp.step, answers }, reply: q.followUp.text, done: false };
   }
-  return advance(q.next, answers);
+  return advance(q.next, answers, closingReply(step, picks[0]));
 }
 
-function advance(next, answers) {
-  if (!next) return { state: { step: null, answers }, reply: null, done: true };
+function closingReply(step, pick) {
+  if (step !== 'contactConsent') return null;
+  return pick === 1 ? LEAD_THANKS_YES : LEAD_THANKS_NO;
+}
+
+function advance(next, answers, closing = null) {
+  if (!next) return { state: { step: null, answers }, reply: closing, done: true };
   return { state: { step: next, answers }, reply: renderQuestion(next), done: false };
 }
