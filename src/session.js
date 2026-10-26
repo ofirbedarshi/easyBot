@@ -38,8 +38,8 @@ import {
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
-  LEAD_THANKS,
   leadInProgress,
+  leadResumePending,
   leadSubmitted,
   startLeadIntake,
   stepLeadIntake,
@@ -191,7 +191,10 @@ export async function handleMessage(session, text) {
   }
 
   // Commands handled in app code — never by the LLM
-  if (['/test', '/end', '/reset'].includes(trimmed)) cancelLeadIntake(session);
+  if (['/test', '/end', '/reset'].includes(trimmed)) {
+    cancelLeadIntake(session);
+    clearLeadResume(session);
+  }
   if (trimmed === '/test') {
     return enterTest(session);
   }
@@ -231,6 +234,7 @@ export async function handleMessage(session, text) {
   }
 
   if (leadInProgress(session.leadIntake)) return handleLeadIntake(session, trimmed);
+  if (leadResumePending(session.leadIntake)) return resumeOwnerMenu(session, trimmed);
 
   const nav = await handleNavigation(session, trimmed);
   if (nav) return nav;
@@ -247,6 +251,8 @@ export async function handleMessage(session, text) {
  * section items are read-only (never save the profile) and the last item
  * behaves like "Try my bot". After approval, until a lead is submitted, item 1
  * is "Get this bot for my business" and the rest shift down by one.
+ * Completing the questionnaire does not append a menu; the next BUILD
+ * message shows the current menu (without the lead item).
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
 async function handleNavigation(session, text) {
@@ -417,6 +423,28 @@ function cancelLeadIntake(session) {
   if (leadInProgress(session.leadIntake)) session.leadIntake = null;
 }
 
+/** Commands already show their own UI; do not consume the next BUILD turn. */
+function clearLeadResume(session) {
+  if (!leadResumePending(session.leadIntake)) return;
+  session.leadIntake = { submittedAt: session.leadIntake.submittedAt };
+}
+
+/** First BUILD message after a saved lead: show the current owner menu. */
+async function resumeOwnerMenu(session, text) {
+  session.leadIntake = { submittedAt: session.leadIntake.submittedAt };
+  const profile = await loadAsync(session);
+  const reply = renderMenu(leadMenuOpts(session, profile));
+  session.buildHistory.push({ role: 'user', content: text });
+  session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+  return {
+    ok: true,
+    reply,
+    source: 'app',
+    event: 'menu',
+    ...(await getStateAsync(session)),
+  };
+}
+
 /** Lead questionnaire turns never touch buildHistory, the profile, or the draft. */
 async function leadReply(session, reply, event) {
   return { ok: true, reply, source: 'app', event, ...(await getStateAsync(session)) };
@@ -456,9 +484,8 @@ async function handleLeadIntake(session, text) {
   } else {
     session.lead = lead;
   }
-  session.leadIntake = { submittedAt: lead.createdAt };
-  const menu = renderMenu(leadMenuOpts(session, profile));
-  return leadReply(session, `${LEAD_THANKS}\n\n${menu}`, 'lead_saved');
+  session.leadIntake = { submittedAt: lead.createdAt, resumeMenu: true };
+  return leadReply(session, step.reply, 'lead_saved');
 }
 
 async function handleTest(session, question) {

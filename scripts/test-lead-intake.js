@@ -5,7 +5,10 @@
 import assert from 'assert';
 import { emptyProfile } from '../src/profile.js';
 import {
+  LEAD_INTRO,
   LEAD_MENU_LABEL,
+  LEAD_THANKS_NO,
+  LEAD_THANKS_YES,
   parseChoices,
   startLeadIntake,
   stepLeadIntake,
@@ -27,7 +30,8 @@ assert.equal(parseChoices('0', 2, false), null);
 
 // State machine
 let { state, reply } = startLeadIntake();
-assert.ok(reply.startsWith('Where would you like the bot to work?'));
+assert.ok(reply.startsWith(LEAD_INTRO));
+assert.ok(reply.includes('Where would you like the bot to work?'));
 let r = stepLeadIntake(state, 'yes please');
 assert.equal(r.state.step, 'channels');
 assert.ok(r.reply.includes('1. 💬 WhatsApp'));
@@ -46,19 +50,32 @@ assert.equal(r.state.step, 'dailyInquiries');
 r = stepLeadIntake(r.state, '1, 2');
 assert.equal(r.state.step, 'dailyInquiries');
 r = stepLeadIntake(r.state, '3');
-assert.equal(r.state.step, 'system');
-r = stepLeadIntake(r.state, '2');
-assert.equal(r.state.step, 'systemName');
+assert.equal(r.state.step, 'chatTools');
+assert.ok(r.reply.includes('Do you already use a tool to manage your customer chats?'));
+r = stepLeadIntake(r.state, '4');
+assert.equal(r.state.step, 'chatToolsOther');
+assert.equal(r.reply, 'Tell me briefly which tool you use, for example ManyChat or a CRM.');
 r = stepLeadIntake(r.state, 'A booking app');
+assert.equal(r.state.step, 'contactConsent');
+assert.ok(r.reply.includes('Can we contact you on this number'));
+r = stepLeadIntake(r.state, '1');
 assert.equal(r.done, true);
+assert.equal(r.reply, LEAD_THANKS_YES);
 assert.deepEqual(r.state.answers, {
   channels: ['WhatsApp', 'Other (tell us where)'],
   channelsOther: 'Telegram',
   actions: ['Collect details from interested customers', 'Hand conversations over to a human agent'],
   dailyInquiries: '20-50',
-  system: 'Yes',
-  systemName: 'A booking app',
+  chatTools: 'Other (tell us which)',
+  chatToolsOther: 'A booking app',
+  contactConsent: 'Yes, sure',
 });
+
+// Consent no: last pick 2 closes with the no-thanks line
+r = stepLeadIntake({ step: 'contactConsent', answers: {} }, '2');
+assert.equal(r.done, true);
+assert.equal(r.reply, LEAD_THANKS_NO);
+assert.equal(r.state.answers.contactConsent, 'No, thanks');
 
 // Menu: item 1 only when requested
 assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
@@ -89,8 +106,10 @@ async function send(text) {
 const profileBefore = JSON.stringify(await store.loadProfile(sender));
 
 // Cancel with "menu": nothing saved, menu shown, item 1 still offered
-assert.equal((await send('1')).event, 'lead_question');
-let res = await send('menu');
+let res = await send('1');
+assert.equal(res.event, 'lead_question');
+assert.ok(res.reply.startsWith(LEAD_INTRO));
+res = await send('menu');
 assert.equal(res.event, 'lead_cancelled');
 assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
 assert.equal(Object.keys(store._dump().leads).length, 0);
@@ -117,9 +136,13 @@ res = await send('lots');
 assert.ok(res.reply.startsWith('Please reply with the number of your choice.'));
 await send('5');
 res = await send('1');
+assert.ok(res.reply.includes('Can we contact you on this number'));
+res = await send('1');
 assert.equal(res.event, 'lead_saved');
-assert.ok(res.reply.startsWith("Thanks! We'll get back to you soon."));
-assert.ok(res.reply.includes('1. 🏪 Edit business info\n') && res.reply.includes('4. 🤖 Try my bot'));
+assert.equal(res.reply, LEAD_THANKS_YES);
+assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, true);
+assert.ok(!res.reply.includes('Edit business info'));
+assert.ok(!res.reply.includes('Try my bot'));
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 
 const lead = store._dump().leads[sender];
@@ -131,7 +154,8 @@ assert.deepEqual(lead.answers, {
   actions: ['Other (tell us more)'],
   actionsOther: 'Track orders',
   dailyInquiries: 'Not sure',
-  system: 'No',
+  chatTools: 'No, I reply to customers myself',
+  contactConsent: 'Yes, sure',
 });
 
 // Builder state untouched
@@ -139,7 +163,12 @@ const sess = await store.loadSession(sender);
 assert.equal(sess.buildHistory.filter((m) => m.role === 'user').length, 0);
 assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 
-// One-time: after submission the lead item is hidden and 1 is the first edit item
+// Next BUILD message shows the 4-item menu (no lead item), then 1 is Edit business info
+res = await send('hello');
+assert.equal(res.event, 'menu');
+assert.ok(res.reply.includes('Edit business info') && res.reply.includes('Try my bot'));
+assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
+assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
 res = await send('1');
 assert.equal(res.event, 'menu_section');
 assert.ok(res.reply.startsWith('Business info\nCurrent:'), res.reply);

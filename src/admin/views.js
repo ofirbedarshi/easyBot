@@ -22,8 +22,9 @@ const LEAD_ANSWER_LABELS = {
   actions: 'Beyond answering questions',
   actionsOther: 'Other action',
   dailyInquiries: 'Inquiries per day',
-  system: 'Current system',
-  systemName: 'System name',
+  chatTools: 'Chat tools',
+  chatToolsOther: 'Other chat tool',
+  contactConsent: 'Contact consent',
 };
 
 const MODE_LABELS = {
