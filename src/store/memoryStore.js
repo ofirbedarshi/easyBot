@@ -5,6 +5,7 @@
 import { emptyProfile } from '../profile.js';
 import { phoneE164FromSenderId } from '../phone.js';
 import { modeFromSessionPreview } from '../conversationLog.js';
+import { buildUserDetail, buildUserRow } from '../admin/users.js';
 
 /** Matches easybot_claim_next_inbound 120s reclaim. */
 export const INBOUND_CLAIM_STALE_MS = 120_000;
@@ -105,6 +106,7 @@ export function createMemoryStore() {
       twilioMessageSid,
       mode,
       inReplyToSid,
+      createdAt,
     }) {
       await this.ensureSender(senderId);
       if (twilioMessageSid) {
@@ -121,7 +123,7 @@ export function createMemoryStore() {
         twilio_message_sid: twilioMessageSid ?? null,
         mode,
         in_reply_to_sid: inReplyToSid ?? null,
-        created_at: new Date().toISOString(),
+        created_at: createdAt || new Date().toISOString(),
       };
       messages.push(row);
       return { inserted: true, row };
@@ -150,6 +152,37 @@ export function createMemoryStore() {
         .filter((m) => m.sender_id === senderId)
         .map((m) => ({ ...m }))
         .sort((a, b) => a.id - b.id);
+    },
+
+    async listAdminUsers() {
+      const rows = [];
+      for (const [senderId, sender] of senders) {
+        rows.push(
+          buildUserRow({
+            sender,
+            profile: profiles.get(senderId) || emptyProfile(),
+            session: sessions.get(senderId) || null,
+            lead: leads.get(senderId) || null,
+            messages: messages.filter((m) => m.sender_id === senderId),
+          })
+        );
+      }
+      return rows;
+    },
+
+    async getAdminUser(senderId) {
+      const sender = senders.get(senderId);
+      if (!sender) return null;
+      return buildUserDetail({
+        sender,
+        profile: profiles.get(senderId) || emptyProfile(),
+        session: sessions.get(senderId) || null,
+        lead: leads.get(senderId) || null,
+        messages: messages
+          .filter((m) => m.sender_id === senderId)
+          .slice()
+          .sort((a, b) => a.id - b.id),
+      });
     },
 
     /**

@@ -21,6 +21,7 @@ const SUITES = [
   { id: 'builder-output', file: 'test/test-builder-output.js' },
   { id: 'fact-preservation', file: 'test/test-fact-preservation.js' },
   { id: 'validate-cto-state', file: 'scripts/validate-cto-state.js' },
+  { id: 'admin-dashboard', file: 'scripts/test-admin-dashboard.js' },
 ];
 
 function runSuite(suite) {

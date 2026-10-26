@@ -11,6 +11,7 @@ import {
 } from '../profile.js';
 import { phoneE164FromSenderId } from '../phone.js';
 import { modeFromSessionPreview } from '../conversationLog.js';
+import { buildUserDetail, buildUserRow } from '../admin/users.js';
 
 export function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -243,6 +244,96 @@ export function createSupabaseStore() {
         .order('id', { ascending: true });
       if (error) throw new Error(`listMessages: ${error.message}`);
       return data || [];
+    },
+
+    async listAdminUsers() {
+      const [sendersRes, profilesRes, sessionsRes, leadsRes, msgsRes] =
+        await Promise.all([
+          sb.from('easybot_senders').select('id, phone_e164, created_at, updated_at'),
+          sb.from('easybot_business_profiles').select('sender_id, profile'),
+          sb.from('easybot_sessions').select('sender_id, mode, test_history'),
+          sb.from('easybot_leads').select('sender_id, business_name, answers, created_at'),
+          sb.from('easybot_messages').select('sender_id, created_at, mode, body'),
+        ]);
+      for (const [label, res] of [
+        ['senders', sendersRes],
+        ['profiles', profilesRes],
+        ['sessions', sessionsRes],
+        ['leads', leadsRes],
+        ['messages', msgsRes],
+      ]) {
+        if (res.error) throw new Error(`listAdminUsers ${label}: ${res.error.message}`);
+      }
+      const profilesBy = new Map(
+        (profilesRes.data || []).map((r) => [r.sender_id, r.profile])
+      );
+      const sessionsBy = new Map(
+        (sessionsRes.data || []).map((r) => [
+          r.sender_id,
+          { mode: r.mode, testHistory: r.test_history || [] },
+        ])
+      );
+      const leadsBy = new Map(
+        (leadsRes.data || []).map((r) => [r.sender_id, r])
+      );
+      const msgsBy = new Map();
+      for (const m of msgsRes.data || []) {
+        const list = msgsBy.get(m.sender_id) || [];
+        list.push(m);
+        msgsBy.set(m.sender_id, list);
+      }
+      return (sendersRes.data || []).map((sender) =>
+        buildUserRow({
+          sender,
+          profile: profilesBy.get(sender.id) || {},
+          session: sessionsBy.get(sender.id) || null,
+          lead: leadsBy.get(sender.id) || null,
+          messages: msgsBy.get(sender.id) || [],
+        })
+      );
+    },
+
+    async getAdminUser(senderId) {
+      const { data: sender, error: sErr } = await sb
+        .from('easybot_senders')
+        .select('id, phone_e164, created_at, updated_at')
+        .eq('id', senderId)
+        .maybeSingle();
+      if (sErr) throw new Error(`getAdminUser sender: ${sErr.message}`);
+      if (!sender) return null;
+
+      const [profRes, sessRes, leadRes, messages] = await Promise.all([
+        sb
+          .from('easybot_business_profiles')
+          .select('profile')
+          .eq('sender_id', senderId)
+          .maybeSingle(),
+        sb
+          .from('easybot_sessions')
+          .select('mode, test_history, lead_intake')
+          .eq('sender_id', senderId)
+          .maybeSingle(),
+        sb
+          .from('easybot_leads')
+          .select('sender_id, business_name, answers, created_at')
+          .eq('sender_id', senderId)
+          .maybeSingle(),
+        this.listMessages(senderId),
+      ]);
+      if (profRes.error) throw new Error(`getAdminUser profile: ${profRes.error.message}`);
+      if (sessRes.error) throw new Error(`getAdminUser session: ${sessRes.error.message}`);
+      if (leadRes.error) throw new Error(`getAdminUser lead: ${leadRes.error.message}`);
+
+      const sess = sessRes.data;
+      return buildUserDetail({
+        sender,
+        profile: profRes.data?.profile || {},
+        session: sess
+          ? { mode: sess.mode, testHistory: sess.test_history || [] }
+          : null,
+        lead: leadRes.data || null,
+        messages,
+      });
     },
 
     async enqueueInbound({ messageSid, senderId, body }) {

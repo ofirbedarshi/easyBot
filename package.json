@@ -14,6 +14,7 @@
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "test:isolation": "node scripts/test-sender-isolation.js",
     "test:lead": "node scripts/test-lead-intake.js",
+    "test:admin": "node scripts/test-admin-dashboard.js",
     "test:business-bot": "node scripts/test-business-bot.js",
     "regress": "node scripts/run-live-regress.js",
     "replay:salon-intake": "node scripts/replay-salon-intake.js"
