@@ -1,5 +1,6 @@
 import {
   assistantIdentityView,
+  defaultCustomerOpening,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
@@ -54,8 +55,7 @@ const STRINGS = {
     assistantName: 'Assistant name',
     noName: '(not set — no name)',
     openingMessage: 'Opening message',
-    defaultOpening: (biz) =>
-      `(default) short introduction as the digital assistant of ${biz || 'this business'}`,
+    defaultOpening: (biz) => `(default) “${defaultCustomerOpening({ name: biz })}”`,
   },
   responseLengthLabels: { short: 'short', standard: 'standard' },
   priceDisclosureLabels: {

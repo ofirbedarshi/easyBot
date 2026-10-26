@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { applyReviewGate, runBuilderTurn } from '../src/builder.js';
 import { businessBotReply } from '../src/businessBot.js';
-import { emptyProfile } from '../src/profile.js';
+import { customerOpeningText, emptyProfile } from '../src/profile.js';
 import { attachCostTracker } from './lib/modelCost.js';
 
 const MODEL = process.env.OPENAI_MODEL || process.env.OPENAI_BUILDER_MODEL || 'gpt-6-luna';
@@ -106,10 +106,12 @@ async function replayBusinessBot() {
     console.log(`\n[CUSTOMER] ${question}`);
     console.log(`[APP] ${reply}`);
   }
+  const first = transcript[0]?.reply || '';
   const color = transcript.find((t) => /color my whole head/i.test(t.question))?.reply || '';
   const intake = transcript.find((t) => /Dana Cohen/i.test(t.question))?.reply || '';
   const booked = transcript.find((t) => /i'?m booked/i.test(t.question))?.reply || '';
   const score = {
+    firstOpens: first.startsWith(`${customerOpeningText(SALON)}\n\n`),
     colorProcess: answersColorProcess(color),
     colorNoOwnerRedirect: !redirectsToOwner(color),
     confirms: confirmsDetails(intake),
@@ -120,6 +122,7 @@ async function replayBusinessBot() {
     bookedNoOwnerRedirect: !redirectsToOwner(booked),
   };
   score.pass =
+    score.firstOpens &&
     score.colorProcess &&
     score.colorNoOwnerRedirect &&
     score.confirms &&
