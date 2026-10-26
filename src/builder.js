@@ -403,14 +403,18 @@ function restoreOmittedStrings(prevList, incoming) {
 
 /**
  * Keep previously stored facts the model dropped or altered without the owner asking.
- * The model reports owner-requested changes in `ownerEdits`; any other change that does
- * not keep the whole previous value (i.e. is not purely additive) is reverted. Items are matched by identity (service name, FAQ
+ * The model reports owner-requested changes in `ownerEdits`. A shortening that does
+ * not keep the whole previous value is reverted unless reported (or, for list items,
+ * proposed in this turn's delta). A text-field rewrite proposed in the delta is kept.
+ * Items are matched by identity (service name, FAQ
  * question) so an edited item replaces the old one instead of duplicating it.
  * A list-field abbreviation is accepted only when it matches exactly one stored item.
  * Restored items stay in their previous position; new items append.
  * `unknowns` are not guarded here; resolved ones are removed by dropResolved.
  * `otherFacts` are code-owned (see applyFactOps).
- * Relies on the model reporting edits; an unreported edit is reverted.
+ * Relies on the model reporting edits. An unreported shortening is reverted.
+ * A rewrite proposed in this turn's delta (neither value contains the other)
+ * is kept, same as a list item the raw delta proposed.
  */
 export function preserveFacts(draft, currentDraft, ownerEdits, incomingDelta) {
   if (!currentDraft) return draft;
@@ -466,9 +470,12 @@ export function preserveFacts(draft, currentDraft, ownerEdits, incomingDelta) {
   }
 
   for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
-    if (prev[field] && !extends_(next[field], prev[field]) && !textFieldEdited(edits, field)) {
-      next[field] = prev[field];
+    if (!prev[field] || extends_(next[field], prev[field]) || textFieldEdited(edits, field)) {
+      continue;
     }
+    const proposed = typeof delta[field] === 'string' && delta[field].trim();
+    const shortening = !!(proposed && extends_(prev[field], next[field]));
+    if (!proposed || shortening) next[field] = prev[field];
   }
   return next;
 }
