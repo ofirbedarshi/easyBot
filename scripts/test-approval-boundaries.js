@@ -23,6 +23,8 @@ import {
 import {
   applyReviewGate,
   enforceConfigRequests,
+  GOAL_FALLBACK_DISCLAIMER,
+  OWNER_GOAL_QUESTION,
   reconcileDraft,
   withSingleQuestion,
 } from '../src/builder.js';
@@ -428,10 +430,12 @@ function testGoalSupport() {
     commonQuestions: [],
     informationToCollect: null,
   };
-  const disclaimer =
-    /Noted! book sessions isn't available yet, so I'll set the bot to answer questions and collect details for now\./;
 
-  // Unsupported → fallback goal + fixed disclaimer before the next question.
+  assert.match(OWNER_GOAL_QUESTION, /answer customer questions/);
+  assert.match(OWNER_GOAL_QUESTION, /collect contact details/);
+  assert.doesNotMatch(OWNER_GOAL_QUESTION, /booking an appointment/);
+
+  // Unsupported (model flag) → fallback goal + mapped-goal line before the next question.
   const u = applyReviewGate(
     emptyProfile(),
     {
@@ -445,14 +449,34 @@ function testGoalSupport() {
   );
   assert.equal(u.draft.ownerGoal, 'answer_and_collect');
   assert.equal(u.draft.ownerGoalRequested, 'lead customers to book a session');
-  assert.match(u.message, disclaimer);
-  assert.ok(u.message.startsWith('Noted!'), 'model ack replaced by disclaimer');
+  assert.ok(u.message.startsWith(GOAL_FALLBACK_DISCLAIMER), 'model ack replaced by mapped-goal line');
+  assert.doesNotMatch(u.message, /isn't available yet/);
   assert.ok(
-    u.message.indexOf("isn't available yet") < u.message.indexOf('What questions do customers'),
-    'disclaimer before the question'
+    u.message.indexOf(GOAL_FALLBACK_DISCLAIMER) < u.message.indexOf('What questions do customers'),
+    'mapped-goal line before the question'
   );
 
-  // Model forgot goalSupported=false: owner's wording still triggers the fallback.
+  // Mixed collect + book, model marks supported → keep that goal, no fallback line.
+  const mixed = applyReviewGate(
+    emptyProfile(),
+    {
+      message: 'Got it, thanks!',
+      draft: {
+        ...facts,
+        ownerGoal: 'answer_and_collect',
+        ownerGoalRequested: 'answer questions and take messages when people want to book',
+      },
+      goalSupported: true,
+      readyForReview: false,
+    },
+    'answer questions and take messages when people want to book'
+  );
+  assert.equal(mixed.draft.ownerGoal, 'answer_and_collect');
+  assert.equal(mixed.message, 'Got it, thanks!');
+  assert.ok(!mixed.message.includes("isn't available yet"));
+  assert.ok(!mixed.message.includes(GOAL_FALLBACK_DISCLAIMER));
+
+  // Model omitted goalSupported: the owner's words are not inspected.
   const missed = applyReviewGate(
     emptyProfile(),
     {
@@ -463,11 +487,13 @@ function testGoalSupport() {
     },
     'lead customers to book a session with me'
   );
-  assert.equal(missed.draft.ownerGoal, 'answer_and_collect');
-  assert.match(missed.message, /^Noted! book appointments isn't available yet/);
-  assert.doesNotMatch(missed.message, /help customers book/);
+  assert.equal(missed.draft.ownerGoal, 'answer_questions');
+  assert.equal(
+    missed.message,
+    "I'll set the goal to help customers book. Should the bot collect anything?"
+  );
 
-  // Supported → no disclaimer.
+  // Supported → no fallback line.
   const s = applyReviewGate(
     emptyProfile(),
     {
@@ -479,7 +505,7 @@ function testGoalSupport() {
     'answer questions'
   );
   assert.equal(s.draft.ownerGoal, 'answer_questions');
-  assert.doesNotMatch(s.message, /Noted!/);
+  assert.ok(!s.message.includes(GOAL_FALLBACK_DISCLAIMER));
 
   // reconcileDraft: invalid/omitted goal keeps previous; free text never stored.
   assert.equal(reconcileDraft({ ownerGoal: 'sell more' }, { ownerGoal: 'collect_details' }).ownerGoal, 'collect_details');
