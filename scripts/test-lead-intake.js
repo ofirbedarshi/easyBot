@@ -5,6 +5,7 @@
 import assert from 'assert';
 import { emptyProfile } from '../src/profile.js';
 import {
+  LEAD_BRIDGE,
   LEAD_INTRO,
   LEAD_MENU_LABEL,
   LEAD_THANKS_NO,
@@ -31,9 +32,20 @@ assert.equal(parseChoices('0', 2, false), null);
 // State machine
 let { state, reply } = startLeadIntake();
 assert.ok(reply.startsWith(LEAD_INTRO));
-assert.ok(reply.includes('Where would you like the bot to work?'));
+assert.ok(!reply.includes('To get it set up for you'));
+assert.ok(reply.includes('Can we contact you on this number'));
+assert.ok(reply.includes('1. ✅ Yes, sure'));
+assert.ok(reply.includes('2. ❌ No, thanks'));
 let r = stepLeadIntake(state, 'yes please');
+assert.equal(r.state.step, 'contactConsent');
+assert.ok(r.reply.includes('1. ✅ Yes, sure'));
+assert.ok(!r.reply.includes(LEAD_INTRO));
+r = stepLeadIntake(r.state, '1');
+assert.equal(r.done, false);
 assert.equal(r.state.step, 'channels');
+assert.equal(r.state.answers.contactConsent, 'Yes, sure');
+assert.ok(r.reply.startsWith(LEAD_BRIDGE));
+assert.ok(r.reply.includes('Where would you like the bot to work?'));
 assert.ok(r.reply.includes('1. 💬 WhatsApp'));
 r = stepLeadIntake(r.state, '1, 5');
 assert.equal(r.state.step, 'channelsOther');
@@ -56,23 +68,25 @@ r = stepLeadIntake(r.state, '4');
 assert.equal(r.state.step, 'chatToolsOther');
 assert.equal(r.reply, 'Tell me briefly which tool you use, for example ManyChat or a CRM.');
 r = stepLeadIntake(r.state, 'A booking app');
-assert.equal(r.state.step, 'contactConsent');
-assert.ok(r.reply.includes('Can we contact you on this number'));
-r = stepLeadIntake(r.state, '1');
 assert.equal(r.done, true);
 assert.equal(r.reply, LEAD_THANKS_YES);
 assert.deepEqual(r.state.answers, {
+  contactConsent: 'Yes, sure',
   channels: ['WhatsApp', 'Other (tell us where)'],
   channelsOther: 'Telegram',
   actions: ['Collect details from interested customers', 'Hand conversations over to a human agent'],
   dailyInquiries: '20-50',
   chatTools: 'Other (tell us which)',
   chatToolsOther: 'A booking app',
-  contactConsent: 'Yes, sure',
 });
 
-// Consent no: last pick 2 closes with the no-thanks line
+// Consent no still continues; closing uses the stored consent answer
 r = stepLeadIntake({ step: 'contactConsent', answers: {} }, '2');
+assert.equal(r.done, false);
+assert.equal(r.state.step, 'channels');
+assert.ok(r.reply.startsWith(LEAD_BRIDGE));
+assert.equal(r.state.answers.contactConsent, 'No, thanks');
+r = stepLeadIntake({ step: 'chatTools', answers: { contactConsent: 'No, thanks' } }, '1');
 assert.equal(r.done, true);
 assert.equal(r.reply, LEAD_THANKS_NO);
 assert.equal(r.state.answers.contactConsent, 'No, thanks');
@@ -109,6 +123,8 @@ const profileBefore = JSON.stringify(await store.loadProfile(sender));
 let res = await send('1');
 assert.equal(res.event, 'lead_question');
 assert.ok(res.reply.startsWith(LEAD_INTRO));
+assert.ok(res.reply.includes('Can we contact you on this number'));
+assert.ok(!res.reply.includes('To get it set up for you'));
 res = await send('menu');
 assert.equal(res.event, 'lead_cancelled');
 assert.ok(res.reply.includes(`1. 🚀 ${LEAD_MENU_LABEL}`));
@@ -125,6 +141,10 @@ assert.equal(Object.keys(store._dump().leads).length, 0);
 
 // Full run
 await send('1');
+res = await send('1');
+assert.equal(res.event, 'lead_question');
+assert.ok(res.reply.startsWith(LEAD_BRIDGE));
+assert.ok(res.reply.includes('Where would you like the bot to work?'));
 await send('1 4');
 res = await send('5');
 assert.equal(
@@ -135,8 +155,6 @@ await send('Track orders');
 res = await send('lots');
 assert.ok(res.reply.startsWith('Please reply with the number of your choice.'));
 await send('5');
-res = await send('1');
-assert.ok(res.reply.includes('Can we contact you on this number'));
 res = await send('1');
 assert.equal(res.event, 'lead_saved');
 assert.equal(res.reply, LEAD_THANKS_YES);
@@ -150,12 +168,12 @@ assert.equal(lead.senderId, sender);
 assert.equal(lead.businessName, 'Test Studio');
 assert.ok(lead.createdAt);
 assert.deepEqual(lead.answers, {
+  contactConsent: 'Yes, sure',
   channels: ['WhatsApp', 'My business website'],
   actions: ['Other (tell us more)'],
   actionsOther: 'Track orders',
   dailyInquiries: 'Not sure',
   chatTools: 'No, I reply to customers myself',
-  contactConsent: 'Yes, sure',
 });
 
 // Builder state untouched
