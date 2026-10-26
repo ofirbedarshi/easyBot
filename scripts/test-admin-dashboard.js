@@ -25,6 +25,7 @@ async function withAdmin(store, fn, { password = PASSWORD } = {}) {
   _resetRateLimitForTests();
   const app = express();
   app.use(express.json());
+  app.get('/', (_req, res) => res.type('html').send('<!doctype html><title>easyBot</title>public'));
   app.post('/api/chat', (_req, res) => res.json({ ok: true, source: 'chat' }));
   app.use('/admin', createAdminRouter(store));
   const server = await new Promise((resolve) => {
@@ -193,6 +194,11 @@ async function testHiddenWhenUnset() {
     const api = await req(origin, '/admin/api/users');
     assert.equal(api.status, 404);
   }, { password: null });
+
+  await withAdmin(store, async ({ origin }) => {
+    const empty = await req(origin, '/admin/users/anything');
+    assert.equal(empty.status, 404);
+  }, { password: '' });
 }
 
 async function testCsrfAndLogin() {
@@ -267,6 +273,10 @@ async function testAuthzAndChatUntouched() {
     assert.ok(detail.status === 302 || detail.status === 303);
     assert.equal(new URL(detail.headers.get('location'), origin).pathname, '/admin');
 
+    const home = await req(origin, '/');
+    assert.equal(home.status, 200);
+    assert.ok(home.text.includes('public'));
+
     const chat = await req(origin, '/api/chat', { method: 'POST', body: { message: 'hi' } });
     assert.equal(chat.status, 200);
     assert.equal(chat.json.source, 'chat');
@@ -300,6 +310,7 @@ async function testListAndDetail() {
     assert.ok(html.text.includes('Bloom Salon'));
     assert.ok(html.text.includes('Tried the bot'));
     assert.ok(html.text.includes('>Lead<') || html.text.includes('Lead</span>'));
+    assert.ok(html.text.includes('First seen'));
 
     const bloom = await req(origin, '/admin/api/users?q=bloom', { cookie });
     assert.equal(bloom.json.users.length, 1);
@@ -350,8 +361,15 @@ async function testLogoutAndHelpers() {
     });
     assert.equal(out.status, 200, out.text);
     assert.ok(String(out.setCookie).includes('Max-Age=0'));
-    const after = await req(origin, '/admin/api/users');
+    const after = await req(origin, '/admin/api/users', { cookie });
     assert.equal(after.status, 401);
+
+    const cookie2 = await login(origin);
+    const prev = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_PASSWORD = 'changed-after-login';
+    const stale = await req(origin, '/admin/api/users', { cookie: cookie2 });
+    process.env.ADMIN_PASSWORD = prev;
+    assert.equal(stale.status, 401);
   });
 
   assert.equal(passwordsEqual('a', 'a'), true);

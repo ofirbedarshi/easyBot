@@ -9,6 +9,7 @@ import {
   passwordsEqual,
   recordLoginFailure,
   requestOriginOk,
+  revokeSession,
   signSession,
   verifySession,
 } from './auth.js';
@@ -86,6 +87,7 @@ export function createAdminRouter(store) {
       if (wantsJson(req)) return res.status(403).json({ ok: false, error: 'Forbidden' });
       return res.status(403).type('html').send(renderSimple('Forbidden', { error: true }));
     }
+    revokeSession(parseCookie(req.headers.cookie));
     res.setHeader('Set-Cookie', cookieHeader('', { clear: true }));
     if (wantsJson(req)) return res.json({ ok: true });
     return res.redirect(303, '/admin');

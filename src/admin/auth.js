@@ -7,6 +7,8 @@ export const LOGIN_MAX_FAILURES = 5;
 
 /** @type {Map<string, { count: number, resetAt: number }>} */
 const loginFailures = new Map();
+/** Issued session tokens. Logout removes the token; password change fails HMAC. */
+const liveSessions = new Set();
 
 export function adminPasswordConfigured() {
   return String(process.env.ADMIN_PASSWORD || '').length > 0;
@@ -30,18 +32,37 @@ function hmacSecret() {
 export function signSession(now = Date.now()) {
   const exp = String(now + COOKIE_MAX_AGE_MS);
   const sig = crypto.createHmac('sha256', hmacSecret()).update(exp).digest('base64url');
-  return `${exp}.${sig}`;
+  const token = `${exp}.${sig}`;
+  liveSessions.add(token);
+  pruneSessions(now);
+  return token;
+}
+
+export function revokeSession(token) {
+  if (token) liveSessions.delete(token);
+}
+
+function pruneSessions(now = Date.now()) {
+  for (const token of liveSessions) {
+    const dot = token.indexOf('.');
+    const expMs = Number(dot > 0 ? token.slice(0, dot) : '');
+    if (!Number.isFinite(expMs) || now > expMs) liveSessions.delete(token);
+  }
 }
 
 export function verifySession(token) {
   if (!token || typeof token !== 'string') return false;
+  if (!liveSessions.has(token)) return false;
   const dot = token.indexOf('.');
   if (dot < 1) return false;
   const exp = token.slice(0, dot);
   const sig = token.slice(dot + 1);
   if (!exp || !sig) return false;
   const expMs = Number(exp);
-  if (!Number.isFinite(expMs) || Date.now() > expMs) return false;
+  if (!Number.isFinite(expMs) || Date.now() > expMs) {
+    liveSessions.delete(token);
+    return false;
+  }
   const expected = crypto
     .createHmac('sha256', hmacSecret())
     .update(exp)
@@ -148,4 +169,5 @@ export function clearLoginFailures(ip) {
 /** Test-only. */
 export function _resetRateLimitForTests() {
   loginFailures.clear();
+  liveSessions.clear();
 }

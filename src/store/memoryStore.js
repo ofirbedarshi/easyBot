@@ -106,6 +106,7 @@ export function createMemoryStore() {
       twilioMessageSid,
       mode,
       inReplyToSid,
+      createdAt,
     }) {
       await this.ensureSender(senderId);
       if (twilioMessageSid) {
@@ -122,7 +123,7 @@ export function createMemoryStore() {
         twilio_message_sid: twilioMessageSid ?? null,
         mode,
         in_reply_to_sid: inReplyToSid ?? null,
-        created_at: new Date().toISOString(),
+        created_at: createdAt || new Date().toISOString(),
       };
       messages.push(row);
       return { inserted: true, row };

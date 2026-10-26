@@ -4,6 +4,15 @@ import { businessNameFrom, deriveStage, triedBot } from './stage.js';
 export const USER_LIST_CAP = 200;
 export const MESSAGE_CAP = 2000;
 
+function sortMessagesOldestFirst(messages) {
+  return (messages || []).slice().sort((a, b) => {
+    const ta = String(a.created_at || '');
+    const tb = String(b.created_at || '');
+    if (ta !== tb) return ta.localeCompare(tb);
+    return (Number(a.id) || 0) - (Number(b.id) || 0);
+  });
+}
+
 export function buildUserRow({ sender, profile, session, lead, messages }) {
   const prof = withKnownProfileKeys(profile || {});
   const hasLead = !!lead;
@@ -12,17 +21,15 @@ export function buildUserRow({ sender, profile, session, lead, messages }) {
     approvedAt: prof.approvedAt,
     triedBot: triedBot({ messages, session }),
   });
-  const times = (messages || [])
-    .map((m) => m.created_at)
-    .filter(Boolean)
-    .slice()
-    .sort();
+  const ordered = sortMessagesOldestFirst(messages);
+  const last = ordered[ordered.length - 1] || null;
   return {
     senderId: sender.id,
     phoneE164: sender.phoneE164 || sender.phone_e164 || null,
     firstSeenAt: sender.createdAt || sender.created_at || null,
-    lastMessageAt: times.length ? times[times.length - 1] : null,
-    messageCount: (messages || []).length,
+    lastMessageAt: last?.created_at || null,
+    lastMessagePreview: last ? String(last.body ?? '').trim() : '',
+    messageCount: ordered.length,
     businessName: businessNameFrom(prof, lead),
     stage,
     isLead: hasLead,
@@ -40,7 +47,7 @@ export function buildUserDetail(args) {
         createdAt: args.lead.createdAt ?? args.lead.created_at ?? null,
       }
     : null;
-  let messages = (args.messages || []).map((m) => ({
+  let messages = sortMessagesOldestFirst(args.messages).map((m) => ({
     id: m.id,
     direction: m.direction,
     body: m.body ?? '',

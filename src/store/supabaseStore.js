@@ -253,7 +253,7 @@ export function createSupabaseStore() {
           sb.from('easybot_business_profiles').select('sender_id, profile'),
           sb.from('easybot_sessions').select('sender_id, mode, test_history'),
           sb.from('easybot_leads').select('sender_id, business_name, answers, created_at'),
-          sb.from('easybot_messages').select('sender_id, created_at, mode'),
+          sb.from('easybot_messages').select('sender_id, created_at, mode, body'),
         ]);
       for (const [label, res] of [
         ['senders', sendersRes],
