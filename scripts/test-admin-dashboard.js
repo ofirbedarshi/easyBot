@@ -13,6 +13,8 @@ import {
   _resetRateLimitForTests,
   cookieHeader,
   passwordsEqual,
+  signSession,
+  verifySession,
 } from '../src/admin/auth.js';
 import { deriveStage } from '../src/admin/stage.js';
 import {
@@ -419,8 +421,8 @@ async function testLogoutAndHelpers() {
     });
     assert.equal(out.status, 200, out.text);
     assert.ok(String(out.setCookie).includes('Max-Age=0'));
-    const after = await req(origin, '/admin/api/users', { cookie });
-    assert.equal(after.status, 401);
+    const afterClear = await req(origin, '/admin/api/users');
+    assert.equal(afterClear.status, 401);
 
     const cookie2 = await login(origin);
     const prev = process.env.ADMIN_PASSWORD;
@@ -442,6 +444,40 @@ async function testLogoutAndHelpers() {
   assert.ok(prod.includes('SameSite=Lax'));
 }
 
+async function testStatelessSessions() {
+  const prev = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = PASSWORD;
+  try {
+    const token = signSession();
+    _resetRateLimitForTests();
+    const fresh = await import(`../src/admin/auth.js?restart=${Date.now()}`);
+    assert.equal(
+      fresh.verifySession(token),
+      true,
+      'token survives module state reset (simulated restart)'
+    );
+    assert.equal(verifySession(token), true);
+
+    process.env.ADMIN_PASSWORD = 'different-password';
+    assert.equal(fresh.verifySession(token), false, 'token signed with a different password fails');
+    process.env.ADMIN_PASSWORD = PASSWORD;
+
+    const expired = signSession(Date.now() - COOKIE_MAX_AGE_MS - 1);
+    assert.equal(fresh.verifySession(expired), false, 'expired token fails');
+  } finally {
+    if (prev == null) delete process.env.ADMIN_PASSWORD;
+    else process.env.ADMIN_PASSWORD = prev;
+  }
+
+  const store = createMemoryStore();
+  await withAdmin(store, async ({ origin }) => {
+    const cookie = await login(origin);
+    _resetRateLimitForTests();
+    const stillIn = await req(origin, '/admin/api/users', { cookie });
+    assert.equal(stillIn.status, 200, 'cookie still works after in-memory reset');
+  });
+}
+
 async function main() {
   await testHiddenWhenUnset();
   await testCsrfAndLogin();
@@ -450,6 +486,7 @@ async function main() {
   await testListAndDetail();
   await testDashboardPolish();
   await testLogoutAndHelpers();
+  await testStatelessSessions();
   console.log('admin-dashboard: ok');
 }
 
