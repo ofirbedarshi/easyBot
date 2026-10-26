@@ -9,13 +9,21 @@
  */
 
 export const LEAD_MENU_LABEL = 'Get this bot for my business';
-export const LEAD_INTRO =
-  "Awesome! So glad the bot caught your interest 🙌 To get it set up for you, I just need a few quick answers.";
+export const LEAD_INTRO = "Awesome! So glad the bot caught your interest 🙌";
+export const LEAD_BRIDGE =
+  "Great! To get things moving, I'd love you to answer a few quick questions 😊";
 export const LEAD_THANKS_YES = "Thanks! We'll get back to you soon 🙏";
 export const LEAD_THANKS_NO = "Thanks! We got your details 🙏";
 export const LEAD_ALREADY_SENT = "You've already sent your request. We'll get back to you soon.";
 
 const QUESTIONS = {
+  contactConsent: {
+    text: 'Can we contact you on this number to follow up and help you get started? 📞',
+    options: ['✅ Yes, sure', '❌ No, thanks'],
+    multi: false,
+    next: 'channels',
+    nextIntro: LEAD_BRIDGE,
+  },
   channels: {
     text: 'Where would you like the bot to work? (you can pick more than one, e.g. "1, 3")',
     options: ['💬 WhatsApp', '📸 Instagram', '💙 Facebook Messenger', '🌐 My business website', '💡 Other (tell us where)'],
@@ -64,12 +72,6 @@ const QUESTIONS = {
       step: 'chatToolsOther',
       text: 'Tell me briefly which tool you use, for example ManyChat or a CRM.',
     },
-    next: 'contactConsent',
-  },
-  contactConsent: {
-    text: 'Can we contact you on this number to follow up and help you get started? 📞',
-    options: ['✅ Yes, sure', '❌ No, thanks'],
-    multi: false,
     next: null,
   },
 };
@@ -123,7 +125,7 @@ export function leadResumePending(state) {
 }
 
 export function startLeadIntake() {
-  const first = 'channels';
+  const first = 'contactConsent';
   return { state: { step: first, answers: {} }, reply: `${LEAD_INTRO}\n\n${renderQuestion(first)}` };
 }
 
@@ -155,15 +157,20 @@ export function stepLeadIntake(state, text) {
   if (q.followUp && picks.includes(q.followUp.option)) {
     return { state: { step: q.followUp.step, answers }, reply: q.followUp.text, done: false };
   }
-  return advance(q.next, answers, closingReply(step, picks[0]));
+  return advance(q.next, answers, q.nextIntro);
 }
 
-function closingReply(step, pick) {
-  if (step !== 'contactConsent') return null;
-  return pick === 1 ? LEAD_THANKS_YES : LEAD_THANKS_NO;
+function closingThanks(answers) {
+  const yesLabel = optionStoreLabel(QUESTIONS.contactConsent.options[0]);
+  return answers.contactConsent === yesLabel ? LEAD_THANKS_YES : LEAD_THANKS_NO;
 }
 
-function advance(next, answers, closing = null) {
-  if (!next) return { state: { step: null, answers }, reply: closing, done: true };
-  return { state: { step: next, answers }, reply: renderQuestion(next), done: false };
+function advance(next, answers, intro = null) {
+  if (!next) return { state: { step: null, answers }, reply: closingThanks(answers), done: true };
+  const question = renderQuestion(next);
+  return {
+    state: { step: next, answers },
+    reply: intro ? `${intro}\n\n${question}` : question,
+    done: false,
+  };
 }
