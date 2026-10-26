@@ -14,7 +14,7 @@ export const BUSINESS_BOT_CONTEXT_MESSAGES = 20;
 /** Most recent history messages kept in the stored test conversation. */
 export const BUSINESS_BOT_STORED_MESSAGES = 40;
 
-/** First-turn-only: the app already prepends the opening. */
+/** First customer write: the app already sent the opening. */
 export const FIRST_TURN_SYSTEM =
   'A welcome opening was already sent. Do not greet or introduce yourself; answer the customer\'s message directly.';
 
@@ -29,8 +29,16 @@ export function recentHistory(history, limit) {
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export function isFirstCustomerTurn(history) {
+/** Empty conversation — the opening has not been sent yet. */
+export function needsCustomerOpening(history) {
   return recentHistory(history, BUSINESS_BOT_CONTEXT_MESSAGES).length === 0;
+}
+
+/** No customer message yet — do not greet again (opening may already be in history). */
+export function isFirstCustomerTurn(history) {
+  return !recentHistory(history, BUSINESS_BOT_CONTEXT_MESSAGES).some(
+    (m) => m.role === 'user'
+  );
 }
 
 /**
@@ -52,7 +60,7 @@ export function buildBusinessBotMessages({ profile, history, question }) {
 /** Prepend the opening on the first turn of a conversation. */
 export function withCustomerOpening(profile, history, reply) {
   const text = (reply || '').trim();
-  if (!text || !isFirstCustomerTurn(history)) return text;
+  if (!text || !needsCustomerOpening(history)) return text;
   return `${customerOpeningText(profile)}\n\n${text}`;
 }
 

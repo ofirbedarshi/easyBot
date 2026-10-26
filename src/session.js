@@ -7,6 +7,7 @@ import {
   applyDraftToLive,
   draftDiffersFromLive,
   hasEnoughForFirstBot,
+  customerOpeningText,
 } from './profile.js';
 import {
   applyReviewGate,
@@ -337,9 +338,10 @@ async function enterTest(session) {
     };
   }
   session.mode = 'TEST';
-  session.testHistory = [];
+  const opening = customerOpeningText(profile);
+  session.testHistory = [{ role: 'assistant', content: opening }];
   session.testSessionId = `test-${Date.now()}`;
-  const reply = ENTER_TEST_REPLY;
+  const reply = `${ENTER_TEST_REPLY}\n\n${opening}`;
   return {
     ok: true,
     reply,

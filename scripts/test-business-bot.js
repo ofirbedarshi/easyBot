@@ -22,6 +22,7 @@ import {
   withKnownProfileKeys,
 } from '../src/profile.js';
 import {
+  ENTER_TEST_REPLY,
   createSenderSession,
   handleMessage,
   persistSenderSession,
@@ -253,11 +254,12 @@ async function testModelReplyParagraphBreaks() {
     },
   });
   session.buildHistory.push({ role: 'assistant', content: '(opened)' });
-  assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
-  const first = await handleMessage(session, 'How much?');
+  const entered = await handleMessage(session, '/test');
+  assert.equal(entered.event, 'enter_test');
   const open = customerOpeningText(profile);
-  const expected =
-    `${open}\n\nA cut is 100 shekel.\n\nAnything else I can help with?`;
+  assert.equal(entered.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
+  const first = await handleMessage(session, 'How much?');
+  const expected = 'A cut is 100 shekel.\n\nAnything else I can help with?';
   assert.equal(first.reply, expected);
   assert.equal(session.testHistory.at(-1).content, expected);
   assert.equal(first.reply.includes('||'), false);
@@ -279,11 +281,14 @@ async function testTestModeFirstMessageGetsOpening() {
     },
   });
   session.buildHistory.push({ role: 'assistant', content: '(opened)' });
-  assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
-  const first = await handleMessage(session, 'How much it cost?');
+  const entered = await handleMessage(session, '/test');
+  assert.equal(entered.event, 'enter_test');
   const open = customerOpeningText(profile);
-  assert.ok(first.reply.startsWith(`${open}\n\n`), first.reply);
-  assert.ok(first.reply.includes('A cut is 100 shekel.'));
+  assert.equal(entered.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
+  assert.ok(open.includes('How can I help you? 😊'), open);
+  const first = await handleMessage(session, 'How much it cost?');
+  assert.equal(first.reply, 'A cut is 100 shekel.');
+  assert.ok(!first.reply.startsWith(open), first.reply);
   const second = await handleMessage(session, 'Cool');
   assert.equal(second.reply, 'A cut is 100 shekel.');
   console.log('PASS test_mode_first_message_gets_opening');
@@ -320,6 +325,7 @@ async function testMemoryPersistsThroughStore() {
   let session = await createSenderSession(store, sender, { deps });
   session.buildHistory.push({ role: 'assistant', content: '(opened)' });
   assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
+  const open = customerOpeningText(approvedProfile());
   const r1 = await handleMessage(session, 'first');
   assert.equal(r1.reply, 'answer to first');
   assert.equal(r1.source, 'real-llm');
@@ -328,17 +334,21 @@ async function testMemoryPersistsThroughStore() {
   session = await createSenderSession(store, sender, { deps });
   assert.equal(session.mode, 'TEST');
   await handleMessage(session, 'second');
-  assert.deepEqual(seen.at(-1), ['first', 'answer to first']);
+  assert.deepEqual(seen.at(-1), [open, 'first', 'answer to first']);
   await persistSenderSession(session);
 
   const saved = await store.loadSession(sender);
   assert.deepEqual(
     saved.testHistory.map((m) => m.content),
-    ['first', 'answer to first', 'second', 'answer to second']
+    [open, 'first', 'answer to first', 'second', 'answer to second']
   );
 
   assert.equal((await handleMessage(session, '/test')).event, 'enter_test');
-  assert.deepEqual(session.testHistory, [], '/test starts a fresh conversation');
+  assert.deepEqual(
+    session.testHistory,
+    [{ role: 'assistant', content: open }],
+    '/test starts a fresh conversation with the opening'
+  );
   console.log('PASS memory_persists_through_store');
 }
 
@@ -387,7 +397,9 @@ async function testErrorTurnNotStored() {
   );
   assert.ok(!r.reply.includes('sk-secret'));
   assert.ok(!logged.join('\n').includes('sk-secret'));
-  assert.deepEqual(session.testHistory, []);
+  assert.deepEqual(session.testHistory, [
+    { role: 'assistant', content: customerOpeningText(approvedProfile()) },
+  ]);
   console.log('PASS error_turn_not_stored');
 }
 

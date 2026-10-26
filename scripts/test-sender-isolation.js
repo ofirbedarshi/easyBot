@@ -13,7 +13,7 @@ import {
   handleMessage,
   persistSenderSession,
 } from '../src/session.js';
-import { emptyProfile } from '../src/profile.js';
+import { customerOpeningText, emptyProfile } from '../src/profile.js';
 import { phoneE164FromSenderId } from '../src/phone.js';
 import { BUSINESS_BOT_STORED_MESSAGES } from '../src/businessBot.js';
 
@@ -273,7 +273,9 @@ console.log('=== sender isolation + conversation log (mocked) ===\n');
   });
   await drain(store, worker);
   const after = await store.loadSession(sender);
-  assert.equal(after.testHistory.length, 0);
+  assert.deepEqual(after.testHistory, [
+    { role: 'assistant', content: customerOpeningText({ name: 'Log Cafe' }) },
+  ]);
   const logged = await store.listMessages(sender);
   assert.ok(logged.length >= beforeWipe + 2);
   const q0 = logged.find((m) => m.direction === 'inbound' && m.body === 'q-0');

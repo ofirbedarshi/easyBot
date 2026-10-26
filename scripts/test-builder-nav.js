@@ -5,7 +5,13 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
+import {
+  customerOpeningText,
+  emptyProfile,
+  loadProfile,
+  saveProfile,
+  testProfilePath,
+} from '../src/profile.js';
 import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
 import {
   createSession,
@@ -357,7 +363,8 @@ async function testSixAndEnd() {
   await new Promise((r) => setTimeout(r, 2));
   const tryIt = await handleMessage(session, '5');
   assert.equal(tryIt.event, 'enter_test');
-  assert.equal(tryIt.reply, ENTER_TEST_REPLY);
+  const open = customerOpeningText(approvedProfile());
+  assert.equal(tryIt.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
   assert.doesNotMatch(tryIt.reply, /\/end/);
   assert.equal(session.mode, 'TEST');
   assert.notEqual(session.testSessionId, oldSid);

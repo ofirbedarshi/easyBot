@@ -386,17 +386,17 @@ function testOpeningNotInStandingPrompt() {
 function testDefaultOpeningText() {
   assert.equal(
     defaultCustomerOpening({ name: 'BurgerBarber' }),
-    "Hi! I'm Adam, BurgerBarber's digital assistant 😊"
+    "Hi! I'm Adam, BurgerBarber's digital assistant 😊\n\nHow can I help you? 😊"
   );
   assert.equal(
     defaultCustomerOpening({}),
-    "Hi! I'm Adam, this business's digital assistant 😊"
+    "Hi! I'm Adam, this business's digital assistant 😊\n\nHow can I help you? 😊"
   );
   assert.equal(
     customerOpeningText({
       name: 'BurgerBarber',
     }),
-    "Hi! I'm Adam, BurgerBarber's digital assistant 😊"
+    "Hi! I'm Adam, BurgerBarber's digital assistant 😊\n\nHow can I help you? 😊"
   );
   assert.equal(
     customerOpeningText({
