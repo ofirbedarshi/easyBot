@@ -37,3 +37,5 @@ services:
         value: "30"
       - key: DEMO_MAX_MSGS_PER_SENDER_PER_DAY
         value: "100"
+      - key: ADMIN_PASSWORD
+        sync: false

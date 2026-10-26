@@ -13,6 +13,7 @@ import { testProfilePath } from './profile.js';
 import { createStore, isSupabaseConfigured } from './store/index.js';
 import { createTwilioWhatsAppRouter } from './twilio/webhook.js';
 import { startInboundWorker } from './twilio/worker.js';
+import { createAdminRouter } from './admin/router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CTO_STATE_PATH = path.join(__dirname, '..', 'cto-workflow', 'state.json');
@@ -26,6 +27,7 @@ app.use(express.json({ limit: '1mb' }));
 
 const store = createStore();
 app.use('/webhooks/twilio', createTwilioWhatsAppRouter(store));
+app.use('/admin', createAdminRouter(store));
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
