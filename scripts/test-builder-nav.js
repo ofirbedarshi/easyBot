@@ -216,7 +216,7 @@ async function testReviewWordsAndMakeChangesAfterAnswer() {
   await handleMessage(session, 'how much is a private lesson?');
   const ch = await handleMessage(session, '2');
   assert.equal(ch.event, 'menu_section');
-  assert.ok(ch.reply.includes('Business info'), ch.reply);
+  assert.ok(ch.reply.includes('Your business'), ch.reply);
   assert.equal(calls.builder, 2);
 }
 

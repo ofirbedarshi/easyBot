@@ -314,7 +314,7 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   const done = dump.inbound.filter((r) => r.status === 'done');
   assert.equal(done.length, 2);
   assert.ok(done[0].reply_body.includes('chatting with me as a customer'));
-  assert.ok(done[1].reply_body.includes('Back in editing mode'));
+  assert.ok(done[1].reply_body.includes("I'm back! What should I learn next?"));
   assert.equal(sess.buildHistory[sess.buildHistory.length - 1].nav, 'menu');
   ok('webhook workflow /test then /end (mocked store + worker)');
   worker.stop();
