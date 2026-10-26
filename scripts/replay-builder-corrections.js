@@ -9,6 +9,7 @@
  * Usage:
  *   OPENAI_BUILDER_MODEL=gpt-6-luna node scripts/replay-builder-corrections.js
  *   node scripts/replay-builder-corrections.js --model gpt-6-luna --runs 1
+ *   node scripts/replay-builder-corrections.js --scenario generic-areas --runs 3
  *
  * Not part of the default test suite.
  */
@@ -117,7 +118,12 @@ function parseArgs(argv) {
     if (a === '--model') out.model = argv[++i];
     else if (a === '--runs') out.runs = Number(argv[++i]);
     else if (a === '--budget') out.budget = Number(argv[++i]);
-    else if (a === '--help') out.help = true;
+    else if (a === '--scenario') {
+      out.scenario = String(argv[++i] || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (a === '--help') out.help = true;
   }
   return out;
 }
@@ -185,14 +191,19 @@ async function runInterview(scenario, model) {
       newFacts: raw.modelJson?.newFacts,
       ownerEdits: raw.modelJson?.ownerEdits,
       configRequests: raw.configRequests,
+      rawLocationOrArea: raw.modelJson?.draft?.locationOrArea ?? null,
+      storedLocationOrArea: turn.draft?.locationOrArea ?? null,
+      storedOtherFacts: turn.draft?.otherFacts ?? [],
     });
+    const rawArea = raw.modelJson?.draft?.locationOrArea ?? null;
+    const storedArea = turn.draft?.locationOrArea ?? null;
+    console.log(
+      `  t${i} newFacts=${JSON.stringify(raw.modelJson?.newFacts)} ownerEdits=${JSON.stringify(raw.modelJson?.ownerEdits)} rawArea=${JSON.stringify(rawArea)} storedArea=${JSON.stringify(storedArea)} otherFacts=${JSON.stringify(turn.draft?.otherFacts || [])}`
+    );
     if (i === scenario.afterCorrectionFrom) {
       console.log('  correction-turn message:', String(turn.message).replace(/\s+/g, ' ').slice(0, 280));
       console.log('  correction-turn configRequests:', JSON.stringify(raw.configRequests));
-      console.log('  correction-turn newFacts:', JSON.stringify(raw.modelJson?.newFacts));
-      console.log('  correction-turn ownerEdits:', JSON.stringify(raw.modelJson?.ownerEdits));
       console.log('  correction-turn delta.services:', JSON.stringify(raw.modelJson?.draft?.services));
-      console.log('  correction-turn delta.locationOrArea:', raw.modelJson?.draft?.locationOrArea);
     }
     if (i >= scenario.afterCorrectionFrom && !draftAfterCorrection) {
       draftAfterCorrection = structuredClone(turn.draft);
@@ -256,7 +267,7 @@ function printScore(label, score) {
 
 if (ARGS.help) {
   console.log(
-    'Usage: node scripts/replay-builder-corrections.js [--model gpt-6-luna] [--runs 1] [--budget 0.5]'
+    'Usage: node scripts/replay-builder-corrections.js [--model gpt-6-luna] [--runs 1] [--budget 0.5] [--scenario salon-correction,generic-areas]'
   );
   process.exit(0);
 }
@@ -272,7 +283,16 @@ let spent = 0;
 let failed = 0;
 const summaries = [];
 
-for (const scenario of [SALON, GENERIC]) {
+const SCENARIOS = [SALON, GENERIC].filter((s) => {
+  if (!ARGS.scenario?.length) return true;
+  return ARGS.scenario.includes(s.id);
+});
+if (ARGS.scenario?.length && !SCENARIOS.length) {
+  console.error(`No matching --scenario. Known: ${[SALON, GENERIC].map((s) => s.id).join(', ')}`);
+  process.exit(1);
+}
+
+for (const scenario of SCENARIOS) {
   for (let run = 1; run <= RUNS; run++) {
     if (spent >= BUDGET) {
       console.log(`Stopped before ${scenario.id} #${run} (budget).`);

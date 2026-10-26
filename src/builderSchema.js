@@ -133,7 +133,12 @@ export const BUILDER_RESPONSE_SCHEMA = {
     properties: {
       message: { type: 'string' },
       draft: draftObject,
-      newFacts: { type: 'array', items: { type: 'string' } },
+      newFacts: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Facts the owner stated this turn that do not fit a draft field, including offerings or areas they said they do not provide or serve.',
+      },
       ownerEdits: { type: 'array', items: ownerEditItem },
       factEdits: { type: 'array', items: factEditItem },
       resolvedUnknowns: { type: 'array', items: { type: 'integer' } },

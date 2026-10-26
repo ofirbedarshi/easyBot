@@ -35,6 +35,9 @@ test('schema requires top-level newFacts and all draft keys', () => {
   const draft = root.properties.draft;
   assert.equal(draft.additionalProperties, false);
   assert.deepEqual([...draft.required].sort(), [...Object.keys(draft.properties)].sort());
+  const newFacts = root.properties.newFacts;
+  assert.equal(newFacts.type, 'array');
+  assert.match(String(newFacts.description || ''), /do not provide or serve/i);
 });
 
 test('applyDraftDelta: null / omitted scalars keep previous values', () => {
@@ -251,6 +254,65 @@ test('ownerEdits abbreviation applies only when it matches one stored item', () 
   );
   assert.equal(unique.services.find((s) => s.name === 'Blowout').price, '$40');
   assert.equal(unique.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+});
+
+test('delta output: text-field rewrite in the delta is kept without ownerEdits', () => {
+  const current = {
+    locationOrArea: 'City, Region',
+    services: [svc('Offering A', '10')],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: {
+        locationOrArea: 'City and Town; does not serve Place A or Place B',
+        services: [],
+      },
+      newFacts: [],
+      ownerEdits: [],
+    },
+    current
+  );
+  assert.match(out.locationOrArea, /Place A/);
+  assert.match(out.locationOrArea, /Place B/);
+  assert.deepEqual(out.services, [svc('Offering A', '10')]);
+});
+
+test('delta output: text-field shortening without ownerEdits is reverted', () => {
+  const current = {
+    locationOrArea: 'City, Region. Serves Town. Does not serve Place A.',
+    services: [svc('Offering A', '10')],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: { locationOrArea: 'City, Region', services: [] },
+      newFacts: [],
+      ownerEdits: [],
+    },
+    current
+  );
+  assert.match(out.locationOrArea, /Place A/);
+});
+
+test('delta output: reported text-field shortening is applied', () => {
+  const current = {
+    locationOrArea: 'City, Region. Serves Town. Does not serve Place A.',
+    services: [],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: { locationOrArea: 'City, Region' },
+      newFacts: [],
+      ownerEdits: [{ field: 'locationOrArea', item: null, action: 'change' }],
+    },
+    current
+  );
+  assert.equal(out.locationOrArea, 'City, Region');
 });
 
 test('delta output: top-level newFacts append; missing key is none', () => {

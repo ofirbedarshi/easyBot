@@ -118,6 +118,35 @@ test('locationOrArea is kept when a service correction sends a shorter area', ()
   assert.equal(r.services.find((s) => s.name === 'Electrical').price, '$110');
 });
 
+test('text-field rewrite in this turn\'s delta is kept without ownerEdits', () => {
+  const prev = { locationOrArea: 'City, Region', hours: 'Weekdays 9-5' };
+  const incoming = {
+    locationOrArea: 'City and Town; does not serve Place A or Place B',
+    hours: 'Weekdays 9-5, Saturday 10-2',
+  };
+  const r = preserveFacts(incoming, prev, [], incoming);
+  assert.equal(r.locationOrArea, incoming.locationOrArea);
+  assert.equal(r.hours, incoming.hours);
+});
+
+test('text-field shortening in the delta is reverted without an owner edit', () => {
+  const prev = {
+    locationOrArea: 'City, Region. Serves Town. Does not serve Place A.',
+    whatWeDo: 'Full description with a condition',
+  };
+  const incoming = { locationOrArea: 'City, Region', whatWeDo: 'Full description' };
+  const r = preserveFacts(incoming, prev, [], incoming);
+  assert.equal(r.locationOrArea, prev.locationOrArea);
+  assert.equal(r.whatWeDo, prev.whatWeDo);
+});
+
+test('text-field shortening applies when ownerEdits names the field', () => {
+  const prev = { locationOrArea: 'City, Region. Serves Town. Does not serve Place A.' };
+  const incoming = { locationOrArea: 'City, Region' };
+  const r = preserveFacts(incoming, prev, [{ field: 'locationOrArea', item: null, action: 'change' }], incoming);
+  assert.equal(r.locationOrArea, 'City, Region');
+});
+
 test('unreported additive change (e.g. resolving an unknown) is kept', () => {
   const r = preserveFacts(
     { hours: 'Weekdays 8-6, Saturday 9-1', unknowns: [], services: [svc('Item A', '$5, per unit')] },
