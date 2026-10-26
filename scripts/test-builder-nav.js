@@ -145,7 +145,7 @@ async function testSectionRoutingReadOnly() {
   assert.ok(talks.reply.includes('Prices: only when the customer asks about pricing'), talks.reply);
   assert.ok(talks.reply.includes('Opening message'), talks.reply);
   assert.ok(talks.reply.includes('(default)'), talks.reply);
-  assert.ok(talks.reply.trim().endsWith('What should I change?'), talks.reply);
+  assert.ok(talks.reply.trim().endsWith('What should we do next?'), talks.reply);
   assert.equal(readRaw(), before, 'profile file must be unchanged by navigation');
   assert.equal(calls.builder, 0);
 
@@ -471,10 +471,11 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.equal(reviewActive(session.buildHistory), true);
   assert.ok(review.reply.startsWith('Got it!\n\n'), review.reply);
   assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(review.reply, /Business info: Private yoga lessons in Tel Aviv \(was: not set\)/);
+  assert.match(review.reply, /Business info: Private yoga lessons in Tel Aviv/);
   assert.doesNotMatch(review.reply, /\*\*/, 'no markdown bold');
-  assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min \(was: none\)\n/);
-  assert.match(review.reply, /\nI'll ask customers for: name, phone \(was: not decided yet\)\n/);
+  assert.doesNotMatch(review.reply, /\(was:/);
+  assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
+  assert.match(review.reply, /\nI'll ask customers for: name, phone\n/);
   assert.match(review.reply, /\nHow I talk: [^\n]*prices only when asked/);
   assert.doesNotMatch(review.reply, /What your bot will do|contact you directly/);
   assert.match(review.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
@@ -501,7 +502,7 @@ async function testMakeChangesShowsMenu() {
   const before = readRaw();
   const ch = await handleMessage(session, 'keep teaching me');
   assert.equal(ch.event, 'menu');
-  assert.ok(ch.reply.startsWith('What should I change?'), ch.reply);
+  assert.ok(ch.reply.startsWith('What should we do next?'), ch.reply);
   assert.ok(ch.reply.includes('🏪 Tell me more about your business') && ch.reply.includes('🤖 Chat with me like a customer'), ch.reply);
   assert.equal(menuActive(session.buildHistory), true);
   assert.equal(readRaw(), before, 'Make changes must not save');
@@ -520,7 +521,7 @@ async function testTryApprovesPendingEdit() {
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const review = await handleMessage(session, 'Change hours to Sun–Fri 8–14');
-  assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHours: Sun–Fri 8–14 \(was: Sun–Thu 8–18\)\n\n/);
+  assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHours: Sun–Fri 8–14\n\n/);
   assert.ok(!review.reply.includes('Studio Yoga'), 'unchanged facts not repeated');
   assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
 
@@ -594,7 +595,7 @@ async function testReviewRenderHelpers() {
   assert.match(manyServices, /Long or thick hair extra — \$15/);
   assert.doesNotMatch(manyServices, /…/);
 
-  // Changes view: same labels; hidden edits marked (updated); gap note not repeated in "was".
+  // Changes view: same labels; new values only (no previous-value suffix).
   const live = { ...facts(), approvedAt: '2026-01-01T00:00:00Z', hours: null };
   const changed = renderSavedChanges(live, {
     ...live,
@@ -602,8 +603,9 @@ async function testReviewRenderHelpers() {
     services: [{ ...live.services[0], notes: 'new note' }],
     ownerGoal: 'answer_questions',
   });
-  assert.match(changed, /\nHours: Sun–Thu 9–18 \(was: not set\)/);
-  assert.match(changed, /\nServices: [^\n]* \(updated\)/);
+  assert.match(changed, /\nHours: Sun–Thu 9–18\n/);
+  assert.match(changed, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
+  assert.doesNotMatch(changed, /\(was:|\(updated\)/);
   assert.match(changed, /\nMy goal: Answer customer questions/);
   assert.doesNotMatch(changed, /\nArea:/, 'unchanged lines hidden');
   assert.equal(parseReviewChoice('1'), 'try');
@@ -693,7 +695,7 @@ async function testWantsReviewUsesRenderReview() {
   assert.equal(reviewActive(session.buildHistory), true);
   assert.equal(lastShownNav(session.buildHistory), 'review');
   assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(r.reply, /\nQ&A: 1 answer \(was: none\)\n/);
+  assert.match(r.reply, /\nQ&A: 1 answer\n/);
   assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for/);
 }
 
