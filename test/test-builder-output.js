@@ -64,6 +64,37 @@ test('applyDraftDelta: informationToCollect null keeps; [] settles empty', () =>
   );
 });
 
+test('applyDraftDelta: partial informationToCollect restores omitted items', () => {
+  const settled = ['name', 'phone', 'preferred time'];
+  assert.deepEqual(
+    applyDraftDelta({ informationToCollect: ['name'] }, { informationToCollect: settled })
+      .informationToCollect,
+    settled
+  );
+  assert.deepEqual(
+    applyDraftDelta({ informationToCollect: ['email'] }, { informationToCollect: settled })
+      .informationToCollect,
+    ['name', 'phone', 'preferred time', 'email']
+  );
+});
+
+test('applyDraftDelta: empty services array keeps previous list', () => {
+  const prev = { services: [svc('A', '$1'), svc('B', '$2')] };
+  assert.deepEqual(applyDraftDelta({ services: [] }, prev).services, prev.services);
+});
+
+test('applyDraftDelta: one changed service upserts in place; siblings stay', () => {
+  const prev = {
+    services: [svc('Women\'s cut', '$45'), svc('Men\'s cut', '$28'), svc('Blowout', '$35')],
+  };
+  const next = applyDraftDelta({ services: [svc('Men\'s cut', '$30')] }, prev);
+  assert.deepEqual(next.services, [
+    svc('Women\'s cut', '$45'),
+    svc('Men\'s cut', '$30'),
+    svc('Blowout', '$35'),
+  ]);
+});
+
 test('applyDraftDelta: unknowns append without dropping stored ones', () => {
   const next = applyDraftDelta(
     { unknowns: ['Weekend hours undecided'] },
@@ -110,6 +141,93 @@ test('delta output: ownerEdits still change a stored service price', () => {
     current
   );
   assert.deepEqual(out.services, [svc('Sourdough', '$10')]);
+});
+
+test('correction of one overlapping service name keeps siblings and order', () => {
+  const current = {
+    services: [
+      svc('Women\'s cut', '$45'),
+      svc('Men\'s cut', '$28'),
+      svc('Kids\' cut (under 10)', '$25'),
+      svc('Blowout', '$35'),
+      svc('Long or thick hair extra', '$15'),
+    ],
+    locationOrArea: 'Columbus, Ohio. Does not serve Westerville.',
+    otherFacts: [],
+    unknowns: [],
+    informationToCollect: ['name', 'phone', 'preferred time'],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: {
+        services: [svc('Men\'s cut', '$30')],
+        locationOrArea: 'Columbus, Ohio',
+        informationToCollect: ['name'],
+      },
+      newFacts: ['The salon does not offer nail services.'],
+      ownerEdits: [{ field: 'services', item: 'Men\'s cut', action: 'change' }],
+    },
+    current
+  );
+  assert.equal(out.services.length, 5);
+  assert.deepEqual(
+    out.services.map((s) => s.name),
+    current.services.map((s) => s.name)
+  );
+  assert.equal(out.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+  assert.equal(out.services.find((s) => s.name === 'Men\'s cut').price, '$30');
+  assert.ok(/westerville/i.test(out.locationOrArea));
+  assert.deepEqual(out.informationToCollect, ['name', 'phone', 'preferred time']);
+  assert.deepEqual(out.otherFacts, ['The salon does not offer nail services.']);
+});
+
+test('ownerEdits item null on services does not drop siblings', () => {
+  const current = {
+    services: [svc('Women\'s cut', '$45'), svc('Men\'s cut', '$28')],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const out = applyBuilderModelOutput(
+    {
+      draft: { services: [svc('Men\'s cut', '$30')] },
+      newFacts: [],
+      ownerEdits: [{ field: 'services', item: null, action: 'change' }],
+    },
+    current
+  );
+  assert.equal(out.services.length, 2);
+  assert.equal(out.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+  assert.ok(out.services.find((s) => s.name === 'Men\'s cut'));
+});
+
+test('ownerEdits abbreviation applies only when it matches one stored item', () => {
+  const current = {
+    services: [svc('Women\'s cut', '$45'), svc('Men\'s cut', '$28'), svc('Blowout', '$35')],
+    otherFacts: [],
+    unknowns: [],
+  };
+  const ambiguous = applyBuilderModelOutput(
+    {
+      draft: { services: [svc('Men\'s cut', '$30')] },
+      newFacts: [],
+      ownerEdits: [{ field: 'services', item: 'cut', action: 'change' }],
+    },
+    current
+  );
+  assert.equal(ambiguous.services.length, 3);
+  assert.equal(ambiguous.services.find((s) => s.name === 'Women\'s cut').price, '$45');
+  assert.ok(ambiguous.services.find((s) => s.name === 'Men\'s cut'));
+
+  const unique = applyBuilderModelOutput(
+    {
+      draft: { services: [svc('Blowout', '$40')] },
+      newFacts: [],
+      ownerEdits: [{ field: 'services', item: 'blow', action: 'change' }],
+    },
+    current
+  );
+  assert.equal(unique.services.find((s) => s.name === 'Blowout').price, '$40');
+  assert.equal(unique.services.find((s) => s.name === 'Women\'s cut').price, '$45');
 });
 
 test('delta output: top-level newFacts append; missing key is none', () => {

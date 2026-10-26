@@ -223,15 +223,10 @@ const REVIEW = {
 
 const OTHER_FACTS_LABEL = 'Other facts';
 
-const SUMMARY_MAX = 80;
-
-/** Trim to about SUMMARY_MAX chars at a word boundary; drop a trailing period. */
+/** Review line text: trim and drop a trailing period. Do not clip — owners
+ *  must be able to see every stored service, fact, and area on WhatsApp. */
 function brief(text) {
-  const s = String(text || '').trim().replace(/\.$/, '');
-  if (s.length <= SUMMARY_MAX) return s;
-  const cut = s.slice(0, SUMMARY_MAX - 1);
-  const space = cut.lastIndexOf(' ');
-  return `${(space > 40 ? cut.slice(0, space) : cut).replace(/[,;:\s]+$/, '')}…`;
+  return String(text || '').trim().replace(/\.$/, '');
 }
 
 /**

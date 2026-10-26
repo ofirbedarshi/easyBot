@@ -326,10 +326,83 @@ const overlaps = (a, b) => {
 };
 
 /**
+ * An ownerEdit item matches a stored list key only when they are the same key,
+ * or the edit is an abbreviation that overlaps exactly one stored item.
+ * A null / blank item never matches a list row (it is for text fields only).
+ */
+function uniqueItemMatch(editItem, storedItem, storedItems) {
+  if (!editItem || !storedItem) return false;
+  if (sameKey(editItem, storedItem)) return true;
+  if (!overlaps(editItem, storedItem)) return false;
+  const hits = storedItems.filter((s) => s && overlaps(editItem, s));
+  return hits.length === 1;
+}
+
+function listEdit(edits, field, item, storedItems) {
+  if (!item) return null;
+  return (Array.isArray(edits) ? edits : []).find(
+    (e) => e && e.field === field && e.item && uniqueItemMatch(e.item, item, storedItems)
+  ) || null;
+}
+
+function textFieldEdited(edits, field) {
+  return (Array.isArray(edits) ? edits : []).some((e) => e && e.field === field);
+}
+
+/**
+ * Upsert incoming keyed objects onto the previous list. Previous order is kept;
+ * new items append. An empty incoming array means no list changes this turn.
+ */
+function upsertKeyedList(prevList, incoming, key) {
+  const prev = Array.isArray(prevList) ? prevList.filter(Boolean) : [];
+  if (!Array.isArray(incoming) || incoming.length === 0) return [...prev];
+  const result = [];
+  const used = new Set();
+  for (const old of prev) {
+    const i = incoming.findIndex((x, idx) => x && !used.has(idx) && sameKey(x[key], old[key]));
+    if (i === -1) {
+      result.push(old);
+      continue;
+    }
+    used.add(i);
+    result.push(incoming[i]);
+  }
+  for (let i = 0; i < incoming.length; i++) {
+    if (!used.has(i) && incoming[i]) result.push(incoming[i]);
+  }
+  return result;
+}
+
+/** Restore omitted strings; append items the previous list did not have. */
+function restoreOmittedStrings(prevList, incoming) {
+  const prev = Array.isArray(prevList) ? prevList.filter((x) => typeof x === 'string' && x.trim()) : [];
+  if (!Array.isArray(incoming)) return prev;
+  const result = [];
+  const used = new Set();
+  for (const old of prev) {
+    const i = incoming.findIndex((x, idx) => !used.has(idx) && sameKey(x, old));
+    if (i === -1) {
+      result.push(old);
+      continue;
+    }
+    used.add(i);
+    result.push(incoming[i]);
+  }
+  for (let i = 0; i < incoming.length; i++) {
+    if (used.has(i)) continue;
+    const text = typeof incoming[i] === 'string' ? incoming[i].trim() : '';
+    if (text && !result.some((x) => sameKey(x, text))) result.push(incoming[i]);
+  }
+  return result;
+}
+
+/**
  * Keep previously stored facts the model dropped or altered without the owner asking.
  * The model reports owner-requested changes in `ownerEdits`; any other change that does
  * not keep the whole previous value (i.e. is not purely additive) is reverted. Items are matched by identity (service name, FAQ
  * question) so an edited item replaces the old one instead of duplicating it.
+ * A list-field abbreviation is accepted only when it matches exactly one stored item.
+ * Restored items stay in their previous position; new items append.
  * `unknowns` are not guarded here; resolved ones are removed by dropResolved.
  * `otherFacts` are code-owned (see applyFactOps).
  * Relies on the model reporting edits; an unreported edit is reverted.
@@ -339,30 +412,53 @@ export function preserveFacts(draft, currentDraft, ownerEdits) {
   const next = { ...draft };
   const prev = currentDraft;
   const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
-  const edited = (field, item = null) =>
-    edits.some((e) => e && e.field === field && (item === null || !e.item || overlaps(e.item, item)));
 
   const guardList = (field, key, valueKeys) => {
-    if (!Array.isArray(prev[field]) || !Array.isArray(next[field])) return;
-    const list = [...next[field]];
+    if (!Array.isArray(prev[field])) return;
+    const incoming = Array.isArray(next[field]) ? next[field] : [];
+    const storedItems = prev[field].map((x) => x?.[key]).filter(Boolean);
+    const used = new Set();
+    const list = [];
     for (const old of prev[field]) {
-      if (!old || edited(field, old[key])) continue;
-      const i = list.findIndex((x) => x && sameKey(x[key], old[key]));
-      if (i === -1) {
-        list.push(old);
+      if (!old) continue;
+      const edit = listEdit(edits, field, old[key], storedItems);
+      const i = incoming.findIndex((x, idx) => x && !used.has(idx) && sameKey(x[key], old[key]));
+      if (edit?.action === 'remove') {
+        if (i !== -1) used.add(i);
         continue;
       }
-      const kept = { ...list[i] };
+      if (i === -1) {
+        if (!edit) list.push(old);
+        continue;
+      }
+      used.add(i);
+      if (edit) {
+        list.push(incoming[i]);
+        continue;
+      }
+      const kept = { ...incoming[i] };
       for (const k of valueKeys) if (old[k] && !extends_(kept[k], old[k])) kept[k] = old[k];
-      list[i] = kept;
+      list.push(kept);
+    }
+    for (let i = 0; i < incoming.length; i++) {
+      if (!used.has(i) && incoming[i]) list.push(incoming[i]);
     }
     next[field] = list;
   };
   guardList('services', 'name', ['price', 'notes']);
   guardList('commonQuestions', 'question', ['answer']);
 
+  if (Array.isArray(prev.informationToCollect) && Array.isArray(next.informationToCollect)) {
+    next.informationToCollect = restoreOmittedStrings(
+      prev.informationToCollect,
+      next.informationToCollect
+    );
+  }
+
   for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
-    if (prev[field] && !extends_(next[field], prev[field]) && !edited(field)) next[field] = prev[field];
+    if (prev[field] && !extends_(next[field], prev[field]) && !textFieldEdited(edits, field)) {
+      next[field] = prev[field];
+    }
   }
   return next;
 }
@@ -413,9 +509,12 @@ const DELTA_TEXT_KEYS = [
 
 /**
  * Merge a schema-enforced draft delta into the stored draft.
- * Null / omitted scalars mean unchanged. Arrays that are present replace the
- * model's view of that list (services / commonQuestions are then merged by
- * preserveFacts). unknowns are append-only here; dropResolved removes answered ones.
+ * Null / omitted scalars mean unchanged. services / commonQuestions are upserted
+ * by identity (empty array = no list changes). informationToCollect restores
+ * omitted items when a non-empty array is present; [] still means collect
+ * nothing. unknowns are append-only
+ * here; dropResolved removes answered ones. preserveFacts then applies ownerEdits
+ * and restores any remaining omitted rows in their original position.
  */
 export function applyDraftDelta(delta, currentDraft) {
   const d = delta && typeof delta === 'object' ? delta : {};
@@ -425,9 +524,20 @@ export function applyDraftDelta(delta, currentDraft) {
   for (const key of DELTA_TEXT_KEYS) {
     if (d[key] != null && d[key] !== '') next[key] = d[key];
   }
-  if (Array.isArray(d.services)) next.services = d.services;
-  if (Array.isArray(d.commonQuestions)) next.commonQuestions = d.commonQuestions;
-  if (Array.isArray(d.informationToCollect)) next.informationToCollect = d.informationToCollect;
+  if (Array.isArray(d.services)) next.services = upsertKeyedList(prev.services, d.services, 'name');
+  if (Array.isArray(d.commonQuestions)) {
+    next.commonQuestions = upsertKeyedList(prev.commonQuestions, d.commonQuestions, 'question');
+  }
+  if (Array.isArray(d.informationToCollect)) {
+    if (d.informationToCollect.length === 0) {
+      next.informationToCollect = [];
+    } else {
+      next.informationToCollect = restoreOmittedStrings(
+        prev.informationToCollect,
+        d.informationToCollect
+      );
+    }
+  }
   if (Array.isArray(d.unknowns)) {
     const list = Array.isArray(prev.unknowns) ? [...prev.unknowns] : [];
     for (const u of d.unknowns) {
