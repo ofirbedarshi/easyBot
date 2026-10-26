@@ -143,10 +143,23 @@ function testNoForcedBookingProcess() {
     'must not require inventing an owner-confirm process'
   );
   assert.ok(
-    /approved process does NOT prove/i.test(prompt) ||
-      /does NOT prove that you saved/i.test(prompt),
+    /does not mean you booked/i.test(prompt),
     'must separate approved process facts from bot action claims'
   );
+}
+
+function testIntakeConfirmDoesNotRefuseKeepingDetails() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Test Biz',
+    whatWeDo: 'Services',
+    ownerGoal: 'answer_and_collect',
+    services: [{ name: 'A', price: '$1', notes: null }],
+    informationToCollect: ['name', 'phone', 'preferred time'],
+    unknowns: [],
+  });
+  assert.match(prompt, /thank the customer and confirm them back/i);
+  assert.doesNotMatch(prompt, /this chat has no save\/send\/handoff/i);
+  assert.doesNotMatch(prompt, /never imply collected information was saved/i);
 }
 
 function testConversationSettingsSectionSeparated() {
@@ -258,6 +271,7 @@ function main() {
   testFactsFaqUnknownsIntakeRendered();
   testEmptyIntakeAndNullOwnerGoal();
   testNoForcedBookingProcess();
+  testIntakeConfirmDoesNotRefuseKeepingDetails();
   testConversationSettingsSectionSeparated();
   testOnRequestPolicyOnlyWhenSet();
   testLegacyDefaultsInPrompt();

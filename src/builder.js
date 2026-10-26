@@ -32,7 +32,11 @@ import { builderResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 
 export const OWNER_GOAL_QUESTION =
-  "What's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, guide customers toward booking an appointment, or collect contact details from interested customers. Feel free to answer in your own words.";
+  "What's the main thing you'd like your bot to do for your business? For example: answer customer questions, help increase sales, or collect contact details from interested customers. Feel free to answer in your own words.";
+
+/** Shown when the model flags the goal unsupported; states the mapped goal only. */
+export const GOAL_FALLBACK_DISCLAIMER =
+  "I'll set the bot to answer questions and collect details.";
 
 const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
   (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
@@ -145,8 +149,8 @@ Interview rules:
   - The bot supports only these goals:
 ${OWNER_GOAL_LINES}
   - When the owner answers: copy their own words into draft.ownerGoalRequested, and set draft.ownerGoal to the matching supported value.
-    - Fully supported (only answering questions and/or collecting details): set the matching value and goalSupported=true.
-    - Anything else (booking, sales, payments, follow-ups, reminders, or a mix that includes one of them): set ownerGoal="${FALLBACK_OWNER_GOAL}", goalSupported=false, and goalUnsupportedPart = a short phrase of what the bot can't do (e.g. "book sessions"). Do NOT explain the limitation yourself — the app adds a fixed disclaimer.
+    - Answering questions and/or collecting details (including taking a message when someone wants to book): matching value, goalSupported=true.
+    - Only calendar booking, payments, CRM, or outbound follow-ups: ownerGoal="${FALLBACK_OWNER_GOAL}", goalSupported=false. Do not explain the limitation — the app states the mapped goal.
   - On the answering turn, start with one short acknowledgment sentence (no restating capabilities), then continue with the next single interview question.
   - Set goalSupported=null on every turn where the owner did not answer or change the goal.
   - Leave ownerGoal null until the owner answers. Never invent a goal.
@@ -793,39 +797,22 @@ export function reviewAck(text) {
  * @returns turn fields plus reviewedDraftKey to persist on the profile
  */
 export function applyReviewGate(profile, turn, userMessage) {
-  const { turn: goalTurn, disclaimer } = applyGoalSupport(profile, turn, userMessage);
+  const { turn: goalTurn, disclaimer } = applyGoalSupport(turn);
   const out = gateTurn(profile, goalTurn);
   if (!disclaimer) return out;
   return { ...out, message: replaceBeforeQuestion(out.message, disclaimer) };
 }
 
-/** Goal wording the bot can't do, and the phrase used in the disclaimer. */
-const UNSUPPORTED_GOAL_PATTERNS = [
-  [/\b(book|booking|appointments?|schedul\w*|reserv\w*)\b/i, 'book appointments'],
-  [/\b(sell|sales|selling|revenue|upsell\w*)\b/i, 'drive sales'],
-  [/\b(pay|payments?|charge|checkout)\b/i, 'take payments'],
-  [/\b(remind\w*|follow[- ]?ups?)\b/i, 'send reminders or follow-ups'],
-];
-
 /**
- * Unsupported bot goal: store the fallback goal and return the fixed disclaimer
- * (shown only on the turn the owner asked for something the bot can't do).
- * Uses the model's goalSupported=false, or — when the goal was set or changed this
- * turn — the owner's message matching unsupported wording.
+ * When the model flags the goal unsupported, store the fallback goal and
+ * replace the model's ack with the mapped-goal line (that turn only).
+ * The owner's wording is not inspected.
  */
-export function applyGoalSupport(profile, turn, userMessage) {
-  const prevGoal = normalizeOwnerGoal(profile?.draft?.ownerGoal ?? profile?.ownerGoal);
-  const goalSetNow =
-    normalizeOwnerGoal(turn?.draft?.ownerGoal) !== null &&
-    normalizeOwnerGoal(turn?.draft?.ownerGoal) !== prevGoal;
-  const matched = goalSetNow
-    ? UNSUPPORTED_GOAL_PATTERNS.find(([re]) => re.test(String(userMessage || '')))
-    : null;
-  if (turn?.goalSupported !== false && !matched) return { turn, disclaimer: null };
-  const what = turn.goalUnsupportedPart || matched?.[1] || 'do that';
+export function applyGoalSupport(turn) {
+  if (turn?.goalSupported !== false) return { turn, disclaimer: null };
   return {
     turn: { ...turn, draft: { ...(turn.draft || {}), ownerGoal: FALLBACK_OWNER_GOAL } },
-    disclaimer: `Noted! ${what} isn't available yet, so I'll set the bot to answer questions and collect details for now.`,
+    disclaimer: GOAL_FALLBACK_DISCLAIMER,
   };
 }
 

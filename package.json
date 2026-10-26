@@ -12,7 +12,8 @@
     "test:customer-prompt": "node scripts/test-customer-prompt.js",
     "test:twilio": "node scripts/test-twilio-webhook.js",
     "test:lead": "node scripts/test-lead-intake.js",
-    "test:business-bot": "node scripts/test-business-bot.js"
+    "test:business-bot": "node scripts/test-business-bot.js",
+    "replay:salon-intake": "node scripts/replay-salon-intake.js"
   },
   "engines": {
     "node": ">=18.15.0"
