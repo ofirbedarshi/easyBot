@@ -10,6 +10,8 @@ import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
 import {
   createSession,
   handleMessage,
+  isExitTestCommand,
+  ENTER_TEST_REPLY,
 } from '../src/session.js';
 import {
   interveningBuilderQuestion,
@@ -344,7 +346,7 @@ async function testNumberWithoutMenuContext() {
   assert.equal(session.mode, 'BUILD');
 }
 
-/** Try my bot (5 after approval) → same path as /test (fresh session); /end → editing menu. */
+/** Try my bot (5 after approval) → same path as /test (fresh session); stop → editing menu. */
 async function testSixAndEnd() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
@@ -355,9 +357,11 @@ async function testSixAndEnd() {
   await new Promise((r) => setTimeout(r, 2));
   const tryIt = await handleMessage(session, '5');
   assert.equal(tryIt.event, 'enter_test');
+  assert.equal(tryIt.reply, ENTER_TEST_REPLY);
+  assert.doesNotMatch(tryIt.reply, /\/end/);
   assert.equal(session.mode, 'TEST');
   assert.notEqual(session.testSessionId, oldSid);
-  const end = await handleMessage(session, '/end');
+  const end = await handleMessage(session, 'stop');
   assert.equal(end.event, 'enter_build');
   assert.ok(end.reply.startsWith("I'm back! What should I learn next?"), end.reply);
   assert.ok(end.reply.includes(MENU_HEAD));
@@ -399,7 +403,7 @@ async function testPendingChangesPreserved() {
   assert.equal(readRaw(), before, 'navigation must not save');
 }
 
-/** First-time setup: menu words and /end do not show the editing menu. */
+/** First-time setup: menu words and stop do not show the editing menu. */
 async function testOnboardingPreserved() {
   clean();
   const { session, calls } = makeSession([
@@ -410,7 +414,7 @@ async function testOnboardingPreserved() {
   assert.equal(calls.builder, 0, 'first message only wakes; discarded');
   await handleMessage(session, 'menu');
   assert.equal(calls.builder, 1, 'menu request before approval goes to the Builder');
-  const end = await handleMessage(session, '/end');
+  const end = await handleMessage(session, 'stop');
   assert.ok(!end.reply.includes(MENU_HEAD), end.reply);
   assert.equal(menuActive(session.buildHistory), false);
 }
@@ -421,7 +425,7 @@ async function testMenuLabels() {
   saveProfile(approvedProfile(), PROFILE);
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio in Tel Aviv' });
-  const end = await handleMessage(session, '/end');
+  const end = await handleMessage(session, 'stop');
   assert.ok(end.reply.startsWith("I'm back! What should I learn next?"), end.reply);
   assert.ok(
     end.reply.endsWith(
@@ -693,6 +697,41 @@ async function testWantsReviewUsesRenderReview() {
   assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for/);
 }
 
+/** stop is an exact command (case/bold variants); /end stays a silent alias. */
+async function testStopExitCommand() {
+  assert.equal(isExitTestCommand('stop'), true);
+  assert.equal(isExitTestCommand('Stop'), true);
+  assert.equal(isExitTestCommand('STOP'), true);
+  assert.equal(isExitTestCommand('  stop  '), true);
+  assert.equal(isExitTestCommand('*stop*'), true);
+  assert.equal(isExitTestCommand('*Stop*'), true);
+  assert.equal(isExitTestCommand('  *stop*  '), true);
+  assert.equal(isExitTestCommand('/end'), true);
+  assert.equal(isExitTestCommand('/END'), true);
+  assert.equal(isExitTestCommand('*/end*'), true);
+  assert.equal(isExitTestCommand('please stop'), false);
+  assert.equal(isExitTestCommand('stop now'), false);
+  assert.equal(isExitTestCommand('stop.'), false);
+  assert.equal(isExitTestCommand('*stop'), false);
+  assert.equal(isExitTestCommand('stopping'), false);
+
+  clean();
+  saveProfile(approvedProfile(), PROFILE);
+  const { session } = makeSession([{ message: 'x', draft: facts() }]);
+  session.buildHistory.push({ role: 'assistant', content: 'menu', nav: 'menu' });
+  const entered = await handleMessage(session, '5');
+  assert.equal(entered.event, 'enter_test');
+  const bold = await handleMessage(session, '*stop*');
+  assert.equal(bold.event, 'enter_build');
+  assert.equal(session.mode, 'BUILD');
+
+  const again = await handleMessage(session, '5');
+  assert.equal(again.event, 'enter_test');
+  const alias = await handleMessage(session, '/end');
+  assert.equal(alias.event, 'enter_build');
+  assert.doesNotMatch(alias.reply, /\/end/);
+}
+
 /** Without wantsReview or readyForReview, a model-written dump is not replaced. */
 async function testNoWantsReviewKeepsModelMessage() {
   clean();
@@ -756,6 +795,7 @@ async function main() {
   await test('unchanged_review_omits_ack', testUnchangedReviewOmitsAck);
   await test('number_without_menu_context', testNumberWithoutMenuContext);
   await test('six_and_end', testSixAndEnd);
+  await test('stop_exit_command', testStopExitCommand);
   await test('six_enters_test_when_approved', testSixEntersTestWhenApproved);
   await test('pending_changes_preserved', testPendingChangesPreserved);
   await test('onboarding_preserved', testOnboardingPreserved);
