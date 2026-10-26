@@ -29,9 +29,8 @@ const STRINGS = {
   menuFooter: 'Pick a number, or just tell me what you want me to learn.',
   returned: "I'm back! What should I learn next?",
   setupContinue: "I'm still learning about your business. Tell me more and I'll keep going.",
-  ask: 'What should I change?',
+  ask: 'What should we do next?',
   current: "Here's what I have:",
-  was: 'was',
   notSet: '(not set)',
   none: '(none)',
   defaultMark: '(default)',
@@ -194,12 +193,10 @@ const REVIEW = {
   pricesRelevant: 'prices when relevant',
   customOpening: 'custom opening',
   changesIntro: "Got it, I'll remember that! 🌟 Here's what changed:",
-  was: (v) => `(was: ${v})`,
-  updated: '(updated)',
   optionsPrompt: 'What should we do next?',
   options: ['🤖 Chat with me like a customer', '✏️ Keep teaching me'],
   optionsFooter: '(or just tell me what to learn 🙂)',
-  changeAsk: 'What should I change?',
+  changeAsk: 'What should we do next?',
 };
 
 const OTHER_FACTS_LABEL = 'Other facts';
@@ -219,9 +216,8 @@ export function summaryLines(p) {
   const R = REVIEW;
   const L = R.labels;
   const out = [];
-  // `was` is the value shown as "(was: …)" in the changes view (no gap note).
-  const add = (id, label, value, full, was = value) =>
-    out.push({ id, label, value, was, full: JSON.stringify(full ?? null) });
+  const add = (id, label, value, full) =>
+    out.push({ id, label, value, full: JSON.stringify(full ?? null) });
 
   const what = textOrNull(p.whatWeDo);
   add('business', L.business, what ? brief(what) : R.notSet, what);
@@ -235,9 +231,9 @@ export function summaryLines(p) {
     services
   );
   const area = textOrNull(p.locationOrArea);
-  add('area', L.area, area ? brief(area) : R.gap, area, area ? brief(area) : R.notSet);
+  add('area', L.area, area ? brief(area) : R.gap, area);
   const hours = textOrNull(p.hours);
-  add('hours', L.hours, hours ? brief(hours) : R.gap, hours, hours ? brief(hours) : R.notSet);
+  add('hours', L.hours, hours ? brief(hours) : R.gap, hours);
   const unknowns = Array.isArray(p.unknowns) ? p.unknowns : [];
   if (unknowns.length) add('unknowns', L.unknowns, brief(unknowns.join('; ')), unknowns);
   const otherFacts = Array.isArray(p.otherFacts) ? p.otherFacts : [];
@@ -260,8 +256,7 @@ export function summaryLines(p) {
     'faq',
     L.faq,
     faq.length ? R.faqCount(faq.length) : R.faqNone,
-    faq,
-    faq.length ? R.faqCount(faq.length) : R.none
+    faq
   );
 
   const tone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : null;
@@ -284,14 +279,12 @@ export function summaryLines(p) {
 }
 
 function changeLines(profile, merged) {
-  const R = REVIEW;
   const prev = new Map(summaryLines(profile).map((l) => [l.id, l]));
   const lines = [];
   for (const line of summaryLines(merged)) {
-    const was = prev.get(line.id);
-    if (was && was.full === line.full) continue;
-    const suffix = !was ? '' : was.value === line.value ? ` ${R.updated}` : ` ${R.was(was.was)}`;
-    lines.push(`${line.label}: ${line.value}${suffix}`);
+    const before = prev.get(line.id);
+    if (before && before.full === line.full) continue;
+    lines.push(`${line.label}: ${line.value}`);
   }
   return lines;
 }
@@ -308,7 +301,7 @@ export function renderReviewOptions() {
 }
 
 /**
- * Save confirmation: changed lines with previous values, then next-step options.
+ * Save confirmation: changed lines (new values only), then next-step options.
  */
 export function renderSavedChanges(before, after) {
   const R = REVIEW;

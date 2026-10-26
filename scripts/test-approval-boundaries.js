@@ -148,7 +148,8 @@ async function testApproveRequiresPresentedReview() {
   const r0 = await handleMessage(session, 'Change private lessons to $80.');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
   assert.match(r0.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(r0.reply, /Services: Private lesson — \$80 \/ 60 min \(was: Private lesson — \$70 \/ 60 min\)/);
+  assert.match(r0.reply, /Services: Private lesson — \$80 \/ 60 min/);
+  assert.doesNotMatch(r0.reply, /\(was:/);
 
   const r1 = await handleMessage(session, 'approve');
   assert.ok(!r1.approved);
@@ -976,7 +977,8 @@ async function testIdentityDraftIsolatesLive() {
   const r = await handleMessage(session, 'Use this opening…');
   assert.equal(r.event, 'build_turn');
   assert.equal(r.readyForReview, true, 'settings-only edit is presented as a save card');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, prices only when asked, custom opening \(was: friendly, prices only when asked\)/);
+  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, prices only when asked, custom opening/);
+  assert.doesNotMatch(r.reply, /\(was:/);
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
   const disk = loadProfile(PROFILE);
