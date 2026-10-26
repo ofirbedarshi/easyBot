@@ -48,7 +48,7 @@ const SALON = {
     const blob = flattenDraft(draft).toLowerCase();
     const womens = services.find((s) => /women/i.test(s?.name || ''));
     const mens = services.find((s) => /men/i.test(s?.name || '') && !/women/i.test(s?.name || ''));
-    const kids = services.find((s) => /kid/i.test(s?.name || ''));
+    const kids = services.find((s) => /kid|child/i.test(s?.name || ''));
     const blowout = services.find((s) => /blow/i.test(s?.name || ''));
     return {
       womens45: !!(womens && /45/.test(String(womens.price || ''))),
