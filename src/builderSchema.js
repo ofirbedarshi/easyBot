@@ -127,6 +127,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'goalSupported',
       'goalUnsupportedPart',
       'readyForReview',
+      'asksQuestion',
     ],
     properties: {
       message: { type: 'string' },
@@ -140,6 +141,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       goalSupported: nullableBoolean,
       goalUnsupportedPart: nullableString,
       readyForReview: { type: 'boolean' },
+      asksQuestion: { type: 'boolean' },
     },
   },
 };

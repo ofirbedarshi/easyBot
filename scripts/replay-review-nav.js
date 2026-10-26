@@ -1,0 +1,195 @@
+#!/usr/bin/env node
+/**
+ * Live handleMessage replay of review-option handling after intervening turns.
+ * Uses the real Builder. Not part of the default test suite.
+ *
+ *   OPENAI_BUILDER_MODEL=gpt-6-luna node scripts/replay-review-nav.js
+ *
+ * Costs a few cents. Isolated profile file; does not touch data/business-profile.json.
+ */
+import fs from 'fs';
+import { createSession, handleMessage, reviewPending } from '../src/session.js';
+import {
+  draftReviewKey,
+  emptyProfile,
+  saveProfile,
+  testProfilePath,
+} from '../src/profile.js';
+import {
+  interveningBuilderQuestion,
+  lastAssistant,
+  lastShownNav,
+  renderReview,
+  reviewActive,
+} from '../src/ownerNav.js';
+
+process.env.OPENAI_BUILDER_MODEL = process.env.OPENAI_BUILDER_MODEL || 'gpt-6-luna';
+
+const PROFILE = testProfilePath('replay-review-nav');
+const MODEL = process.env.OPENAI_BUILDER_MODEL;
+
+function draft() {
+  return {
+    name: 'Scissors and Sage Salon',
+    whatWeDo: 'Hair salon in Columbus, Ohio',
+    ownerGoal: 'answer_and_collect',
+    ownerGoalRequested: 'answer questions and collect details',
+    services: [
+      { name: "Women's cut", price: '$45', notes: null },
+      { name: "Men's cut", price: '$30', notes: null },
+      { name: "Kids' cut (under 10)", price: '$25', notes: null },
+      { name: 'Blowout', price: '$35', notes: null },
+    ],
+    hours: 'Tue–Sat 9–6, closed Sunday and Monday',
+    locationOrArea: 'Columbus, Ohio',
+    commonQuestions: [
+      { question: "How much is a women's cut?", answer: "A women's cut is $45." },
+    ],
+    informationToCollect: ['name', 'phone', 'preferred time'],
+    unknowns: [],
+    otherFacts: [
+      'The salon does not offer nail services.',
+      'The salon does not offer braids or extensions.',
+    ],
+    tone: null,
+    responseLength: null,
+    priceDisclosure: null,
+    assistantName: null,
+    openingMessage: null,
+    askedTopics: ['commonQuestions', 'informationToCollect'],
+  };
+}
+
+function seededProfile() {
+  const d = draft();
+  const base = { ...emptyProfile(), draft: d };
+  return {
+    ...base,
+    reviewedDraftKey: draftReviewKey(base, d),
+  };
+}
+
+function seedSession() {
+  if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
+  const profile = seededProfile();
+  saveProfile(profile, PROFILE);
+  const session = createSession({ profilePath: PROFILE });
+  session.buildHistory.push({
+    role: 'assistant',
+    content: 'Hi! Tell me a little about your business.',
+  });
+  session.buildHistory.push({
+    role: 'user',
+    content: 'hair salon in columbus ohio, Scissors and Sage Salon',
+  });
+  session.buildHistory.push({
+    role: 'assistant',
+    content: renderReview(profile),
+    nav: 'review',
+  });
+  return { session, profile };
+}
+
+function line(role, text) {
+  const body = String(text || '').trim();
+  const clipped = body.length > 800 ? `${body.slice(0, 800)}…` : body;
+  return `[${role}] ${clipped}`;
+}
+
+function flagLine(session, extra) {
+  const last = lastAssistant(session.buildHistory);
+  return [
+    `reviewActive=${reviewActive(session.buildHistory)}`,
+    `lastNav=${lastShownNav(session.buildHistory)}`,
+    `asksQuestion=${last?.asksQuestion === true}`,
+    `intervening=${interveningBuilderQuestion(session.buildHistory)}`,
+    extra,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+async function main() {
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('OPENAI_API_KEY missing');
+    process.exit(1);
+  }
+
+  const transcript = [];
+  const results = [];
+
+  transcript.push(`model=${MODEL}`);
+
+  // Case A: customer-style answer / courtesy closer must not block 1.
+  const courtesy = seedSession();
+  transcript.push('');
+  transcript.push('--- courtesy / answer (must not block 1) ---');
+  transcript.push(flagLine(courtesy.session, `reviewPending=${reviewPending(courtesy.profile)}`));
+  transcript.push(line('APP', courtesy.session.buildHistory.at(-1).content));
+  const priceQ = 'how much is a womens haircut?';
+  transcript.push(line('OWNER', priceQ));
+  const mid = await handleMessage(courtesy.session, priceQ);
+  transcript.push(`event=${mid.event} source=${mid.source} mode=${courtesy.session.mode} ${flagLine(courtesy.session)}`);
+  transcript.push(line('APP', mid.reply));
+  const oneA = await handleMessage(courtesy.session, '1');
+  transcript.push(line('OWNER', '1'));
+  transcript.push(`event=${oneA.event} source=${oneA.source} mode=${courtesy.session.mode} approved=${!!oneA.approved}`);
+  transcript.push(line('APP', oneA.reply));
+  const okCourtesy =
+    oneA.event === 'approved_enter_test' &&
+    courtesy.session.mode === 'TEST' &&
+    /TEST mode/.test(oneA.reply);
+  results.push(okCourtesy ? 'PASS courtesy/answer then 1 entered TEST' : 'FAIL courtesy/answer then 1 did not enter TEST');
+
+  // Case B: a real interview question, then 1 is the answer.
+  const question = seedSession();
+  transcript.push('');
+  transcript.push('--- real question (1 must be the answer) ---');
+  const staffQ =
+    'I have not given you our stylist count. Ask me how many stylists we have before you store anything about staffing — I will answer with a number next.';
+  transcript.push(line('OWNER', staffQ));
+  const asked = await handleMessage(question.session, staffQ);
+  transcript.push(`event=${asked.event} source=${asked.source} mode=${question.session.mode} ${flagLine(question.session)}`);
+  transcript.push(line('APP', asked.reply));
+  const questionFlag = lastAssistant(question.session.buildHistory)?.asksQuestion === true;
+  const oneB = await handleMessage(question.session, '1');
+  transcript.push(line('OWNER', '1'));
+  transcript.push(`event=${oneB.event} source=${oneB.source} mode=${question.session.mode} approved=${!!oneB.approved}`);
+  transcript.push(line('APP', oneB.reply));
+  const okQuestionTurn =
+    questionFlag && oneB.event === 'build_turn' && question.session.mode === 'BUILD' && !oneB.approved;
+  results.push(
+    okQuestionTurn
+      ? 'PASS real question then 1 stayed in BUILD (answer, not Try my bot)'
+      : `FAIL real question then 1 event=${oneB.event} mode=${question.session.mode} asksQuestion=${questionFlag}`
+  );
+
+  // Same-draft re-present: no prepended ack.
+  const second = seedSession();
+  const show = 'please show the current bot';
+  transcript.push('');
+  transcript.push('--- same-draft re-present ---');
+  transcript.push(line('OWNER', show));
+  const shown = await handleMessage(second.session, show);
+  transcript.push(`event=${shown.event} readyForReview=${shown.readyForReview} presentStarts=${JSON.stringify(String(shown.reply || '').slice(0, 80))}`);
+  transcript.push(line('APP', shown.reply));
+  if (shown.readyForReview) {
+    const clean = String(shown.reply || '').startsWith("Here's your bot for Scissors and Sage Salon:");
+    results.push(clean ? 'PASS same-draft review has no prepended ack' : 'FAIL same-draft review prepended extra text');
+  } else {
+    results.push('SKIP same-draft review (model did not present a review)');
+  }
+
+  const text = transcript.join('\n');
+  console.log(text);
+  console.log('');
+  for (const r of results) console.log(r);
+
+  if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
+  if (!okCourtesy || !okQuestionTurn) process.exit(1);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
