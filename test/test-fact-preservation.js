@@ -82,6 +82,16 @@ test('restored list items keep their original position', () => {
   assert.equal(r.services[1].price, '$30');
 });
 
+test('sameKey folds curly apostrophes so a reported edit still applies', () => {
+  const r = preserveFacts(
+    { services: [svc('Men\'s cut', '$30')] },
+    { services: [svc('Women\'s cut', '$45'), svc('men\u2019s cut', '$28')] },
+    [{ field: 'services', item: 'Men\'s cut', action: 'change' }]
+  );
+  assert.equal(r.services.find((s) => /^men/i.test(s.name)).price, '$30');
+  assert.equal(r.services.find((s) => /women/i.test(s.name)).price, '$45');
+});
+
 test('overlapping service names: editing one does not mark the other', () => {
   const r = preserveFacts(
     { services: [svc('Men\'s cut', '$30')] },

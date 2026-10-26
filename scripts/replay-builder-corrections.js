@@ -61,8 +61,8 @@ const SALON = {
     };
   },
   customerQuestions: [
-    { q: 'how much is a womens haircut?', must: [/45/] },
-    { q: 'do you also do gel manicures?', must: [/nail|don'?t|do not|not offer|no /i] },
+    { q: 'how much is a womens haircut?', must: [/45/], deny: /i don'?t know/i },
+    { q: 'do you also do gel manicures?', must: [/nail/i], deny: /i don'?t know/i },
   ],
 };
 
@@ -95,9 +95,9 @@ const GENERIC = {
     };
   },
   customerQuestions: [
-    { q: 'do you serve huber heights?', must: [/huber|don'?t|do not|not serve|no /i] },
-    { q: 'can you do a roof repair?', must: [/roof|don'?t|do not|not offer|no /i] },
-    { q: 'how much is electrical?', must: [/110/] },
+    { q: 'do you serve huber heights?', must: [/huber/i], deny: /i don'?t know/i },
+    { q: 'can you do a roof repair?', must: [/roof/i], deny: /i don'?t know/i },
+    { q: 'how much is electrical?', must: [/110/], deny: /i don'?t know/i },
   ],
 };
 
@@ -172,7 +172,13 @@ async function runInterview(scenario, model) {
       presentReview: turn.presentReview,
       usage: raw.usage,
       latencyMs: raw.latencyMs,
+      newFacts: raw.modelJson?.newFacts,
+      ownerEdits: raw.modelJson?.ownerEdits,
     });
+    if (i === scenario.afterCorrectionFrom) {
+      console.log('  correction-turn newFacts:', JSON.stringify(raw.modelJson?.newFacts));
+      console.log('  correction-turn ownerEdits:', JSON.stringify(raw.modelJson?.ownerEdits));
+    }
     if (i >= scenario.afterCorrectionFrom && !draftAfterCorrection) {
       draftAfterCorrection = structuredClone(turn.draft);
       reviewAfterCorrection = renderReview({ ...profile, draft: turn.draft });
@@ -205,7 +211,7 @@ async function askCustomer(profile, questions) {
   const out = [];
   let spent = 0;
   let history = [];
-  for (const { q, must } of questions) {
+  for (const { q, must, deny } of questions) {
     const answer = await businessBotReply({ profile, history, question: q });
     spent += 0.002;
     history = [
@@ -213,10 +219,10 @@ async function askCustomer(profile, questions) {
       { role: 'user', content: q },
       { role: 'assistant', content: answer },
     ];
-    const ok = must.every((re) => re.test(answer));
+    const ok = must.every((re) => re.test(answer)) && !(deny && deny.test(answer));
     out.push({ q, answer, ok });
   }
-  return { answers: out, spent, model };
+  return { answers: out, spent };
 }
 
 function printScore(label, score) {
@@ -257,6 +263,10 @@ for (const scenario of [SALON, GENERIC]) {
       const result = await runInterview(scenario, MODEL);
       spent += result.spent;
       printScore('draft after interview', result.score);
+      console.log('  services:', JSON.stringify(result.draft.services));
+      console.log('  locationOrArea:', result.draft.locationOrArea);
+      console.log('  otherFacts:', JSON.stringify(result.draft.otherFacts));
+      console.log('  commonQuestions:', JSON.stringify(result.draft.commonQuestions));
       console.log('  review services line:');
       const svcLine = String(result.review)
         .split('\n')

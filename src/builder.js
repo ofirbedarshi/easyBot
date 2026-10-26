@@ -311,17 +311,22 @@ export function hasAnsweredInformationToCollect(draftOrProfile) {
   return Array.isArray(draftOrProfile?.informationToCollect);
 }
 
-const sameKey = (a, b) =>
-  String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+/** Fold punctuation so "Men's cut" and "men’s cut" are the same key. */
+const foldKey = (s) =>
+  String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u02BC`]/g, "'");
+
+const sameKey = (a, b) => foldKey(a) === foldKey(b);
 
 /** True when `next` still contains all of `prev`, i.e. the change only adds detail. */
-const extends_ = (next, prev) =>
-  String(next || '').toLowerCase().includes(String(prev || '').trim().toLowerCase());
+const extends_ = (next, prev) => foldKey(next).includes(foldKey(prev));
 
 /** Loose identity for model-reported edit targets, which may abbreviate the stored key. */
 const overlaps = (a, b) => {
-  const x = String(a || '').trim().toLowerCase();
-  const y = String(b || '').trim().toLowerCase();
+  const x = foldKey(a);
+  const y = foldKey(b);
   return !!x && !!y && (x.includes(y) || y.includes(x));
 };
 
