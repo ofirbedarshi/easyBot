@@ -21,6 +21,13 @@ import {
   bootstrapSession,
 } from '../src/session.js';
 import { emptyProfile } from '../src/profile.js';
+import {
+  BURST_LIMIT_REPLY,
+  checkMessageLength,
+  checkSenderBurst,
+  maxMessageChars,
+  maxMsgsPerSenderPerBurst,
+} from '../src/limits.js';
 
 const AUTH = 'test_auth_token_for_mocked_suite';
 const BASE = 'https://demo.example.com';
@@ -87,6 +94,33 @@ function ok(name) {
 }
 
 console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
+
+{
+  const prevChars = process.env.DEMO_MAX_MSG_CHARS;
+  const prevBurst = process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST;
+  delete process.env.DEMO_MAX_MSG_CHARS;
+  delete process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST;
+  assert.equal(maxMessageChars(), 1000);
+  assert.equal(maxMsgsPerSenderPerBurst(), 10);
+  const okLen = checkMessageLength('a'.repeat(1000));
+  assert.equal(okLen.ok, true);
+  const long = checkMessageLength('a'.repeat(1001));
+  assert.equal(long.ok, false);
+  assert.match(long.reason, /max 1000 characters/);
+  assert.equal(checkSenderBurst(10).ok, true);
+  const burst = checkSenderBurst(11);
+  assert.equal(burst.ok, false);
+  assert.equal(burst.reason, BURST_LIMIT_REPLY);
+  process.env.DEMO_MAX_MSG_CHARS = '50';
+  process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST = '3';
+  assert.equal(maxMessageChars(), 50);
+  assert.equal(checkSenderBurst(4).ok, false);
+  if (prevChars == null) delete process.env.DEMO_MAX_MSG_CHARS;
+  else process.env.DEMO_MAX_MSG_CHARS = prevChars;
+  if (prevBurst == null) delete process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST;
+  else process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST = prevBurst;
+  ok('length default 1000 and burst 10/10min are env-configurable');
+}
 
 // --- Unit: signature helper ---
 {
@@ -335,6 +369,48 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   process.env.PUBLIC_BASE_URL = BASE;
   assert.equal(resolveWebhookUrl(req), FULL_URL);
   ok('resolveWebhookUrl uses PUBLIC_BASE_URL');
+}
+
+// --- Burst cap: 11th message in the window is skipped (no LLM) ---
+{
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15556666';
+  await store.ensureSender(sender);
+  const session = await createSenderSession(store, sender);
+  bootstrapSession(session);
+  await persistSenderSession(session);
+
+  for (let i = 0; i < 10; i++) {
+    const sid = `SMburst${i}`;
+    await store.enqueueInbound({
+      messageSid: sid,
+      senderId: sender,
+      body: `seed ${i}`,
+    });
+    store._patchInbound(sid, { status: 'done' });
+  }
+
+  const worker = startInboundWorker(store, { intervalMs: 10_000 });
+  await withServer(store, async ({ base }) => {
+    const params = {
+      MessageSid: 'SMburst10',
+      AccountSid: 'ACtest',
+      From: sender,
+      To: 'whatsapp:+15550000',
+      Body: 'one more',
+      NumMedia: '0',
+    };
+    await postWebhook(base, params, { 'X-Twilio-Signature': sign(params) });
+  });
+  const dump = await drain(store, worker);
+  const last = dump.inbound.find((r) => r.message_sid === 'SMburst10');
+  assert.equal(last.status, 'skipped');
+  assert.equal(last.error, BURST_LIMIT_REPLY);
+  const outbound = dump.messages.find((m) => m.in_reply_to_sid === 'SMburst10');
+  assert.ok(outbound, 'burst skip still sends a reply');
+  assert.equal(outbound.body, BURST_LIMIT_REPLY);
+  ok('11th inbound in 10 minutes hits the burst cap');
+  worker.stop();
 }
 
 console.log(`\n=== ${passed} mocked checks passed ===`);

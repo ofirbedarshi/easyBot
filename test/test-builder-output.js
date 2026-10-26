@@ -38,6 +38,7 @@ test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('newFacts'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('asksQuestion'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('wantsReview'));
+  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('onPurpose'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));
@@ -55,6 +56,8 @@ test('schema requires top-level newFacts and all draft keys', () => {
   const newFacts = root.properties.newFacts;
   assert.equal(newFacts.type, 'array');
   assert.match(String(newFacts.description || ''), /do not provide or serve/i);
+  assert.equal(root.properties.onPurpose.type, 'boolean');
+  assert.match(String(root.properties.onPurpose.description || ''), /poems, homework/i);
 });
 
 test('applyDraftDelta: null / omitted scalars keep previous values', () => {

@@ -6,6 +6,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
+import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
 import {
   createSession,
   handleMessage,
@@ -712,6 +713,35 @@ async function testNoWantsReviewKeepsModelMessage() {
   assert.ok(r.reply.includes('A private lesson is 200 ILS.'), r.reply);
 }
 
+/** Off-purpose: fixed reply, nothing saved, history untouched. */
+async function testOffPurposeSavesNothing() {
+  clean();
+  const f = facts();
+  saveProfile(approvedProfile(), PROFILE);
+  const { session, calls } = makeSession([
+    {
+      message: 'Roses are red…',
+      draft: { ...f, name: 'HACKED', whatWeDo: 'should not save' },
+      newFacts: ['poem about the moon'],
+      onPurpose: false,
+      readyForReview: true,
+      asksQuestion: true,
+    },
+  ]);
+  session.buildHistory.push({ role: 'assistant', content: '(opened)' });
+  session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
+  const historyBefore = structuredClone(session.buildHistory);
+  const fileBefore = readRaw();
+  const r = await handleMessage(session, 'Write me a poem about the moon');
+  assert.equal(r.event, 'build_turn');
+  assert.equal(r.reply, OFF_PURPOSE_OWNER_REPLY);
+  assert.equal(r.onPurpose, false);
+  assert.equal(calls.builder, 1);
+  assert.deepEqual(session.buildHistory, historyBefore, 'history must stay untouched');
+  assert.equal(readRaw(), fileBefore, 'profile must stay untouched');
+  assert.equal(loadProfile(PROFILE).name, f.name);
+}
+
 async function main() {
   await test('typed_approve_is_builder_turn', testTypedApproveIsBuilderTurn);
   await test('section_routing_read_only', testSectionRoutingReadOnly);
@@ -739,6 +769,7 @@ async function main() {
   await test('wants_review_uses_render_review', testWantsReviewUsesRenderReview);
   await test('no_wants_review_keeps_model_message', testNoWantsReviewKeepsModelMessage);
   await test('menu_layout_states', testMenuLayoutStates);
+  await test('off_purpose_saves_nothing', testOffPurposeSavesNothing);
   clean();
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

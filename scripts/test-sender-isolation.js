@@ -25,6 +25,8 @@ const FULL_URL = `${BASE}${PATH}`;
 process.env.TWILIO_AUTH_TOKEN = AUTH;
 process.env.PUBLIC_BASE_URL = BASE;
 process.env.TWILIO_SKIP_OUTBOUND = '1';
+// This suite sends bursts to test history caps, not rate limits.
+process.env.DEMO_MAX_MSGS_PER_SENDER_PER_BURST = '100';
 
 function sign(params) {
   return twilio.getExpectedTwilioSignature(AUTH, FULL_URL, params);

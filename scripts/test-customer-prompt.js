@@ -437,6 +437,21 @@ function testLegacyDefaultsInPrompt() {
   assert.ok(!/^Tone:/m.test(prompt.split('===')[0]), 'no top-level Tone line');
 }
 
+function testStayOnBusinessRule() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Harbor Cafe',
+    whatWeDo: 'Neighborhood cafe',
+    services: [{ name: 'Latte', price: '$4', notes: null }],
+    informationToCollect: [],
+    unknowns: [],
+  });
+  assert.match(prompt, /Stay on this business only/);
+  assert.match(prompt, /Poems, homework, general knowledge, coding/);
+  assert.match(prompt, /one short, warm steer back to the business/);
+  assert.doesNotMatch(prompt, /happy to help with anything/i);
+  assert.doesNotMatch(prompt, /Keep replies concise and helpful/);
+}
+
 function main() {
   testOwnerGoalSeparatedFromFacts();
   testObjectivePerGoal();
@@ -451,6 +466,7 @@ function main() {
   testOpeningNotInStandingPrompt();
   testDefaultOpeningText();
   testLegacyDefaultsInPrompt();
+  testStayOnBusinessRule();
   console.log('test-customer-prompt: all passed');
 }
 
