@@ -285,7 +285,7 @@ async function testTestModeFirstMessageGetsOpening() {
   assert.equal(entered.event, 'enter_test');
   const open = customerOpeningText(profile);
   assert.equal(entered.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
-  assert.ok(open.includes('How can I help you? 😊'), open);
+  assert.ok(open.includes('How can I help you? ✨'), open);
   const first = await handleMessage(session, 'How much it cost?');
   assert.equal(first.reply, 'A cut is 100 shekel.');
   assert.ok(!first.reply.startsWith(open), first.reply);

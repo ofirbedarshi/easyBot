@@ -331,7 +331,7 @@ export function assistantIdentityView(profile) {
 }
 
 /** Fixed second line of the default customer opening (code, not the model). */
-export const DEFAULT_CUSTOMER_HELP_LINE = 'How can I help you? 😊';
+export const DEFAULT_CUSTOMER_HELP_LINE = 'How can I help you? ✨';
 
 /**
  * Warm default first-contact opening when the owner has not set openingMessage.
