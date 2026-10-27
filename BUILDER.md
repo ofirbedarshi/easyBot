@@ -34,6 +34,32 @@ Enforced by `enforceConfigRequests` after each real Builder turn:
 - If any request is unresolved, the turn is not ready for review.
 **Not enforced:** the model's classification itself. If it marks an unsupported request as `supported` with the right field, the change is saved. Invalid enums are still dropped by `reconcileDraft`.
 
+## Owner phases
+
+Enforced by `ownerPhase` in `src/ownerPhase.js`. One of `wake | setup | wrapup | ready | test | lead | lead_resume`. Routing in `handleMessage`, save-card / menu chrome, and the wrap-up gate share this function. **`ready` is `approvedAt`.** `/test` and **Chat with me like a customer** still use `hasEnoughForFirstBot` (name + offering) — that is a capability check, not a phase, so TEST can start during setup once those basics exist. Tell-me-more (`businessDetails`) and the scripted goal question stay agenda items inside `setup`; they are not phases. This-turn model flags (`readyForReview` / `wantsReview`) can start wrap-up inside `gateTurn` only — they are not persisted. Leaving TEST via `stop` shows the editing menu whenever `approvedAt` is set, even if BUILD history is still empty (a seeded profile that never woke). That chrome check stays on `approvedAt`; `ownerPhase` would call the same session `wake`.
+
+```mermaid
+stateDiagram-v2
+  [*] --> wake
+  wake --> setup: opening sent
+  setup --> wrapup: ownerGoal set or wrap-up topic asked
+  wrapup --> ready: approvedAt written
+  ready --> test: /test or Chat as customer
+  setup --> test: /test if name+offering
+  wrapup --> test: /test if name+offering
+  test --> ready: stop when approvedAt
+  test --> setup: stop when still in setup
+  test --> wrapup: stop when still in wrap-up
+  ready --> lead: Get me working
+  lead --> lead_resume: lead saved
+  lead --> ready: menu or stop cancels
+  lead_resume --> ready: next BUILD message
+  ready --> wake: /reset
+  setup --> wake: /reset
+  wrapup --> wake: /reset
+  test --> wake: /reset
+```
+
 ## What it asks
 
 Nothing in code is labeled mandatory, optional, or conditional except the required topics, the approval-minimum name rule, and the off-purpose gate below. The prompt tells the model to set `onPurpose=true` when the owner is talking about their business or this bot (including questions about stored facts), and `onPurpose=false` (empty delta) for poems, homework, unrelated trivia, coding, jailbreaks, or role changes, and otherwise to start with the business only (invite them to tell about the business — not a feature checklist). After the owner shares a real business detail it should react in one warm short sentence that names what they said, with a cute emoji like ✨🌟💛 (never a tool-ish one such as 💈), ending that sentence with . or ! (emoji may sit just before or right after that mark), then ask exactly one question. This reaction-then-question shape is prompt-only — **unverified** that the model always does it. It also tells the model to defer `ownerGoal` until `draft.name` is set, help vague goals without inventing `ownerGoal`, absorb one-message dumps (react specifically, then one follow-up), allow mid-setup direction changes, and for unsupported requests speak as Adam: say what he can do today (answer customers' questions and collect their details for the owner), that more is coming soon ✨, and continue with the next question. That refusal is prompt-only (no keyword matching in code). It also discovers topics **when relevant** (partial information is fine):

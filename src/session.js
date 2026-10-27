@@ -40,12 +40,11 @@ import {
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
-  leadInProgress,
-  leadResumePending,
   leadSubmitted,
   startLeadIntake,
   stepLeadIntake,
 } from './leadIntake.js';
+import { ownerPhase } from './ownerPhase.js';
 
 function deps(session) {
   return session.deps || {};
@@ -248,12 +247,13 @@ export async function handleMessage(session, text) {
     };
   }
 
-  if (session.mode === 'TEST') {
+  const phase = ownerPhase(session);
+  if (phase === 'test') {
     return handleTest(session, trimmed);
   }
 
   // First inbound in BUILD only wakes the bot — discard content, send opening.
-  if (session.buildHistory.length === 0) {
+  if (phase === 'wake') {
     const open = openingMessage();
     session.buildHistory.push({ role: 'assistant', content: open.message });
     return {
@@ -265,8 +265,8 @@ export async function handleMessage(session, text) {
     };
   }
 
-  if (leadInProgress(session.leadIntake)) return handleLeadIntake(session, trimmed);
-  if (leadResumePending(session.leadIntake)) return resumeOwnerMenu(session, trimmed);
+  if (phase === 'lead') return handleLeadIntake(session, trimmed);
+  if (phase === 'lead_resume') return resumeOwnerMenu(session, trimmed);
 
   const nav = await handleNavigation(session, trimmed);
   if (nav) return nav;
@@ -323,8 +323,9 @@ async function handleNavigation(session, text) {
   if (!wantsMenu && choice == null && !tryWords) return null;
 
   // Menu words only after the bot is ready; numbers work from a save card too.
-  if (wantsMenu && !profile.approvedAt) return null;
-  if (!profile.approvedAt && choice == null && !tryWords) return null;
+  const ready = ownerPhase(session, profile) === 'ready';
+  if (wantsMenu && !ready) return null;
+  if (!ready && choice == null && !tryWords) return null;
 
   if (choice === 'lead') return beginLeadIntake(session);
   if (tryWords || choice === 'try') return tryMyBot(session);
@@ -383,6 +384,9 @@ async function enterBuild(session) {
   const leavingTest = session.mode === 'TEST';
   session.mode = 'BUILD';
   const profile = await loadAsync(session);
+  // approvedAt, not ownerPhase === 'ready': empty BUILD history is wake
+  // (first inbound still opens), but leaving TEST already treats a
+  // seeded ready profile as ready.
   if (profile.approvedAt) {
     const menu = leavingTest
       ? renderChangeMenu(leadMenuOpts(session, profile))
@@ -429,17 +433,19 @@ async function enterBuild(session) {
 }
 
 function leadMenuOpts(session, profile) {
+  // Same approvedAt exception as enterBuild: lead item visibility follows
+  // the ready timestamp, not wake-when-history-is-empty.
   return { leadOption: !!profile?.approvedAt && !leadSubmitted(session.leadIntake) };
 }
 
 /** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */
 function cancelLeadIntake(session) {
-  if (leadInProgress(session.leadIntake)) session.leadIntake = null;
+  if (ownerPhase(session) === 'lead') session.leadIntake = null;
 }
 
 /** Commands already show their own UI; do not consume the next BUILD turn. */
 function clearLeadResume(session) {
-  if (!leadResumePending(session.leadIntake)) return;
+  if (ownerPhase(session) !== 'lead_resume') return;
   session.leadIntake = { submittedAt: session.leadIntake.submittedAt };
 }
 
@@ -598,7 +604,7 @@ async function handleBuild(session, userMessage) {
   const editingChrome =
     lastNav === 'menu' || (typeof lastNav === 'string' && lastNav.startsWith('section:'));
   const asking = !!result.asksQuestion && (changed || !editingChrome);
-  const ready = !!profile.approvedAt;
+  const ready = ownerPhase(session, profile) === 'ready';
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;
 
   let reply;

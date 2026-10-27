@@ -26,8 +26,8 @@ import {
   topicModelAsked,
   topicQuestion,
   WRAP_UP_TOPICS,
-  WRAP_UP_TOPIC_KEYS,
 } from './builderTopics.js';
+import { ownerPhase } from './ownerPhase.js';
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
@@ -1222,17 +1222,6 @@ function replyHasQuestion(text) {
   return /\?/.test(String(text || ''));
 }
 
-/** Wrap-up (FAQ, intake) once the goal is set, a wrap-up topic was asked, or the model wraps up. */
-function wrapUpActive(profile, draft, priorAsked, turn) {
-  if (profile?.approvedAt) return false;
-  return !!(
-    turn.readyForReview ||
-    turn.wantsReview ||
-    (priorAsked || []).some((k) => WRAP_UP_TOPIC_KEYS.has(k)) ||
-    normalizeOwnerGoal(draft?.ownerGoal)
-  );
-}
-
 function gateTurn(profile, turn) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
   const draft = {
@@ -1248,8 +1237,9 @@ function gateTurn(profile, turn) {
 
   // After tell-me-more is settled, the app asks the goal itself (do not wait
   // for the model). One question via withSingleQuestion.
+  // Do not pass `turn`: readyForReview this turn must not skip the goal.
   if (
-    !profile.approvedAt &&
+    ownerPhase(null, profile, { draft }) !== 'ready' &&
     businessDetailsSettled(draft, draft.askedTopics) &&
     !normalizeOwnerGoal(draft.ownerGoal)
   ) {
@@ -1265,7 +1255,8 @@ function gateTurn(profile, turn) {
 
   // Wrap-up topics: when wrapping up, once that sequence has started, or
   // once ownerGoal is set (do not wait for the model to flag wrap-up).
-  const continueWrap = wrapUpActive(profile, draft, priorAsked, turn);
+  const continueWrap =
+    ownerPhase(null, profile, { draft, priorAsked, turn }) === 'wrapup';
   const openWrap = continueWrap ? nextOpenTopic(profile, draft, priorAsked) : null;
   const modelTopic = openWrap
     ? null
@@ -1280,7 +1271,7 @@ function gateTurn(profile, turn) {
   // the save card once FAQ + intake are settled. Do not inject wrap-up
   // topics before the goal (nextOpenTopic would otherwise return FAQ).
   if (
-    !profile.approvedAt &&
+    ownerPhase(null, profile, { draft }) !== 'ready' &&
     !replyHasQuestion(turn.message) &&
     !nextOpenTopic(profile, draft, priorAsked) &&
     firstSetupSettled(profile, draft) &&
@@ -1299,7 +1290,7 @@ function gateTurn(profile, turn) {
 
   let readyForReview = !!turn.readyForReview;
   const wantsReview = turn.wantsReview === true;
-  if (profile.approvedAt && draftChangesOnlySettings(profile, draft)) {
+  if (ownerPhase(null, profile, { draft }) === 'ready' && draftChangesOnlySettings(profile, draft)) {
     readyForReview = true;
   }
 
