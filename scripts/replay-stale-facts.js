@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Live handleMessage replay: a stored fact is corrected, then the owner asks
- * to see the summary. The old value must leave every stored copy, and the
- * summary must be renderReview with nav 'review'.
+ * to see the summary. The old value must leave every stored copy. After
+ * ready, a no-change "show me the summary" turn is model text plus the menu.
  *
  *   OPENAI_BUILDER_MODEL=gpt-6-luna node scripts/replay-stale-facts.js
  *
@@ -143,18 +143,23 @@ async function main() {
   lines.push('');
   lines.push(`[OWNER] ${show}`);
   const shown = await handleMessage(session, show);
-  const profile = loadProfile(PROFILE);
-  const review = renderReview(profile);
   const nav = lastShownNav(session.buildHistory);
-  lines.push(`event=${shown.event} nav=${nav} wantsReview=${shown.wantsReview}`);
+  lines.push(`event=${shown.event} nav=${nav}`);
   lines.push(`[APP] ${clip(shown.reply)}`);
 
-  const isReview = nav === 'review' && String(shown.reply || '').includes(review);
-  results.push(isReview ? 'PASS reply is renderReview with nav review' : 'FAIL reply was not renderReview/nav review');
+  const isMenu =
+    nav === 'menu' &&
+    /Pick a number/.test(shown.reply) &&
+    !String(shown.reply || '').startsWith("Here's your bot for");
   results.push(
-    /\nQ&A: \d+ answers?\n/.test(shown.reply)
-      ? 'PASS Q&A line is a count'
-      : 'FAIL Q&A line is not the review count'
+    isMenu
+      ? 'PASS show-summary is model text plus menu'
+      : 'FAIL show-summary was not model-plus-menu'
+  );
+  results.push(
+    !String(shown.reply || '').includes(OLD)
+      ? 'PASS reply has no stale $41'
+      : 'FAIL reply still mentions $41'
   );
 
   console.log(lines.join('\n'));

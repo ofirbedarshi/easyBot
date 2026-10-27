@@ -153,10 +153,10 @@ async function main() {
       : 'FAIL courtesy/answer then Try my bot did not enter TEST'
   );
 
-  // Case B: a real interview question, then 1 is the answer.
+  // Case B: after ready, a clarifying question attaches the menu; 1 is chrome.
   const question = seedSession();
   transcript.push('');
-  transcript.push('--- real question (1 must be the answer) ---');
+  transcript.push('--- real question (1 is a menu pick, not Try my bot) ---');
   const staffQ =
     'I have not given you our stylist count. Ask me how many stylists we have before you store anything about staffing — I will answer with a number next.';
   transcript.push(line('OWNER', staffQ));
@@ -169,28 +169,36 @@ async function main() {
   transcript.push(`event=${oneB.event} source=${oneB.source} mode=${question.session.mode}`);
   transcript.push(line('APP', oneB.reply));
   const okQuestionTurn =
-    questionFlag && oneB.event === 'build_turn' && question.session.mode === 'BUILD';
+    asked.event === 'build_turn' &&
+    lastShownNav(question.session.buildHistory) !== 'review' &&
+    !questionFlag &&
+    oneB.event !== 'enter_test' &&
+    question.session.mode === 'BUILD';
   results.push(
     okQuestionTurn
-      ? 'PASS real question then 1 stayed in BUILD (answer, not Try my bot)'
+      ? `PASS real question then 1 stayed in BUILD (event=${oneB.event}, not Try my bot)`
       : `FAIL real question then 1 event=${oneB.event} mode=${question.session.mode} asksQuestion=${questionFlag}`
   );
 
-  // Same-draft re-present: current-bot card, no prepended ack.
+  // Same-draft re-present: model text plus the editing menu.
   const second = seedSession();
   const show = 'please show the current bot';
   transcript.push('');
   transcript.push('--- same-draft re-present ---');
   transcript.push(line('OWNER', show));
   const shown = await handleMessage(second.session, show);
-  transcript.push(`event=${shown.event} readyForReview=${shown.readyForReview} presentStarts=${JSON.stringify(String(shown.reply || '').slice(0, 80))}`);
+  transcript.push(`event=${shown.event} nav=${lastShownNav(second.session.buildHistory)} presentStarts=${JSON.stringify(String(shown.reply || '').slice(0, 80))}`);
   transcript.push(line('APP', shown.reply));
-  if (shown.readyForReview) {
-    const clean = String(shown.reply || '').startsWith("Here's your bot for Scissors and Sage Salon:");
-    results.push(clean ? 'PASS same-draft review has no prepended ack' : 'FAIL same-draft review prepended extra text');
-  } else {
-    results.push('SKIP same-draft review (model did not present a review)');
-  }
+  const okShown =
+    shown.event === 'build_turn' &&
+    lastShownNav(second.session.buildHistory) === 'menu' &&
+    /Pick a number/.test(shown.reply) &&
+    !String(shown.reply || '').startsWith("Here's your bot for");
+  results.push(
+    okShown
+      ? 'PASS same-draft show-bot is model text plus menu'
+      : 'FAIL same-draft show-bot was not model-plus-menu'
+  );
 
   const text = transcript.join('\n');
   console.log(text);
@@ -199,7 +207,7 @@ async function main() {
 
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
   cost.print();
-  if (!okCourtesy || !okQuestionTurn) process.exit(1);
+  if (!okCourtesy || !okQuestionTurn || !okShown) process.exit(1);
 }
 
 main().catch((err) => {
