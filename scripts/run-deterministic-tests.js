@@ -12,6 +12,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const SUITES = [
   { id: 'approval-boundaries', file: 'scripts/test-approval-boundaries.js' },
+  { id: 'setup-skip-stall', file: 'scripts/test-setup-skip-stall.js' },
   { id: 'builder-nav', file: 'scripts/test-builder-nav.js' },
   { id: 'customer-prompt', file: 'scripts/test-customer-prompt.js' },
   { id: 'twilio-webhook', file: 'scripts/test-twilio-webhook.js' },

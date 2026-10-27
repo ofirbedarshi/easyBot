@@ -1207,9 +1207,12 @@ function gateTurn(profile, turn) {
     askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
   };
 
-  // Required topics: before the first review, the app asks each open topic itself.
+  // Required topics: before first approval, the app asks each open topic itself
+  // when wrapping up, or once that sequence has already started.
+  const wrappingUp = !!(turn.readyForReview || turn.wantsReview);
+  const continueRequired = !profile.approvedAt && priorAsked.length > 0;
   const openTopic =
-    turn.readyForReview || turn.wantsReview
+    wrappingUp || continueRequired
       ? nextOpenTopic(profile, draft, priorAsked)
       : null;
   const modelTopic = openTopic
