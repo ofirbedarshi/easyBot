@@ -88,7 +88,7 @@ const menuLead = { leadOption: true };
 const menuNoLead = { leadOption: false };
 
 function menuText(opts) {
-  const items = [...(opts.leadOption ? ['lead'] : []), 1, 2, 'intake', 3, 'try'];
+  const items = [...(opts.leadOption ? ['lead'] : []), 'try', 1, 2, 'intake', 3];
   const label = (item) => {
     if (item === 'lead') return `🚀 ${LEAD_MENU_LABEL}`;
     if (item === 'try') return NAV.menu[3];
@@ -187,9 +187,9 @@ test('ready_first opener plus menu without and with lead', () => {
   assert.equal(without.reply, `${READY_OPENER}\n\n${menuText(menuNoLead)}`);
   assert.equal(without.reply, renderReadyFirst(menuNoLead));
   assert.equal(without.nav, 'menu');
-  assert.ok(menuText(menuNoLead).includes(`3. ${INTAKE_MENU_LABEL}`));
-  assert.match(menuText(menuNoLead), /^1\. 🏪 Tell me more about your business\n/);
-  assert.match(menuText(menuNoLead), /\n5\. 🤖 Chat with me like a customer\n/);
+  assert.ok(menuText(menuNoLead).includes(`4. ${INTAKE_MENU_LABEL}`));
+  assert.match(menuText(menuNoLead), /^1\. 🤖 Chat with me like a customer\n/);
+  assert.match(menuText(menuNoLead), /\n2\. 🏪 Tell me more about your business\n/);
 
   const named = composeReply({
     kind: 'ready_first',
@@ -203,8 +203,8 @@ test('ready_first opener plus menu without and with lead', () => {
   assert.equal(withLead.reply, renderReadyFirst(menuLead));
   assert.equal(withLead.nav, 'menu');
   assert.ok(menuText(menuLead).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n`));
-  assert.ok(menuText(menuLead).includes(`4. ${INTAKE_MENU_LABEL}`));
-  assert.match(menuText(menuLead), /\n6\. 🤖 Chat with me like a customer\n/);
+  assert.ok(menuText(menuLead).includes(`5. ${INTAKE_MENU_LABEL}`));
+  assert.match(menuText(menuLead), /\n2\. 🤖 Chat with me like a customer\n/);
 });
 
 test('saved_changes card plus menu, and with ack', () => {

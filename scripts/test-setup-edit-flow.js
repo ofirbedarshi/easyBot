@@ -602,7 +602,7 @@ await test('no-change summary turn keeps otherFacts and shows the menu', async (
           event: 'build_turn',
           approvedAt: APPROVED_AT,
           nav: 'menu',
-          includes: ['Here is the latest.', '1. 🏪 Tell me more about your business'],
+          includes: ['Here is the latest.', '2. 🏪 Tell me more about your business'],
           excludes: [CHANGED_ACK, '🚀 Get me working for your business'],
           live: { otherFacts: [fact] },
           draft: { otherFacts: [fact] },
@@ -758,18 +758,18 @@ await test('*menu* word and each section card, then back to the menu', async () 
         nav: 'menu',
         includes: [
           MENU_HEAD,
-          '1. 🏪 Tell me more about your business',
-          '2. ❓ Teach me more questions and answers',
-          '3. 📝 Choose details to collect from customers',
-          '4. 💬 Tell me how to talk to your customers',
-          '5. 🤖 Chat with me like a customer',
+          '1. 🤖 Chat with me like a customer',
+          '2. 🏪 Tell me more about your business',
+          '3. ❓ Teach me more questions and answers',
+          '4. 📝 Choose details to collect from customers',
+          '5. 💬 Tell me how to talk to your customers',
         ],
         excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
       },
     },
     {
-      name: '1 → Business info section card',
-      in: '1',
+      name: '2 → Business info section card',
+      in: '2',
       expect: {
         event: 'menu_section',
         reply: renderSection(1, profile),
@@ -799,8 +799,8 @@ await test('*menu* word and each section card, then back to the menu', async () 
       },
     },
     {
-      name: '2 → Q&A section card',
-      in: '2',
+      name: '3 → Q&A section card',
+      in: '3',
       expect: {
         event: 'menu_section',
         reply: renderSection(2, profile),
@@ -821,8 +821,8 @@ await test('*menu* word and each section card, then back to the menu', async () 
       },
     },
     {
-      name: '3 → intake section card',
-      in: '3',
+      name: '4 → intake section card',
+      in: '4',
       expect: {
         event: 'menu_section',
         reply: renderSection('intake', profile),
@@ -843,8 +843,8 @@ await test('*menu* word and each section card, then back to the menu', async () 
       },
     },
     {
-      name: '4 → How I talk section card',
-      in: '4',
+      name: '5 → How I talk section card',
+      in: '5',
       expect: {
         event: 'menu_section',
         reply: renderSection(3, profile),
@@ -898,8 +898,8 @@ await test('a number with no active card is not a menu pick', async () => {
   );
 });
 
-// After ready, no-change turns attach the menu. A bare 1 is Tell me more
-// (section), not Try my bot from a stale review card.
+// After ready, no-change turns attach the menu. A bare 2 is Tell me more
+// (section). 1 is Chat with me like a customer.
 await test(
   'stale review card after several Builder turns does not capture bare 1',
   async () => {
@@ -923,8 +923,8 @@ await test(
         expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'menu' },
       },
       {
-        name: 'bare 1 after those turns is Tell me more, not Try my bot',
-        in: '1',
+        name: 'bare 2 after those turns is Tell me more',
+        in: '2',
         expect: {
           event: 'menu_section',
           mode: 'BUILD',
@@ -985,7 +985,7 @@ await test('no-change Builder turn after approval shows the menu, not a legacy c
         mode: 'BUILD',
         approvedAt: APPROVED_AT,
         nav: 'menu',
-        includes: ['Here is your bot again.', '1. 🏪 Tell me more about your business'],
+        includes: ['Here is your bot again.', '2. 🏪 Tell me more about your business'],
         excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', '🚀 Get me working for your business'],
       },
     },
@@ -996,8 +996,8 @@ await test('Try my bot from the menu, then stop, then menu header', async () => 
   await playApprovedFlow([
     keepTeaching(),
     {
-      name: '5 from menu → TEST',
-      in: '5',
+      name: '1 from menu → TEST',
+      in: '1',
       expect: {
         event: 'enter_test',
         mode: 'TEST',
@@ -1126,7 +1126,7 @@ await test('lead form from the menu after first TEST, then menu header', async (
           reply: expectedMenu(false),
           approvedAt: APPROVED_AT,
           nav: 'menu',
-          includes: [MENU_HEAD, '1. 🏪 Tell me more about your business'],
+          includes: [MENU_HEAD, '1. 🤖 Chat with me like a customer'],
           excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
         },
       },
