@@ -433,6 +433,7 @@ async function testSixAndEnd() {
 }
 
 /** Try my bot (1) on an already-approved pre-TEST profile enters TEST immediately. */
+async function testSixEntersTestWhenApproved() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session } = makeSession([{ message: 'x', draft: facts() }]);
