@@ -49,6 +49,7 @@ Webhook: `POST /webhooks/twilio/whatsapp`
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Render / local `.env` |
 | `PUBLIC_BASE_URL` | Exact HTTPS origin of the app (e.g. `https://easybot-app.onrender.com`) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Render / local `.env` |
+| `LIMITS_EXEMPT_SENDERS` | Optional. Comma-separated E.164 phones (e.g. `+15551234567`) that skip hourly / daily / burst volume caps. Optional `whatsapp:` prefix and whitespace OK. Unset or empty = no exemptions. The per-message character cap still applies. |
 | Twilio Console → WhatsApp webhook | `https://<PUBLIC_BASE_URL>/webhooks/twilio/whatsapp` |
 
 See [.env.example](.env.example) for the full name list.
@@ -71,6 +72,7 @@ npm run test:approval         # deterministic approval boundaries (no network)
 npm run test:nav              # deterministic Builder editing-menu nav (no network)
 npm run test:customer-prompt  # deterministic customer-prompt structure checks
 npm run test:twilio           # MOCKED signature / dupe / isolation / order (no Twilio network)
+npm run test:limits           # LIMITS_EXEMPT_SENDERS + volume-cap skip (no network)
 npm run test:lead             # deterministic lead questionnaire checks
 npm run test:business-bot     # Business Bot request shape + conversation memory (fake OpenAI)
 npm run regress               # live gpt-6-luna replays (needs OPENAI_API_KEY; a few cents)

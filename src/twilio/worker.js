@@ -7,6 +7,7 @@ import {
   burstWindowMs,
   checkMessageLength,
   checkSenderBurst,
+  isLimitsExemptSender,
   maxMsgsPerSenderPerDay,
   maxMsgsPerSenderPerHour,
 } from '../limits.js';
@@ -130,47 +131,49 @@ async function processRow(store, row, { sessionDeps } = {}) {
       return;
     }
 
-    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const burstAgo = new Date(Date.now() - burstWindowMs()).toISOString();
-    const hourCount = await store.countSenderMessagesSince(senderId, hourAgo);
-    const dayCount = await store.countSenderMessagesSince(senderId, dayAgo);
-    const burstCount = await store.countSenderMessagesSince(senderId, burstAgo);
-    const burst = checkSenderBurst(burstCount);
-    if (!burst.ok) {
-      await store.updateMessageModeBySid(row.message_sid, 'limit');
-      await logOutboundThenSend(store, {
-        senderId,
-        inboundSid: row.message_sid,
-        body: burst.reason,
-        mode: 'limit',
-      });
-      await store.markInboundSkipped(row.id, burst.reason);
-      return;
-    }
-    if (hourCount > maxMsgsPerSenderPerHour()) {
-      const msg = 'Hourly message limit reached. Try again later.';
-      await store.updateMessageModeBySid(row.message_sid, 'limit');
-      await logOutboundThenSend(store, {
-        senderId,
-        inboundSid: row.message_sid,
-        body: msg,
-        mode: 'limit',
-      });
-      await store.markInboundSkipped(row.id, msg);
-      return;
-    }
-    if (dayCount > maxMsgsPerSenderPerDay()) {
-      const msg = 'Daily message limit reached. Try again tomorrow.';
-      await store.updateMessageModeBySid(row.message_sid, 'limit');
-      await logOutboundThenSend(store, {
-        senderId,
-        inboundSid: row.message_sid,
-        body: msg,
-        mode: 'limit',
-      });
-      await store.markInboundSkipped(row.id, msg);
-      return;
+    if (!isLimitsExemptSender(senderId)) {
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const burstAgo = new Date(Date.now() - burstWindowMs()).toISOString();
+      const hourCount = await store.countSenderMessagesSince(senderId, hourAgo);
+      const dayCount = await store.countSenderMessagesSince(senderId, dayAgo);
+      const burstCount = await store.countSenderMessagesSince(senderId, burstAgo);
+      const burst = checkSenderBurst(burstCount);
+      if (!burst.ok) {
+        await store.updateMessageModeBySid(row.message_sid, 'limit');
+        await logOutboundThenSend(store, {
+          senderId,
+          inboundSid: row.message_sid,
+          body: burst.reason,
+          mode: 'limit',
+        });
+        await store.markInboundSkipped(row.id, burst.reason);
+        return;
+      }
+      if (hourCount > maxMsgsPerSenderPerHour()) {
+        const msg = 'Hourly message limit reached. Try again later.';
+        await store.updateMessageModeBySid(row.message_sid, 'limit');
+        await logOutboundThenSend(store, {
+          senderId,
+          inboundSid: row.message_sid,
+          body: msg,
+          mode: 'limit',
+        });
+        await store.markInboundSkipped(row.id, msg);
+        return;
+      }
+      if (dayCount > maxMsgsPerSenderPerDay()) {
+        const msg = 'Daily message limit reached. Try again tomorrow.';
+        await store.updateMessageModeBySid(row.message_sid, 'limit');
+        await logOutboundThenSend(store, {
+          senderId,
+          inboundSid: row.message_sid,
+          body: msg,
+          mode: 'limit',
+        });
+        await store.markInboundSkipped(row.id, msg);
+        return;
+      }
     }
 
     const session = await createSenderSession(store, senderId, {
