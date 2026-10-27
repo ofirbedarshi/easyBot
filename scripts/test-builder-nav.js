@@ -14,7 +14,12 @@ import {
 } from '../src/profile.js';
 import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
 import { BUSINESS_DETAILS_ACK, businessDetailsQuestion } from '../src/builderTopics.js';
-import { INTAKE_MENU_LABEL, READY_OPENER } from '../src/copy.js';
+import {
+  INTAKE_MENU_LABEL,
+  READY_OPENER,
+  businessDetailsAck,
+  readyOpener,
+} from '../src/copy.js';
 import {
   createSession,
   handleMessage,
@@ -110,7 +115,7 @@ function makeSession(turns) {
         calls.builder += 1;
         const turn = turns[Math.min(i, turns.length - 1)];
         i += 1;
-        return { source: 'stub-builder', ...turn };
+        return { source: 'stub-builder', ownerName: 'Dana', ...turn };
       },
     },
   });
@@ -365,7 +370,7 @@ async function testUnchangedReviewOmitsAck() {
   ]);
   await handleMessage(session, 'hi');
   const first = await handleMessage(session, 'I run Studio Yoga');
-  assert.ok(first.reply.startsWith(READY_OPENER), first.reply);
+  assert.ok(first.reply.startsWith(readyOpener('Dana')), first.reply);
   assert.doesNotMatch(first.reply, /Got it, thanks!/);
   const shown = await handleMessage(session, 'please show the current bot');
   assert.ok(shown.reply.startsWith('**Studio Yoga** is a yoga studio in Tel Aviv.'), shown.reply);
@@ -418,11 +423,11 @@ async function testSixAndEnd() {
   const exitBanner = exitTestBanner();
   assert.equal(end.reply, exitBanner);
   assert.equal(end.replies[0], exitBanner);
-  assert.ok(end.replies[1].startsWith('What should we do next?'), end.replies[1]);
+  assert.ok(end.replies[1].startsWith("I'm back! What should I learn next?"), end.replies[1]);
   assert.ok(end.replies[1].includes(`2. ${TELL_MORE}`), end.replies[1]);
   assert.ok(end.replies[1].includes('1. 🚀 Get me working for your business'), end.replies[1]);
   assert.ok(!/BUILD mode/.test(end.replies.join('\n')));
-  assert.ok(lastAssistant(session).content.startsWith('What should we do next?'));
+  assert.ok(lastAssistant(session).content.startsWith("I'm back! What should I learn next?"));
   const talks = await handleMessage(session, '5');
   assert.equal(talks.event, 'menu_section');
 }
@@ -544,7 +549,7 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.equal(reviewActive(session.buildHistory), false);
   assert.equal(menuActive(session.buildHistory), true);
   assert.equal(lastShownNav(session.buildHistory), 'menu');
-  assert.equal(review.reply, `${READY_OPENER}\n\n${renderMenu({ leadOption: false })}`);
+  assert.equal(review.reply, `${readyOpener('Dana')}\n\n${renderMenu({ leadOption: false })}`);
   assert.doesNotMatch(review.reply, /Got it!|I'll remember that|Business Name:|Ready to approve/);
   assert.doesNotMatch(review.reply, /\(was:/);
   assert.doesNotMatch(review.reply, /Keep teaching me/);
@@ -573,7 +578,7 @@ async function testMakeChangesShowsMenu() {
   await handleMessage(session, 'hi');
   const ready = await handleMessage(session, 'I run Studio Yoga');
   const before = readRaw();
-  assert.ok(ready.reply.startsWith(READY_OPENER), ready.reply);
+  assert.ok(ready.reply.startsWith(readyOpener('Dana')), ready.reply);
   assert.ok(ready.reply.includes(TELL_MORE) && ready.reply.includes('🤖 Chat with me like a customer'), ready.reply);
   assert.equal(menuActive(session.buildHistory), true);
   const section = await handleMessage(session, '1');
@@ -806,7 +811,7 @@ async function testWantsReviewUsesRenderReview() {
   assert.equal(r.event, 'build_turn');
   assert.equal(reviewActive(session.buildHistory), false);
   assert.equal(lastShownNav(session.buildHistory), 'menu');
-  assert.ok(r.reply.startsWith(READY_OPENER), r.reply);
+  assert.ok(r.reply.startsWith(readyOpener('Dana')), r.reply);
   assert.match(r.reply, new RegExp(`1\\. ${TELL_MORE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   assert.doesNotMatch(r.reply, /Keep teaching me/);
   assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for|I'll remember that/);
@@ -907,7 +912,7 @@ async function testSetupNameCaptureDoesNotShowSaveCard() {
     hours: null,
     locationOrArea: null,
   });
-  assert.equal(named.reply, `${BUSINESS_DETAILS_ACK}\n\n${tellMore}`);
+  assert.equal(named.reply, `${businessDetailsAck('Dana')}\n\n${tellMore}`);
   assert.doesNotMatch(
     named.reply,
     /I'll remember that|Here's what changed:|What should we do next\?|Chat with me like a customer|Keep teaching me/

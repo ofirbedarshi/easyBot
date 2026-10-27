@@ -25,7 +25,14 @@ import {
   BUSINESS_DETAILS_MARKER,
   businessDetailsQuestion,
 } from '../src/builderTopics.js';
-import { READY_OPENER } from '../src/copy.js';
+import {
+  OWNER_NAME_QUESTION,
+  READY_OPENER,
+  businessDetailsAck,
+  ownerMeetAck,
+  readyOpener,
+  returnedIntro,
+} from '../src/copy.js';
 import {
   createSession,
   enterTestBanner,
@@ -40,6 +47,7 @@ import {
 
 const PROFILE = testProfilePath('setup-flow');
 
+const OWNER = 'Ofir';
 const NAME = 'Ofir garage';
 const WHAT = 'Garage';
 const SERVICE = { name: 'Oil change', price: '200 ILS', notes: null };
@@ -136,16 +144,29 @@ function assertReplyShape(reply, label) {
   }
 }
 
-function expectedTellMore(forDraft = draft()) {
-  return `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(forDraft)}`;
+function expectedTellMore(forDraft = draft(), ownerName = OWNER) {
+  return `${businessDetailsAck(ownerName)}\n\n${businessDetailsQuestion(forDraft)}`;
 }
 
-function expectedReadyFirst(leadOption = false) {
-  return composeReply({ kind: 'ready_first', menuOpts: { leadOption } }).reply;
+function expectedReadyFirst(leadOption = false, ownerName = OWNER) {
+  return composeReply({
+    kind: 'ready_first',
+    menuOpts: { leadOption },
+    ownerName,
+  }).reply;
 }
 
-function expectedMenu(leadOption = false) {
-  return renderChangeMenu({ leadOption });
+function expectedMenu(leadOption = false, ownerName = OWNER) {
+  return renderChangeMenu({ leadOption }, ownerName);
+}
+
+function expectedBackMenu(leadOption = false, ownerName = OWNER) {
+  return composeReply({
+    kind: 'test_exit',
+    menuOpts: { leadOption },
+    ownerName,
+    parts: { ready: true },
+  }).replies[1];
 }
 
 function opening() {
@@ -289,9 +310,41 @@ function wake(text = 'hello') {
   };
 }
 
+function sayName(name = OWNER) {
+  return {
+    name: 'owner name → Nice to meet you + identity',
+    in: name,
+    model: modelTurn(
+      {
+        name: null,
+        whatWeDo: null,
+        services: [],
+        hours: null,
+        locationOrArea: null,
+        commonQuestions: [],
+        informationToCollect: null,
+        unknowns: [],
+        otherFacts: [],
+        tone: null,
+        priceDisclosure: null,
+        openingMessage: null,
+      },
+      { message: 'Hi!', ownerName: name }
+    ),
+    expect: {
+      event: 'build_turn',
+      mode: 'BUILD',
+      reply: `${ownerMeetAck(name)}\n\n${IDENTITY_FALLBACK_QUESTION}`,
+      approvedAt: null,
+      askedTopics: [],
+      liveName: null,
+    },
+  };
+}
+
 function nameWhatTellMore() {
   return {
-    name: 'name+what → Nice! tell-more with the two-line copy',
+    name: 'name+what → Nice thanks tell-more with the two-line copy',
     in: `${NAME}, a ${WHAT.toLowerCase()}`,
     model: modelTurn(draft(), {
       message: "Ofir Garage is your garage ✨ What's next?",
@@ -325,7 +378,7 @@ function tellMoreThenReady(nextDraft = fullFacts(), inbound = 'Oil change 200 IL
       askedTopics: ['businessDetails'],
       approvedAt: true,
       nav: 'menu',
-      startsWith: READY_OPENER,
+      startsWith: readyOpener(OWNER),
       includes: ['1. 🏪 Tell me more about your business', '3. 📝 Choose details to collect from customers'],
       excludes: [LEGACY_CARD, '🚀 Get me working for your business', BUSINESS_DETAILS_MARKER],
     },
@@ -347,7 +400,7 @@ function skipTellMoreThenReady() {
       askedTopics: ['businessDetails'],
       approvedAt: true,
       nav: 'menu',
-      startsWith: READY_OPENER,
+      startsWith: readyOpener(OWNER),
       excludes: [LEGACY_CARD, BUSINESS_DETAILS_MARKER, '🚀 Get me working for your business'],
     },
   };
@@ -410,7 +463,7 @@ function stopToMenu() {
       event: 'enter_build',
       mode: 'BUILD',
       reply: exitTestBanner(),
-      replies: [exitTestBanner(), expectedMenu(true)],
+      replies: [exitTestBanner(), expectedBackMenu(true)],
       approvedAt: true,
       nav: 'menu',
       excludes: [LEGACY_CARD],
@@ -421,6 +474,7 @@ function stopToMenu() {
 await test('happy path: wake → tell-more → hours → ready_first → edit → TEST → stop', async () => {
   await playFlow([
     wake('hello'),
+    sayName(),
     nameWhatTellMore(),
     tellMoreThenReady(),
     editHours(fullFacts({ hours: HOURS_EDIT, askedTopics: ['businessDetails'] })),
@@ -439,6 +493,7 @@ await test('everything in the first interview message skips tell-more', async ()
       model: modelTurn(fullFacts(), {
         message: 'Got it, thanks!',
         readyForReview: true,
+        ownerName: OWNER,
       }),
       expect: {
         event: 'build_turn',
@@ -446,7 +501,7 @@ await test('everything in the first interview message skips tell-more', async ()
         askedTopics: [],
         approvedAt: true,
         nav: 'menu',
-        startsWith: READY_OPENER,
+        startsWith: readyOpener(OWNER),
         excludes: [BUSINESS_DETAILS_MARKER, BUSINESS_DETAILS_ACK, LEGACY_CARD],
       },
     },
@@ -456,6 +511,7 @@ await test('everything in the first interview message skips tell-more', async ()
 await test('partial tell-more answer still presents ready', async () => {
   await playFlow([
     wake(),
+    sayName(),
     nameWhatTellMore(),
     {
       name: 'hours only → ready_first, do not re-ask tell-more',
@@ -470,7 +526,7 @@ await test('partial tell-more answer still presents ready', async () => {
         askedTopics: ['businessDetails'],
         approvedAt: true,
         nav: 'menu',
-        startsWith: READY_OPENER,
+        startsWith: readyOpener(OWNER),
         excludes: [BUSINESS_DETAILS_MARKER, LEGACY_CARD],
       },
     },
@@ -480,6 +536,7 @@ await test('partial tell-more answer still presents ready', async () => {
 await test('skip tell-more presents ready_first', async () => {
   await playFlow([
     wake(),
+    sayName(),
     nameWhatTellMore(),
     skipTellMoreThenReady(),
   ]);
@@ -497,6 +554,7 @@ await test('model asks its own question, no wrap-up flags, still reaches ready',
         readyForReview: false,
         wantsReview: false,
         askingTopic: null,
+        ownerName: OWNER,
       }),
       expect: {
         event: 'build_turn',
@@ -504,7 +562,7 @@ await test('model asks its own question, no wrap-up flags, still reaches ready',
         askedTopics: [],
         approvedAt: true,
         nav: 'menu',
-        startsWith: READY_OPENER,
+        startsWith: readyOpener(OWNER),
         excludes: ['What details should I ask customers for?', BUSINESS_DETAILS_MARKER],
       },
     },
@@ -517,7 +575,7 @@ await test('"ok" after ready_first is the menu, not a leftover card', async () =
     {
       name: 'full dump → ready_first',
       in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
-      model: modelTurn(fullFacts(), { message: 'Got it, thanks!' }),
+      model: modelTurn(fullFacts(), { message: 'Got it, thanks!', ownerName: OWNER }),
       expect: {
         reply: expectedReadyFirst(false),
         askedTopics: [],
@@ -547,7 +605,39 @@ await test('no "?" during setup still advances (before name, and after tell-more
   await playFlow([
     wake(),
     {
-      name: 'no-? ack before name attaches identity fallback',
+      name: 'unclear first reply stays on owner name',
+      in: 'what?',
+      model: modelTurn(
+        {
+          name: null,
+          whatWeDo: null,
+          services: [],
+          hours: null,
+          locationOrArea: null,
+          commonQuestions: [],
+          informationToCollect: null,
+        },
+        {
+          message: 'I meant what to call you.',
+          asksQuestion: false,
+          topicResponse: 'unclear',
+        }
+      ),
+      expect: {
+        event: 'build_turn',
+        reply: `I meant what to call you.\n\n${OWNER_NAME_QUESTION}`,
+        askedTopics: [],
+        approvedAt: null,
+        excludes: [BUSINESS_DETAILS_MARKER],
+      },
+    },
+  ]);
+
+  await playFlow([
+    wake(),
+    sayName(),
+    {
+      name: 'no-? ack after name attaches identity fallback',
       in: 'a small coffee shop with pastries',
       model: modelTurn(
         {
@@ -576,6 +666,7 @@ await test('no "?" during setup still advances (before name, and after tell-more
 
   await playFlow([
     wake(),
+    sayName(),
     nameWhatTellMore(),
     {
       name: 'no-? ack after tell-more skip → ready_first',
@@ -593,7 +684,7 @@ await test('no "?" during setup still advances (before name, and after tell-more
         askedTopics: ['businessDetails'],
         approvedAt: true,
         nav: 'menu',
-        startsWith: READY_OPENER,
+        startsWith: readyOpener(OWNER),
       },
     },
   ]);

@@ -86,6 +86,7 @@ async function runInterview() {
   const profile = emptyProfile();
   const buildHistory = [{ role: 'assistant', content: openingMessage().message, nav: null }];
   const turns = [];
+  let ownerName = null;
 
   console.log('======= Transcript =======\n');
   console.log(`[BUILDER]\n${openingMessage().message}\n`);
@@ -97,8 +98,10 @@ async function runInterview() {
       userMessage,
       model: MODEL,
     });
+    if (raw.ownerName) ownerName = raw.ownerName;
     const turn = applyReviewGate(profile, raw, userMessage, {
       justAsked: topicJustAsked(buildHistory),
+      ownerName,
     });
     profile.draft = turn.draft;
     buildHistory.push({ role: 'user', content: userMessage });

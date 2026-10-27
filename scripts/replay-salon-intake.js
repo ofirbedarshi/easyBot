@@ -158,6 +158,7 @@ async function replayBuilderGoal() {
   });
   const gated = applyReviewGate(profile, raw, userMessage, {
     justAsked: topicJustAsked(buildHistory),
+    ownerName: raw.ownerName,
   });
   const unresolved =
     Array.isArray(raw.configRequests) &&

@@ -116,6 +116,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'configRequests',
       'onPurpose',
       'topicResponse',
+      'ownerName',
     ],
     properties: {
       message: {
@@ -143,6 +144,11 @@ export const BUILDER_RESPONSE_SCHEMA = {
         anyOf: [{ type: 'string', enum: ['answered', 'skipped', 'unclear'] }, { type: 'null' }],
         description:
           'answered if they gave info for the current skippable setup topic, skipped if they declined or have nothing, unclear if they only asked what you mean; otherwise null.',
+      },
+      ownerName: {
+        ...nullableString,
+        description:
+          'What the owner wants to be called; null if not stated this turn. Not the business name.',
       },
     },
   },

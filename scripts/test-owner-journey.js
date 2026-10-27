@@ -19,7 +19,14 @@ import {
   topicByKey,
 } from '../src/builderTopics.js';
 import { composeReply } from '../src/composeReply.js';
-import { LEAD_BRIDGE, LEAD_THANKS_YES } from '../src/copy.js';
+import {
+  IDENTITY_FALLBACK_QUESTION,
+  LEAD_BRIDGE,
+  LEAD_THANKS_YES,
+  businessDetailsAck,
+  ownerMeetAck,
+  returnedIntro,
+} from '../src/copy.js';
 import {
   createSession,
   enterTestBanner,
@@ -29,12 +36,14 @@ import {
 import {
   lastShownNav,
   renderChangeMenu,
+  renderMenu,
   renderSection,
 } from '../src/ownerNav.js';
 import { ownerPhase } from '../src/ownerPhase.js';
 
 const PROFILE = testProfilePath('owner-journey');
 
+const OWNER = 'Ofir';
 const NAME = 'Ofir garage';
 const WHAT = 'Garage';
 const HOURS = 'Mon–Fri 8–18';
@@ -68,8 +77,12 @@ function modelTurn(delta = {}, overrides = {}) {
   };
 }
 
-function expectedMenu(leadOption) {
-  return renderChangeMenu({ leadOption });
+function expectedMenu(leadOption, ownerName = OWNER) {
+  return renderChangeMenu({ leadOption }, ownerName);
+}
+
+function expectedBackMenu(leadOption, ownerName = OWNER) {
+  return `${returnedIntro(ownerName)}\n\n${renderMenu({ leadOption })}`;
 }
 
 function resolveExpect(value, ctx) {
@@ -201,6 +214,19 @@ await playJourney([
     },
   },
   {
+    name: 'owner name → Nice to meet you + identity',
+    in: OWNER,
+    model: modelTurn({}, { message: 'Hi!', ownerName: OWNER }),
+    expect: {
+      event: 'build_turn',
+      phase: 'setup',
+      reply: `${ownerMeetAck(OWNER)}\n\n${IDENTITY_FALLBACK_QUESTION}`,
+      approvedAt: null,
+      nav: null,
+      live: { name: null },
+    },
+  },
+  {
     name: 'identity: name only → fallback question',
     in: NAME,
     model: modelTurn(identityDraft, { message: 'Got the name ✨' }),
@@ -223,7 +249,7 @@ await playJourney([
     expect: {
       event: 'build_turn',
       phase: 'setup',
-      reply: `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion({
+      reply: `${businessDetailsAck(OWNER)}\n\n${businessDetailsQuestion({
         ...nameWhatDraft,
         services: [],
         hours: null,
@@ -241,7 +267,11 @@ await playJourney([
     expect: {
       event: 'build_turn',
       phase: 'ready',
-      reply: composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply,
+      reply: composeReply({
+        kind: 'ready_first',
+        menuOpts: { leadOption: false },
+        ownerName: OWNER,
+      }).reply,
       approvedAt: true,
       firstTestedAt: null,
       nav: 'menu',
@@ -456,7 +486,7 @@ await playJourney([
       mode: 'BUILD',
       phase: 'ready',
       reply: exitTestBanner(),
-      replies: [exitTestBanner(), expectedMenu(true)],
+      replies: [exitTestBanner(), expectedBackMenu(true)],
       nav: 'menu',
     },
   },
@@ -605,7 +635,7 @@ await playJourney([
       topicResponse: 'unclear',
     },
     'What should I write here?',
-    { justAsked: topicByKey('businessDetails') }
+    { justAsked: topicByKey('businessDetails'), ownerName: OWNER }
   );
   assert.ok(detailsConfused.message.includes(businessDetailsQuestion(detailsAskedDraft)));
   assert.ok(detailsConfused.message.startsWith('Hours, prices, or where you work'));
@@ -621,7 +651,7 @@ await playJourney([
       topicResponse: 'skipped',
     },
     'skip',
-    { justAsked: topicByKey('businessDetails') }
+    { justAsked: topicByKey('businessDetails'), ownerName: OWNER }
   );
   assert.equal(detailsSkip.presentReview, true);
   assert.ok(!detailsSkip.message.includes(businessDetailsQuestion(detailsAskedDraft)));

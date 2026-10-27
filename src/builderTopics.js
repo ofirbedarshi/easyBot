@@ -1,6 +1,7 @@
 import {
   BUSINESS_DETAILS_ACK,
   BUSINESS_DETAILS_MARKER,
+  OWNER_NAME_QUESTION,
   businessDetailsQuestionText,
 } from './copy.js';
 
@@ -76,6 +77,9 @@ export function topicJustAsked(buildHistory) {
   const last = [...(buildHistory || [])].reverse().find((m) => m.role === 'assistant');
   if (!last) return null;
   const content = String(last.content || '');
+  if (content.includes(OWNER_NAME_QUESTION)) {
+    return { key: 'ownerName', askedMarker: OWNER_NAME_QUESTION };
+  }
   return (
     REQUIRED_TOPICS.find((t) => {
       if (t.askedMarker) return content.includes(t.askedMarker);

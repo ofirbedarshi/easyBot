@@ -24,8 +24,13 @@ import {
   NAV,
   OFF_PURPOSE_OWNER_REPLY,
   OPENING_MESSAGE,
+  OWNER_NAME_QUESTION,
   PARSE_FALLBACK_MESSAGE,
   READY_OPENER,
+  menuIntro,
+  ownerMeetAck,
+  readyOpener,
+  returnedIntro,
   RESET_REPLY,
   REVIEW,
   TEST_REFUSE,
@@ -120,8 +125,22 @@ function test(name, fn) {
 test('opening', () => {
   const out = composeReply({ kind: 'opening' });
   assert.equal(out.reply, OPENING_MESSAGE);
-  assert.equal(out.reply.split('\n\n').length, 5);
+  assert.equal(out.reply.split('\n\n').length, 4);
+  assert.ok(out.reply.endsWith(OWNER_NAME_QUESTION));
   assert.equal(out.nav, null);
+});
+
+test('ask_owner_name keepLead and fallback', () => {
+  const model = 'I meant your first name — what should I call you?';
+  const kept = composeReply({
+    kind: 'ask_owner_name',
+    modelText: model,
+    parts: { keepLead: true },
+  });
+  assert.equal(kept.reply, `${model}\n\n${OWNER_NAME_QUESTION}`);
+  assert.equal(kept.asksQuestion, true);
+  const bare = composeReply({ kind: 'ask_owner_name' });
+  assert.equal(bare.reply, OWNER_NAME_QUESTION);
 });
 
 test('ask_identity', () => {
@@ -129,6 +148,14 @@ test('ask_identity', () => {
   const out = composeReply({ kind: 'ask_identity', modelText: model });
   assert.equal(out.reply, `${model}\n\n${IDENTITY_FALLBACK_QUESTION}`);
   assert.equal(out.asksQuestion, true);
+  const meet = composeReply({
+    kind: 'ask_identity',
+    parts: { ack: ownerMeetAck('Dana') },
+  });
+  assert.equal(
+    meet.reply,
+    `${ownerMeetAck('Dana')}\n\n${IDENTITY_FALLBACK_QUESTION}`
+  );
 });
 
 test('ask_topic tell-me-more', () => {
@@ -163,6 +190,13 @@ test('ready_first opener plus menu without and with lead', () => {
   assert.ok(menuText(menuNoLead).includes(`3. ${INTAKE_MENU_LABEL}`));
   assert.match(menuText(menuNoLead), /^1\. 🏪 Tell me more about your business\n/);
   assert.match(menuText(menuNoLead), /\n5\. 🤖 Chat with me like a customer\n/);
+
+  const named = composeReply({
+    kind: 'ready_first',
+    menuOpts: menuNoLead,
+    ownerName: 'Dana',
+  });
+  assert.equal(named.reply, `${readyOpener('Dana')}\n\n${menuText(menuNoLead)}`);
 
   const withLead = composeReply({ kind: 'ready_first', menuOpts: menuLead });
   assert.equal(withLead.reply, `${READY_OPENER}\n\n${menuText(menuLead)}`);
@@ -221,6 +255,10 @@ test('change_menu and menu', () => {
     `${REVIEW.changeAsk}\n\n${menuText(menuLead)}`
   );
   assert.equal(
+    composeReply({ kind: 'change_menu', menuOpts: menuLead, ownerName: 'Dana' }).reply,
+    `${menuIntro('Dana')}\n\n${menuText(menuLead)}`
+  );
+  assert.equal(
     composeReply({ kind: 'change_menu', menuOpts: menuLead }).reply,
     renderChangeMenu(menuLead)
   );
@@ -269,7 +307,17 @@ test('test_exit and stop_build', () => {
     parts: { ready: true },
   });
   assert.equal(readyExit.reply, banner);
-  assert.deepEqual(readyExit.replies, [banner, `${REVIEW.changeAsk}\n\n${menuText(menuLead)}`]);
+  assert.deepEqual(readyExit.replies, [banner, `${NAV.returned}\n\n${menuText(menuLead)}`]);
+  const namedExit = composeReply({
+    kind: 'test_exit',
+    menuOpts: menuLead,
+    ownerName: 'Dana',
+    parts: { ready: true },
+  });
+  assert.deepEqual(namedExit.replies, [
+    banner,
+    `${returnedIntro('Dana')}\n\n${menuText(menuLead)}`,
+  ]);
 
   const setupExit = composeReply({ kind: 'test_exit', parts: { ready: false } });
   assert.deepEqual(setupExit.replies, [banner, NAV.setupContinue]);
@@ -277,6 +325,15 @@ test('test_exit and stop_build', () => {
   assert.equal(
     composeReply({ kind: 'stop_build', menuOpts: menuLead, parts: { ready: true } }).reply,
     `${NAV.returned}\n\n${menuText(menuLead)}`
+  );
+  assert.equal(
+    composeReply({
+      kind: 'stop_build',
+      menuOpts: menuLead,
+      ownerName: 'Dana',
+      parts: { ready: true },
+    }).reply,
+    `${returnedIntro('Dana')}\n\n${menuText(menuLead)}`
   );
   assert.equal(
     composeReply({ kind: 'stop_build', parts: { ready: false } }).reply,

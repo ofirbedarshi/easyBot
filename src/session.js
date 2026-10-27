@@ -16,7 +16,8 @@ import {
 } from './builder.js';
 import { topicJustAsked } from './builderTopics.js';
 import { changeLines, composeReply } from './composeReply.js';
-import { EMPTY_MESSAGE_ERROR } from './copy.js';
+import { EMPTY_MESSAGE_ERROR, normalizeOwnerName } from './copy.js';
+import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
   businessBotReply as defaultBusinessBotReply,
   BUSINESS_BOT_STORED_MESSAGES,
@@ -69,6 +70,7 @@ export function createSession(profilePathOrOpts) {
     testSessionId: `test-${Date.now()}`,
     profilePath: opts.profilePath || defaultProfilePath(),
     leadIntake: null,
+    ownerName: null,
     store: null,
     senderId: null,
     deps: opts.deps || null,
@@ -86,6 +88,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     testHistory: saved.testHistory || [],
     testSessionId: saved.testSessionId || `test-${Date.now()}`,
     leadIntake: saved.leadIntake || null,
+    ownerName: saved.ownerName ?? null,
     profilePath: null,
     store,
     senderId,
@@ -206,6 +209,7 @@ export async function handleMessage(session, text) {
     session.mode = 'BUILD';
     session.testSessionId = `test-${Date.now()}`;
     session.leadIntake = null;
+    session.ownerName = null;
     if (session.store && session.senderId && typeof session.store.deleteLead === 'function') {
       await session.store.deleteLead(session.senderId);
     } else {
@@ -279,7 +283,11 @@ async function handleNavigation(session, text) {
   if (tryWords || choice === 'try') return tryMyBot(session);
 
   const composed = wantsMenu
-    ? composeReply({ kind: 'change_menu', menuOpts: leadMenuOpts(session, profile) })
+    ? composeReply({
+        kind: 'change_menu',
+        menuOpts: leadMenuOpts(session, profile),
+        ownerName: session.ownerName,
+      })
     : composeReply({ kind: 'section', profile, parts: { section: choice } });
   const reply = composed.reply;
   session.buildHistory.push({ role: 'user', content: text });
@@ -340,8 +348,18 @@ async function enterBuild(session) {
   const menuOpts = leadMenuOpts(session, profile);
   if (profile.approvedAt) {
     const composed = leavingTest
-      ? composeReply({ kind: 'test_exit', menuOpts, parts: { ready: true } })
-      : composeReply({ kind: 'stop_build', menuOpts, parts: { ready: true } });
+      ? composeReply({
+          kind: 'test_exit',
+          menuOpts,
+          ownerName: session.ownerName,
+          parts: { ready: true },
+        })
+      : composeReply({
+          kind: 'stop_build',
+          menuOpts,
+          ownerName: session.ownerName,
+          parts: { ready: true },
+        });
     session.buildHistory.push({
       role: 'assistant',
       content: leavingTest ? composed.replies[1] : composed.reply,
@@ -396,6 +414,7 @@ async function resumeOwnerMenu(session, text) {
   const composed = composeReply({
     kind: 'change_menu',
     menuOpts: leadMenuOpts(session, profile),
+    ownerName: session.ownerName,
   });
   const reply = composed.reply;
   session.buildHistory.push({ role: 'user', content: text });
@@ -548,8 +567,20 @@ async function handleBuild(session, userMessage) {
     };
   }
 
+  const priorOwnerName = session.ownerName || null;
+  const extractedOwnerName = normalizeOwnerName(result.ownerName);
+  if (extractedOwnerName) {
+    result = {
+      ...result,
+      draft: applyOwnerNameCollisionGuard(result.draft, extractedOwnerName, priorOwnerName),
+    };
+    session.ownerName = extractedOwnerName;
+  }
+  const ownerName = session.ownerName || null;
+
   result = applyReviewGate(profile, result, userMessage, {
     justAsked: topicJustAsked(session.buildHistory),
+    ownerName,
   });
   const prior = structuredClone(profile);
   profile.draft = result.draft;
@@ -580,7 +611,7 @@ async function handleBuild(session, userMessage) {
   const menuOpts = leadMenuOpts(session, profile);
   let composed;
   if (firstApproval) {
-    composed = composeReply({ kind: 'ready_first', menuOpts });
+    composed = composeReply({ kind: 'ready_first', menuOpts, ownerName });
   } else if (ready && unresolved) {
     composed = composeReply({
       kind: 'model_only',
