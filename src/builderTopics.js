@@ -1,3 +1,16 @@
+import {
+  BUSINESS_DETAILS_ACK,
+  BUSINESS_DETAILS_EXAMPLE,
+  BUSINESS_DETAILS_MARKER,
+  BUSINESS_DETAILS_OR_ELSE,
+  FAQ_ACK,
+  FAQ_QUESTION,
+  HOURS_BULLET,
+  INTAKE_ACK,
+  INTAKE_QUESTION,
+  LOCATION_BULLET,
+  SERVICE_BULLET,
+} from './copy.js';
 import { normalizeCommonQuestions } from './profile.js';
 
 /**
@@ -33,12 +46,7 @@ export function missingBusinessDetails(draft) {
   return missing;
 }
 
-export const BUSINESS_DETAILS_ACK = 'Nice! ✨';
-export const BUSINESS_DETAILS_MARKER = 'so I can answer your customers well 🏪';
-
-const SERVICE_BULLET = '🛠️ What services do you offer, and how much do they cost?';
-const HOURS_BULLET = '🕒 What are your opening hours?';
-const LOCATION_BULLET = '📍 Where are you located?';
+export { BUSINESS_DETAILS_ACK, BUSINESS_DETAILS_MARKER };
 
 export function businessDetailsQuestion(draft) {
   const name = String(draft?.name || '').trim();
@@ -49,10 +57,10 @@ export function businessDetailsQuestion(draft) {
   return [
     `Tell me a bit more about ${name}, ${BUSINESS_DETAILS_MARKER}`,
     '',
-    'For example:',
+    BUSINESS_DETAILS_EXAMPLE,
     ...lines,
     '',
-    "Or anything else you'd like me to know ✨",
+    BUSINESS_DETAILS_OR_ELSE,
   ].join('\n');
 }
 
@@ -69,9 +77,8 @@ const BUSINESS_DETAILS_TOPIC = {
 export const WRAP_UP_TOPICS = [
   {
     key: 'commonQuestions',
-    ack: 'Got it! 💛',
-    question:
-      'What do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.',
+    ack: FAQ_ACK,
+    question: FAQ_QUESTION,
     answerHint:
       'The owner was just asked which questions customers usually ask and how you should answer. Store each one in draft.commonQuestions as { question, answer } with the owner\'s full answer. If they skip, have none, or do not know, leave commonQuestions unchanged and do not ask again.',
     isAnswered: (draft) =>
@@ -80,9 +87,8 @@ export const WRAP_UP_TOPICS = [
   },
   {
     key: 'informationToCollect',
-    ack: 'Perfect, noted! ✨',
-    question:
-      'One last thing before we wrap up 🙌\nShould I collect any details from customers in the chat? For example, their name, phone number, etc.\nIf not, just say "none".',
+    ack: INTAKE_ACK,
+    question: INTAKE_QUESTION,
     answerHint:
       'The owner was just asked whether you should collect details from customers. Set draft.informationToCollect to the listed items, or [] if they said none / no.',
     isAnswered: (draft) => Array.isArray(draft?.informationToCollect),

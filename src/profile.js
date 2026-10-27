@@ -1,6 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  DEFAULT_CUSTOMER_HELP_LINE,
+  OWNER_GOAL_LABELS,
+  PRICE_POLICY_OWNER_LABELS,
+  defaultCustomerOpeningText,
+} from './copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -21,11 +27,7 @@ const TEXT_FACT_KEYS = [
  */
 export const OWNER_GOAL_VALUES = ['answer_questions', 'collect_details', 'answer_and_collect'];
 
-export const OWNER_GOAL_LABELS = {
-  answer_questions: 'Answer customer questions',
-  collect_details: 'Collect details from interested customers',
-  answer_and_collect: 'Answer customer questions and collect their details',
-};
+export { OWNER_GOAL_LABELS };
 
 /** Goal used when the owner asks for something the bot cannot do. */
 export const FALLBACK_OWNER_GOAL = 'answer_and_collect';
@@ -67,10 +69,7 @@ export const PRICE_DISCLOSURE_LABELS = {
 };
 
 /** Owner-facing Price policy sentences (section cards + review). */
-export const PRICE_POLICY_OWNER_LABELS = {
-  relevant: "I mention prices when they're relevant",
-  on_request: 'I share prices only when a customer asks',
-};
+export { PRICE_POLICY_OWNER_LABELS };
 
 /**
  * What the product can configure. Single source for the Builder prompt and the
@@ -316,7 +315,7 @@ export function assistantIdentityView(profile) {
 }
 
 /** Fixed second line of the default customer opening (code, not the model). */
-export const DEFAULT_CUSTOMER_HELP_LINE = 'How can I help you? ✨';
+export { DEFAULT_CUSTOMER_HELP_LINE };
 
 /**
  * Warm default first-contact opening when the owner has not set openingMessage.
@@ -324,11 +323,7 @@ export const DEFAULT_CUSTOMER_HELP_LINE = 'How can I help you? ✨';
  * One message: intro and help line separated by a blank line.
  */
 export function defaultCustomerOpening(profile) {
-  const biz =
-    typeof profile?.name === 'string' && profile.name.trim()
-      ? profile.name.trim()
-      : 'this business';
-  return `Hi! I'm ${ASSISTANT_NAME}, ${biz}'s digital assistant 😊\n\n${DEFAULT_CUSTOMER_HELP_LINE}`;
+  return defaultCustomerOpeningText(profile?.name);
 }
 
 /** Custom openingMessage if set; otherwise the warm default. */

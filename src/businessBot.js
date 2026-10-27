@@ -7,7 +7,7 @@ import {
   messagesWithRetryNote,
 } from './identicalReply.js';
 import { createChatCompletion } from './openaiChat.js';
-import { customerOpeningText } from './profile.js';
+import { composeReply } from './composeReply.js';
 
 /** Most recent history messages sent to the model per Business Bot reply. */
 export const BUSINESS_BOT_CONTEXT_MESSAGES = 20;
@@ -61,7 +61,12 @@ export function buildBusinessBotMessages({ profile, history, question }) {
 export function withCustomerOpening(profile, history, reply) {
   const text = (reply || '').trim();
   if (!text || !needsCustomerOpening(history)) return text;
-  return `${customerOpeningText(profile)}\n\n${text}`;
+  return composeReply({
+    kind: 'customer_turn',
+    modelText: text,
+    profile,
+    parts: { prependOpening: true },
+  }).reply;
 }
 
 /**
