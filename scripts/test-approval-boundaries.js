@@ -144,8 +144,8 @@ async function testApproveRequiresPresentedReview() {
 
   const r0 = await handleMessage(session, 'Change private lessons to $80.');
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
-  assert.match(r0.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(r0.reply, /Services: Private lesson — \$80 \/ 60 min/);
+  assert.match(r0.reply, /Here's what changed:/);
+  assert.match(r0.reply, /\*Services & prices:\* Private lesson — \$80 \/ 60 min/);
   assert.doesNotMatch(r0.reply, /\(was:/);
 
   const r1 = await handleMessage(session, 'approve');
@@ -175,11 +175,11 @@ async function testEditAfterReviewRequiresNewReview() {
   );
 
   const r1 = await handleMessage(session, 'Change private lessons to $80.');
-  assert.match(r1.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(r1.reply, /Here's what changed:/);
   assert.equal(loadProfile(PROFILE).services[0].price, '$80 / 60 min');
 
   const r2 = await handleMessage(session, 'Actually make it $90.');
-  assert.match(r2.reply, /Got it, I'll remember that! 🌟 Here's what changed:[\s\S]*\$90 \/ 60 min/);
+  assert.match(r2.reply, /Here's what changed:[\s\S]*\$90 \/ 60 min/);
   assert.equal(loadProfile(PROFILE).services[0].price, '$90 / 60 min');
   console.log('PASS successive_edits_save_immediately');
 }
@@ -220,7 +220,7 @@ async function testDraftEditLeavesLiveUnchanged() {
   assert.equal(disk.services[0].price, '$80 / 60 min');
   assert.equal(disk.ownerGoal, pendingGoal);
   assert.ok(disk.approvedAt);
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(r.reply, /Here's what changed:/);
   const summary = formatSummary(disk);
   assert.doesNotMatch(summary, /Pending \(not live until you approve\)/);
   assert.match(summary, /\$80 \/ 60 min/);
@@ -258,7 +258,7 @@ async function testReapproveUpdatesLiveBot() {
   const r = await applyChange(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(r.reply, /Here's what changed:/);
 
   const sent = loadProfile(PROFILE);
   assert.equal(sent.services[0].price, '$80 / 60 min');
@@ -958,7 +958,7 @@ async function testIdentityDraftIsolatesLive() {
   const r = await handleMessage(session, 'Use this opening…');
   assert.equal(r.event, 'build_turn');
   assert.equal(r.readyForReview, true, 'settings-only edit is presented as a save card');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, custom opening/);
+  assert.match(r.reply, /Here's what changed:\n\*How I talk:\* friendly, custom opening/);
   assert.doesNotMatch(r.reply, /\(was:/);
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
@@ -1028,10 +1028,8 @@ async function testOtherFactsApprovePropagates() {
   }), liveMock);
 
   const review = await handleMessage(session, 'Please apply this change.');
-  assert.ok(
-    review.reply.includes(`Other facts: ${facts[0]}; ${facts[1].replace(/\.$/, '')}`),
-    'review card must list otherFacts'
-  );
+  assert.ok(review.reply.startsWith("🎉 I'm all set!"), review.reply);
+  assert.doesNotMatch(review.reply, /Other facts/, 'first-approval card is the 🏪 lines only');
   const section = renderSection(1, loadProfile(PROFILE));
   assert.ok(!section.includes('Other facts'), 'section 1 no longer lists otherFacts');
   assert.ok(section.includes('*Price policy:*'), section);
@@ -1193,7 +1191,7 @@ async function testTypedApproveIsBuilderTurn() {
   const r1 = await handleMessage(session, 'Switch to mentioning prices when relevant.');
   assert.ok(!r1.approved);
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  assert.match(r1.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(r1.reply, /Here's what changed:/);
 
   const typed = await handleMessage(session, 'approve');
   assert.equal(typed.event, 'build_turn');
@@ -1226,7 +1224,7 @@ async function testTypedApproveIsBuilderTurn() {
   const rYes = await handleMessage(session2, 'yes');
   assert.ok(!rYes.approved);
   assert.equal(loadProfile(PROFILE).priceDisclosure, 'relevant');
-  assert.match(rYes.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(rYes.reply, /Here's what changed:/);
   console.log('PASS typed_yes_saves_accepted_alternative');
 }
 
@@ -1381,7 +1379,7 @@ async function testTranscriptShapedImmediateSave() {
   session.leadIntake = { submittedAt: '2026-01-01T00:00:00.000Z' };
 
   const yes = await handleMessage(session, 'Yes');
-  assert.match(yes.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(yes.reply, /Here's what changed:/);
   assert.match(yes.reply, /100 shekel per haircut/);
   assert.doesNotMatch(yes.reply, /Pending change|will change/);
   const disk = loadProfile(PROFILE);
