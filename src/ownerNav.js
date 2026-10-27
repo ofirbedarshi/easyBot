@@ -104,8 +104,8 @@ export function renderSetupContinue() {
   return composeReply({ kind: 'setup_continue' }).reply;
 }
 
-export function renderReturnToEditing(menuOpts) {
-  return composeReply({ kind: 'return_to_editing', menuOpts }).reply;
+export function renderReturnToEditing(menuOpts, ownerName) {
+  return composeReply({ kind: 'return_to_editing', menuOpts, ownerName }).reply;
 }
 
 export { summaryLines, sectionLines, LEAD_MENU_LABEL };
@@ -123,8 +123,8 @@ export function renderSavedChanges(before, after, menuOpts) {
 }
 
 /** First-ready: opener plus the main menu. */
-export function renderReadyFirst(menuOpts) {
-  return composeReply({ kind: 'ready_first', menuOpts }).reply;
+export function renderReadyFirst(menuOpts, ownerName) {
+  return composeReply({ kind: 'ready_first', menuOpts, ownerName }).reply;
 }
 
 /**
@@ -136,8 +136,8 @@ export function renderReview(profile) {
 }
 
 /** "Make changes" reply: ask, then the full editing menu. */
-export function renderChangeMenu(menuOpts) {
-  return composeReply({ kind: 'change_menu', menuOpts }).reply;
+export function renderChangeMenu(menuOpts, ownerName) {
+  return composeReply({ kind: 'change_menu', menuOpts, ownerName }).reply;
 }
 
 const TRY_WORDS = new Set(['chat with me like a customer', 'try', 'try it']);

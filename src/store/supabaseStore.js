@@ -17,6 +17,12 @@ export function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+function isMissingOwnerNameColumn(error) {
+  const code = error?.code;
+  const msg = String(error?.message || '');
+  return code === '42703' || /owner_name/i.test(msg);
+}
+
 export function createSupabaseStore() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -140,22 +146,32 @@ export function createSupabaseStore() {
         testHistory: data.test_history || [],
         testSessionId: data.test_session_id || `test-${Date.now()}`,
         leadIntake: data.lead_intake ?? null,
+        ownerName: data.owner_name ?? null,
       };
     },
 
     async saveSession(senderId, session) {
       await this.ensureSender(senderId);
-      const { error } = await sb
+      const payload = {
+        mode: session.mode,
+        build_history: session.buildHistory || [],
+        test_history: session.testHistory || [],
+        test_session_id: session.testSessionId,
+        lead_intake: session.leadIntake ?? null,
+        owner_name: session.ownerName ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      let { error } = await sb
         .from('easybot_sessions')
-        .update({
-          mode: session.mode,
-          build_history: session.buildHistory || [],
-          test_history: session.testHistory || [],
-          test_session_id: session.testSessionId,
-          lead_intake: session.leadIntake ?? null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq('sender_id', senderId);
+      if (error && isMissingOwnerNameColumn(error)) {
+        delete payload.owner_name;
+        ({ error } = await sb
+          .from('easybot_sessions')
+          .update(payload)
+          .eq('sender_id', senderId));
+      }
       if (error) throw new Error(`saveSession: ${error.message}`);
     },
 

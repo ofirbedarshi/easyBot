@@ -296,6 +296,7 @@ const setup = await createSenderSession(store, sender, {
     runBuilderTurn: async () => ({
       message: 'Got it, thanks!',
       draft: setupDraft,
+      ownerName: 'Ofir',
       readyForReview: true,
       source: 'stub-builder',
     }),
@@ -306,7 +307,7 @@ assert.equal(opened.event, 'opening');
 const first = await handleMessage(setup, "I'm a barber");
 await store.saveSession(sender, setup);
 assert.ok((await store.loadProfile(sender)).approvedAt);
-assert.match(first.reply, /I'm ready for a first try!/);
+assert.match(first.reply, /I'm ready for a first try, Ofir!/);
 assert.ok(!first.reply.includes(LEAD_MENU_LABEL));
 assert.doesNotMatch(first.reply, /Got it, thanks!|I'll remember that/);
 const entered = await handleMessage(setup, 'chat with me like a customer');

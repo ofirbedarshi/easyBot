@@ -23,11 +23,14 @@ import {
   OFF_PURPOSE_OWNER_REPLY,
   OPENING_MESSAGE,
   OTHER_FACTS_LABEL,
+  OWNER_NAME_QUESTION,
   PARSE_FALLBACK_MESSAGE,
-  READY_OPENER,
   RESET_REPLY,
   REVIEW,
   TEST_REFUSE,
+  menuIntro,
+  readyOpener,
+  returnedIntro,
   defaultCustomerOpeningText,
   enterTestBannerText,
   exitTestBannerText,
@@ -46,6 +49,7 @@ import {
 
 export const COMPOSE_KINDS = Object.freeze([
   'opening',
+  'ask_owner_name',
   'ask_identity',
   'ask_topic',
   'ready_first',
@@ -378,12 +382,27 @@ export function composeReply(spec = {}) {
   const prior = spec.prior;
   const menuOpts = spec.menuOpts || {};
   const parts = spec.parts || {};
+  const ownerName = spec.ownerName;
 
   switch (kind) {
     case 'opening':
       return done(OPENING_MESSAGE);
 
+    case 'ask_owner_name': {
+      const question = OWNER_NAME_QUESTION;
+      if (parts.keepLead) {
+        const lead = String(modelText || '').trim();
+        return done(lead ? `${lead}\n\n${question}` : question, { asksQuestion: true });
+      }
+      return done(question, { asksQuestion: true });
+    }
+
     case 'ask_identity':
+      if (parts.ack) {
+        return done(`${parts.ack}\n\n${IDENTITY_FALLBACK_QUESTION}`, {
+          asksQuestion: true,
+        });
+      }
       return done(withSingleQuestion(modelText, IDENTITY_FALLBACK_QUESTION), {
         asksQuestion: true,
       });
@@ -403,7 +422,7 @@ export function composeReply(spec = {}) {
     }
 
     case 'ready_first':
-      return done(`${READY_OPENER}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
+      return done(`${readyOpener(ownerName)}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
 
     case 'saved_changes': {
       const ack = (modelText || '').trim();
@@ -413,7 +432,7 @@ export function composeReply(spec = {}) {
     }
 
     case 'change_menu':
-      return done(`${REVIEW.changeAsk}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
+      return done(`${menuIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
 
     case 'menu':
       return done(renderMenuText(menuOpts), { nav: 'menu' });
@@ -444,7 +463,7 @@ export function composeReply(spec = {}) {
     case 'test_exit': {
       const banner = exitTestBannerText();
       if (parts.ready) {
-        const menu = `${REVIEW.changeAsk}\n\n${renderMenuText(menuOpts)}`;
+        const menu = `${returnedIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`;
         return done(banner, { replies: [banner, menu], nav: 'menu' });
       }
       return done(banner, { replies: [banner, NAV.setupContinue] });
@@ -452,7 +471,7 @@ export function composeReply(spec = {}) {
 
     case 'stop_build':
       if (parts.ready) {
-        return done(`${NAV.returned}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
+        return done(`${returnedIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
       }
       return done(NAV.setupContinue);
 
@@ -534,7 +553,7 @@ export function composeReply(spec = {}) {
       return done(NAV.setupContinue);
 
     case 'return_to_editing':
-      return done(`${NAV.returned}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
+      return done(`${returnedIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
 
     default:
       throw new Error(`unknown compose kind: ${kind}`);
@@ -544,6 +563,7 @@ export function composeReply(spec = {}) {
 export {
   DEFAULT_CUSTOMER_HELP_LINE,
   IDENTITY_FALLBACK_QUESTION,
+  OWNER_NAME_QUESTION,
   PARSE_FALLBACK_MESSAGE,
   defaultCustomerOpeningText,
 };

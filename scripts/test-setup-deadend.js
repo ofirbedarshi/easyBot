@@ -16,7 +16,7 @@ import {
   businessDetailsQuestion,
 } from '../src/builderTopics.js';
 import { composeReply } from '../src/composeReply.js';
-import { READY_OPENER } from '../src/copy.js';
+import { READY_OPENER, readyOpener } from '../src/copy.js';
 import { createSession, handleMessage } from '../src/session.js';
 import { lastShownNav } from '../src/ownerNav.js';
 
@@ -73,7 +73,11 @@ function modelTurn(draft, overrides = {}) {
 }
 
 function expectedReadyFirst() {
-  return composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply;
+  return composeReply({
+    kind: 'ready_first',
+    menuOpts: { leadOption: false },
+    ownerName: 'Ofir',
+  }).reply;
 }
 
 const results = [];
@@ -105,7 +109,8 @@ await test('no-? ack before name attaches identity fallback', () => {
       message: 'A cozy coffee shop with pastries sounds lovely ✨',
       asksQuestion: false,
     }),
-    'Cafe Noam, a small coffee shop with pastries'
+    'Cafe Noam, a small coffee shop with pastries',
+    { ownerName: 'Noam' }
   );
   assert.equal(
     gated.message,
@@ -131,6 +136,7 @@ await test('skip after tell-me-more presents ready_first, nav menu', async () =>
     },
   });
   session.mode = 'BUILD';
+  session.ownerName = 'Ofir';
   session.buildHistory = [
     {
       role: 'assistant',
@@ -142,7 +148,7 @@ await test('skip after tell-me-more presents ready_first, nav menu', async () =>
   const out = await handleMessage(session, 'skip');
   assert.equal(out.ok, true);
   assert.equal(out.reply, expectedReadyFirst());
-  assert.ok(out.reply.startsWith(READY_OPENER), out.reply);
+  assert.ok(out.reply.startsWith(readyOpener('Ofir')), out.reply);
   assert.ok(out.reply.includes('🏪 Tell me more about your business'));
   assert.doesNotMatch(out.reply, /Here's your bot for/);
   assert.ok(loadProfile(PROFILE).approvedAt, 'approvedAt must be written on the ready turn');
@@ -165,6 +171,7 @@ await test('ok after first ready is the editing menu, not the old card', async (
     },
   });
   session.mode = 'BUILD';
+  session.ownerName = 'Ofir';
   session.buildHistory = [
     {
       role: 'assistant',
@@ -174,7 +181,7 @@ await test('ok after first ready is the editing menu, not the old card', async (
   ];
 
   const first = await handleMessage(session, 'skip');
-  assert.ok(first.reply.startsWith(READY_OPENER), first.reply);
+  assert.ok(first.reply.startsWith(readyOpener('Ofir')), first.reply);
   assert.ok(loadProfile(PROFILE).approvedAt);
 
   const session2 = createSession({

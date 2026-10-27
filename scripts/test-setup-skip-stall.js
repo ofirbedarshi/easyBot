@@ -76,7 +76,11 @@ function productionModelTurn(overrides = {}) {
 }
 
 function expectedReadyFirst() {
-  return composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply;
+  return composeReply({
+    kind: 'ready_first',
+    menuOpts: { leadOption: false },
+    ownerName: 'Ofir',
+  }).reply;
 }
 
 const results = [];
@@ -100,6 +104,7 @@ function assertPresentsReady(gated, label) {
 function testGateProductionEchoAsksQuestion() {
   const gated = applyReviewGate(preSkipProfile(), productionModelTurn(), 'Skip', {
     justAsked: DETAILS,
+    ownerName: 'Ofir',
   });
   assertPresentsReady(gated, 'applyReviewGate production flags');
 }
@@ -109,7 +114,7 @@ function testGateEchoWithoutAsksQuestion() {
     preSkipProfile(),
     productionModelTurn({ asksQuestion: false }),
     'Skip',
-    { justAsked: DETAILS }
+    { justAsked: DETAILS, ownerName: 'Ofir' }
   );
   assertPresentsReady(gated, 'applyReviewGate asksQuestion=false');
 }
@@ -119,7 +124,7 @@ function testGateEchoWithAskingTopicNoQuestionMark() {
     preSkipProfile(),
     productionModelTurn({ askingTopic: 'informationToCollect' }),
     'Skip',
-    { justAsked: DETAILS }
+    { justAsked: DETAILS, ownerName: 'Ofir' }
   );
   assertPresentsReady(gated, 'applyReviewGate askingTopic without ?');
 }
@@ -135,6 +140,7 @@ async function testHandleBuildProductionSkip() {
     },
   });
   session.mode = 'BUILD';
+  session.ownerName = 'Ofir';
   session.buildHistory = [
     {
       role: 'assistant',

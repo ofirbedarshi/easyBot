@@ -167,6 +167,7 @@ async function runInterview(scenario, model) {
   let spent = 0;
   let draftAfterCorrection = null;
   let reviewAfterCorrection = null;
+  let ownerName = null;
 
   for (let i = 0; i < scenario.messages.length; i++) {
     const userMessage = scenario.messages[i];
@@ -177,8 +178,10 @@ async function runInterview(scenario, model) {
       model,
     });
     spent += costOf(model, raw.usage);
+    if (raw.ownerName) ownerName = raw.ownerName;
     const turn = applyReviewGate(profile, raw, userMessage, {
       justAsked: topicJustAsked(buildHistory),
+      ownerName,
     });
     profile.draft = turn.draft;
     buildHistory.push({ role: 'user', content: userMessage });

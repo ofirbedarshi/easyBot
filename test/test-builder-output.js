@@ -30,17 +30,18 @@ test('openingMessage keeps paragraph breaks and Adam welcome copy', () => {
   assert.equal(open.source, 'app');
   assert.equal(
     open.message,
-    "Hi, I'm Adam, nice to meet you 👋😊\n\nI'm going to be the one talking to your customers 💬\n\nYou're one of the very first businesses I'm working with, so please be patient with me while I learn 🙈💛\n\nSo let's start by getting to know each other a little, so I can learn about your business ✨\n\nFirst of all, what's your business called, and what does it do?"
+    "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\nBefore we start, what would you like me to call you?"
   );
   assert.match(open.message, /\n\n/);
   assert.equal(open.message.includes('\n\n'), true);
-  assert.equal(open.message.split('\n\n').length, 5);
+  assert.equal(open.message.split('\n\n').length, 4);
   assert.equal(formatModelReply(open.message), open.message);
 });
 
 test('builder system prompt includes the one-line paragraph instruction once', () => {
   assert.ok(BUILDER_SYSTEM.includes(PARAGRAPH_PROMPT_LINE));
   assert.equal(BUILDER_SYSTEM.split(PARAGRAPH_PROMPT_LINE).length, 2);
+  assert.equal(BUILDER_SYSTEM.length, 12542);
 });
 
 test('schema requires top-level newFacts and all draft keys', () => {
@@ -51,10 +52,12 @@ test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('askingTopic'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('onPurpose'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('topicResponse'));
+  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('ownerName'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('askedTopics'));
+  assert.ok(!BUILDER_DRAFT_KEYS.includes('ownerName'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('assistantName'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('assistantNameReset'));
   assert.ok(BUILDER_DRAFT_KEYS.includes('openingMessage'));
@@ -77,6 +80,7 @@ test('schema requires top-level newFacts and all draft keys', () => {
   assert.equal(root.properties.onPurpose.type, 'boolean');
   assert.match(String(root.properties.onPurpose.description || ''), /poems, homework/i);
   assert.deepEqual(root.properties.topicResponse.anyOf[0].enum, ['answered', 'skipped', 'unclear']);
+  assert.match(String(root.properties.ownerName.description || ''), /Not the business name/);
 });
 
 test('formatSummary intake label is first-person Adam', () => {

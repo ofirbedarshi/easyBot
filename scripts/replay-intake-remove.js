@@ -90,6 +90,7 @@ async function main() {
   });
   const gated = applyReviewGate(profile, raw, userMessage, {
     justAsked: topicJustAsked(buildHistory),
+    ownerName: raw.ownerName,
   });
   const intake = gated.draft?.informationToCollect;
   const edits = raw.modelJson?.ownerEdits;

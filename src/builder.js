@@ -25,6 +25,7 @@ import {
 import {
   OFF_PURPOSE_OWNER_REPLY,
   PARSE_FALLBACK_MESSAGE,
+  normalizeOwnerName,
 } from './copy.js';
 import {
   composeReply,
@@ -651,6 +652,7 @@ export async function runBuilderTurn({
   return {
     message,
     draft,
+    ownerName: normalizeOwnerName(parsed.ownerName),
     onPurpose: true,
     consistencyMs: pass.latencyMs,
     consistencyRan: pass.ran,
@@ -701,6 +703,7 @@ export function hasUnresolvedConfig(turn) {
 
 function gateTurn(profile, turn, extras = {}) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
+  const ownerName = extras.ownerName;
   const draft = {
     ...turn.draft,
     askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
@@ -740,6 +743,7 @@ function gateTurn(profile, turn, extras = {}) {
     topicResponse: turn.topicResponse,
     justAsked: extras.justAsked,
     priorDraft: profile.draft,
+    ownerName,
   });
   const nextDraft = { ...draft, askedTopics: agenda.askedTopics };
 
@@ -752,19 +756,37 @@ function gateTurn(profile, turn, extras = {}) {
     };
   }
 
+  if (agenda.step === 'ownerName') {
+    return {
+      ...turn,
+      draft: nextDraft,
+      presentReview: false,
+      asksQuestion: true,
+      message: composeReply({
+        kind: 'ask_owner_name',
+        modelText: turn.message,
+        parts: { keepLead: agenda.keepLead === true },
+      }).reply,
+    };
+  }
+
   if (agenda.topic) {
     return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack, {
       keepLead: agenda.keepLead === true,
     });
   }
 
-  if (agenda.step === 'identity' && agenda.question) {
+  if (agenda.step === 'identity' && (agenda.ack || agenda.question)) {
     return {
       ...turn,
       draft: nextDraft,
       presentReview: false,
       asksQuestion: true,
-      message: composeReply({ kind: 'ask_identity', modelText: turn.message }).reply,
+      message: composeReply({
+        kind: 'ask_identity',
+        modelText: turn.message,
+        parts: { ack: agenda.ack || undefined },
+      }).reply,
     };
   }
 

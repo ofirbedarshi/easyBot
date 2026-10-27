@@ -4,10 +4,13 @@
  */
 
 export const OPENING_MESSAGE =
-  "Hi, I'm Adam, nice to meet you 👋😊\n\nI'm going to be the one talking to your customers 💬\n\nYou're one of the very first businesses I'm working with, so please be patient with me while I learn 🙈💛\n\nSo let's start by getting to know each other a little, so I can learn about your business ✨\n\nFirst of all, what's your business called, and what does it do?";
+  "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\nBefore we start, what would you like me to call you?";
+
+export const OWNER_NAME_QUESTION =
+  'Before we start, what would you like me to call you?';
 
 export const IDENTITY_FALLBACK_QUESTION =
-  "First of all, what's your business called, and what does it do?";
+  "What's your business called, and what does it do?";
 
 export const OFF_PURPOSE_OWNER_REPLY =
   "I'm here to help small businesses chat with their customers 😊 Want to tell me about your business?";
@@ -18,6 +21,25 @@ export const BUSINESS_DETAILS_ACK = 'Nice! ✨';
 export const BUSINESS_DETAILS_SKIP_LINE = 'Or say "skip" for now.';
 export const BUSINESS_DETAILS_MARKER = BUSINESS_DETAILS_SKIP_LINE;
 
+export function displayOwnerName(name) {
+  return typeof name === 'string' ? name.trim() : '';
+}
+
+export function normalizeOwnerName(value) {
+  const n = displayOwnerName(value);
+  return n || null;
+}
+
+export function ownerMeetAck(name) {
+  const n = displayOwnerName(name);
+  return n ? `Nice to meet you, ${n}! 😊` : 'Nice to meet you! 😊';
+}
+
+export function businessDetailsAck(name) {
+  const n = displayOwnerName(name);
+  return n ? `Nice, thanks ${n}! ✨` : BUSINESS_DETAILS_ACK;
+}
+
 export function businessDetailsQuestionText(name) {
   const biz = String(name || '').trim();
   return [
@@ -27,6 +49,21 @@ export function businessDetailsQuestionText(name) {
 }
 
 export const READY_OPENER = "I'm ready for a first try! 🎉";
+
+export function readyOpener(name) {
+  const n = displayOwnerName(name);
+  return n ? `I'm ready for a first try, ${n}! 🎉` : READY_OPENER;
+}
+
+export function menuIntro(name) {
+  const n = displayOwnerName(name);
+  return n ? `${n}, what should we do next?` : REVIEW.changeAsk;
+}
+
+export function returnedIntro(name) {
+  const n = displayOwnerName(name);
+  return n ? `I'm back, ${n}! What should I learn next?` : NAV.returned;
+}
 
 export const INTAKE_MENU_LABEL = '📝 Choose details to collect from customers';
 

@@ -14,13 +14,14 @@ import {
   businessDetailsQuestion,
   topicByKey,
 } from '../src/builderTopics.js';
-import { businessDetailsQuestionText } from '../src/copy.js';
+import { businessDetailsAck, businessDetailsQuestionText } from '../src/copy.js';
 import { composeReply } from '../src/composeReply.js';
 import { createSession, handleMessage } from '../src/session.js';
 import { lastShownNav } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('setup-tell-more');
 const DETAILS = topicByKey('businessDetails');
+const OWNER = 'Ofir';
 const NAME = 'Ofir garage';
 
 function clean() {
@@ -70,11 +71,19 @@ function modelTurn(draft, overrides = {}) {
 }
 
 function expectedReadyFirst() {
-  return composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply;
+  return composeReply({
+    kind: 'ready_first',
+    menuOpts: { leadOption: false },
+    ownerName: OWNER,
+  }).reply;
 }
 
 function expectedTellMore(draft = nameWhatDraft()) {
-  return `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(draft)}`;
+  return `${businessDetailsAck(OWNER)}\n\n${businessDetailsQuestion(draft)}`;
+}
+
+function withOwner(extras = {}) {
+  return { ownerName: OWNER, ...extras };
 }
 
 const results = [];
@@ -91,7 +100,12 @@ async function test(name, fn) {
 
 await test('name+what only → tell-me-more with the two-line copy', () => {
   const draft = nameWhatDraft();
-  const gated = applyReviewGate(setupProfile(draft), modelTurn(draft), 'Ofir garage, a garage');
+  const gated = applyReviewGate(
+    setupProfile(draft),
+    modelTurn(draft),
+    'Ofir garage, a garage',
+    withOwner()
+  );
   const expected = expectedTellMore(draft);
   assert.equal(gated.message, expected);
   assert.equal(gated.asksQuestion, true);
@@ -120,7 +134,7 @@ await test('skip → presentReview true (not a follow-up question)', () => {
       topicResponse: 'skipped',
     }),
     'skip',
-    { justAsked: DETAILS }
+    withOwner({ justAsked: DETAILS })
   );
   assert.equal(gated.presentReview, true);
   assert.equal(gated.asksQuestion, false);
@@ -137,7 +151,8 @@ await test('partial hours → presentReview true', () => {
   const gated = applyReviewGate(
     setupProfile(draft),
     modelTurn(draft, { message: 'Noted the hours.', readyForReview: true }),
-    'we are open weekdays 8 to 6'
+    'we are open weekdays 8 to 6',
+    withOwner()
   );
   assert.equal(gated.presentReview, true);
   assert.equal(gated.asksQuestion, false);
@@ -154,7 +169,8 @@ await test('dump-ahead all details → presentReview true, no businessDetails as
   const gated = applyReviewGate(
     setupProfile(draft),
     modelTurn(draft, { message: 'Got it, thanks!', readyForReview: true }),
-    'full dump'
+    'full dump',
+    withOwner()
   );
   assert.equal(gated.presentReview, true);
   assert.equal(gated.asksQuestion, false);
@@ -174,6 +190,7 @@ await test('handleBuild skip after tell-me-more writes approvedAt and ready_firs
     },
   });
   session.mode = 'BUILD';
+  session.ownerName = OWNER;
   session.buildHistory = [
     {
       role: 'assistant',

@@ -306,6 +306,7 @@ async function testApprovedAtRequiresPresentReview() {
   const session = makeSession(async () => ({
     message: 'Cafe is a coffee shop ✨',
     draft: nameWhat,
+    ownerName: 'Ada',
     source: 'stub-builder',
   }));
 
@@ -336,7 +337,7 @@ async function testApprovedAtRequiresPresentReview() {
     source: 'stub-builder',
   });
   const r2 = await handleMessage(session, 'skip');
-  assert.match(r2.reply, /I'm ready for a first try!/);
+  assert.match(r2.reply, /I'm ready for a first try, Ada!/);
   const afterSkip = loadProfile(PROFILE);
   assert.ok(afterSkip.approvedAt, 'skip of tell-me-more presents review and writes approvedAt');
   assert.equal(afterSkip.informationToCollect, null);
@@ -356,10 +357,11 @@ async function testApprovedAtRequiresPresentReview() {
   const dumpSession = makeSession(async () => ({
     message: 'Got everything.',
     draft: dump,
+    ownerName: 'Ada',
     source: 'stub-builder',
   }));
   const r3 = await handleMessage(dumpSession, 'Harbor cafe downtown, latte $4, 7-3');
-  assert.match(r3.reply, /I'm ready for a first try!/);
+  assert.match(r3.reply, /I'm ready for a first try, Ada!/);
   assert.ok(loadProfile(PROFILE).approvedAt, 'dump-ahead presents review and writes approvedAt');
   assert.equal(loadProfile(PROFILE).informationToCollect, null);
   console.log('PASS approved_at_requires_present_review');
@@ -389,17 +391,19 @@ function testRequiredTopicsGate() {
   const a = applyReviewGate(
     emptyProfile(),
     { message: 'Waser is a tutoring shop ✨', draft: nameWhat },
-    'we tutor math'
+    'we tutor math',
+    { ownerName: 'Ada' }
   );
   assert.equal(a.presentReview, false);
   assert.deepEqual(a.draft.askedTopics, ['businessDetails']);
-  assert.equal(a.message, `Nice! ✨\n\n${tellMore}`);
+  assert.equal(a.message, `Nice, thanks Ada! ✨\n\n${tellMore}`);
 
   // Dump-ahead: all details present → presentReview without asking.
   const dumped = applyReviewGate(
     emptyProfile(),
     { message: 'Got it, thanks!', draft: dump },
-    'full dump'
+    'full dump',
+    { ownerName: 'Ada' }
   );
   assert.equal(dumped.presentReview, true);
   assert.doesNotMatch(dumped.message, /Tell me a bit more/);
@@ -409,7 +413,7 @@ function testRequiredTopicsGate() {
     { ...emptyProfile(), draft: a.draft },
     { message: 'Got it, thanks!', draft: nameWhat, topicResponse: 'skipped' },
     'skip',
-    { justAsked: topic }
+    { justAsked: topic, ownerName: 'Ada' }
   );
   assert.equal(skipped.presentReview, true);
 
@@ -422,7 +426,7 @@ function testRequiredTopicsGate() {
       topicResponse: 'answered',
     },
     'hours and location',
-    { justAsked: topic }
+    { justAsked: topic, ownerName: 'Ada' }
   );
   assert.equal(complete.presentReview, true);
 
@@ -433,7 +437,8 @@ function testRequiredTopicsGate() {
       message: 'Per hour?',
       draft: { ...nameWhat, name: null, whatWeDo: null },
     },
-    'hi'
+    'hi',
+    { ownerName: 'Ada' }
   );
   assert.equal(before.message, 'Per hour?');
   assert.equal(before.presentReview, false);
@@ -782,12 +787,13 @@ async function testOtherFactsApprovePropagates() {
       commonQuestions: [{ question: 'Do you offer gift cards?', answer: 'No.' }],
       otherFacts: facts,
     },
+    ownerName: 'Ada',
     readyForReview: true,
     source: 'stub-builder',
   }), liveMock);
 
   const review = await handleMessage(session, 'Please apply this change.');
-  assert.match(review.reply, /I'm ready for a first try!/);
+  assert.match(review.reply, /I'm ready for a first try, Ada!/);
   assert.doesNotMatch(review.reply, /Other facts/, 'first-ready menu does not list otherFacts');
   const section = renderSection(1, loadProfile(PROFILE));
   assert.ok(!section.includes('Other facts'), 'section 1 no longer lists otherFacts');

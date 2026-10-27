@@ -187,6 +187,14 @@ function expectedMenu(leadOption = false) {
   return renderChangeMenu({ leadOption });
 }
 
+function expectedBackMenu(leadOption = false) {
+  return composeReply({
+    kind: 'test_exit',
+    menuOpts: { leadOption },
+    parts: { ready: true },
+  }).replies[1];
+}
+
 function uniqueNames(list, label) {
   const names = list.map((s) => s?.name).filter(Boolean);
   assert.equal(new Set(names).size, names.length, `${label}: duplicate services ${JSON.stringify(names)}`);
@@ -1016,7 +1024,7 @@ await test('Try my bot from the menu, then stop, then menu header', async () => 
         event: 'enter_build',
         mode: 'BUILD',
         reply: exitTestBanner(),
-        replies: [exitTestBanner(), expectedMenu(true)],
+        replies: [exitTestBanner(), expectedBackMenu(true)],
         approvedAt: APPROVED_AT,
         nav: 'menu',
         excludes: [LEGACY_CARD],

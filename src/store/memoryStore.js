@@ -62,6 +62,7 @@ export function createMemoryStore() {
           testHistory: [],
           testSessionId: `test-${Date.now()}`,
           leadIntake: null,
+          ownerName: null,
         });
       }
     },
@@ -90,6 +91,7 @@ export function createMemoryStore() {
         testHistory: structuredClone(session.testHistory || []),
         testSessionId: session.testSessionId,
         leadIntake: structuredClone(session.leadIntake ?? null),
+        ownerName: session.ownerName ?? null,
       });
     },
 
