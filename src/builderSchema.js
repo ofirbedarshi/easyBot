@@ -1,7 +1,6 @@
 import {
   OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_VALUES,
-  RESPONSE_LENGTH_VALUES,
 } from './profile.js';
 import { REQUIRED_TOPICS } from './builderTopics.js';
 
@@ -80,7 +79,6 @@ const draftObject = {
     'informationToCollect',
     'unknowns',
     'tone',
-    'responseLength',
     'priceDisclosure',
     'openingMessage',
     'openingMessageReset',
@@ -102,7 +100,6 @@ const draftObject = {
     },
     unknowns: { type: ['array', 'null'], items: { type: 'string' } },
     tone: nullableString,
-    responseLength: nullableEnum(RESPONSE_LENGTH_VALUES),
     priceDisclosure: nullableEnum(PRICE_DISCLOSURE_VALUES),
     openingMessage: nullableString,
     openingMessageReset: { type: 'boolean' },

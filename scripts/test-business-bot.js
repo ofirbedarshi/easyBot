@@ -445,7 +445,7 @@ function testMigrationKeysMatchProfile() {
       '..',
       'supabase',
       'migrations',
-      '20261025170000_easybot_profile_known_keys.sql'
+      '20261027030000_drop_response_length.sql'
     ),
     'utf8'
   );

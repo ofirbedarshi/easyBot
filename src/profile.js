@@ -37,8 +37,8 @@ export function normalizeOwnerGoal(value) {
   return OWNER_GOAL_VALUES.includes(s) ? s : null;
 }
 
-/** Conversation settings — expression / disclosure, not business facts. */
-export const BEHAVIOR_KEYS = ['tone', 'responseLength', 'priceDisclosure'];
+/** Conversation settings — expression, not business facts. */
+export const BEHAVIOR_KEYS = ['tone'];
 
 /** Fixed customer-facing name. Not configurable. */
 export const ASSISTANT_NAME = 'Adam';
@@ -55,21 +55,21 @@ export function identityResetFlag(key) {
   return `${key}Reset`;
 }
 
-export const RESPONSE_LENGTH_VALUES = ['short', 'standard'];
 export const PRICE_DISCLOSURE_VALUES = ['relevant', 'on_request'];
 
 /**
- * Owner-facing labels for conversation-setting enums (summary + Builder prompt).
- * Single source — do not re-describe these elsewhere.
+ * Builder-prompt labels for the priceDisclosure enum.
+ * Owner-facing section / review cards use PRICE_POLICY_OWNER_LABELS.
  */
-export const RESPONSE_LENGTH_LABELS = {
-  short: 'short',
-  standard: 'standard',
-};
-
 export const PRICE_DISCLOSURE_LABELS = {
   relevant: 'when useful and relevant',
   on_request: 'only when the customer asks about pricing',
+};
+
+/** Owner-facing Price policy sentences (section cards + review). */
+export const PRICE_POLICY_OWNER_LABELS = {
+  relevant: "I mention prices when they're relevant",
+  on_request: 'I share prices only when a customer asks',
 };
 
 /**
@@ -84,12 +84,6 @@ export const CONFIG_CAPABILITIES = [
       'Overall voice/style of the Business Bot, as a short description (e.g. warm, calm, professional, playful).',
     cannotRepresent:
       'Rules, scripts, or formatting the bot must follow per message: things every reply must start/end with, emoji or symbol rules, rotating or fixed phrases, required wording, message structure, language choice, frequency rules, or any capability.',
-  },
-  {
-    field: 'responseLength',
-    represents: `Reply length: ${RESPONSE_LENGTH_VALUES.map((v) => `"${v}" (${RESPONSE_LENGTH_LABELS[v]})`).join(' or ')}.`,
-    cannotRepresent:
-      'Exact word/character limits or different lengths per topic.',
   },
   {
     field: 'priceDisclosure',
@@ -149,7 +143,6 @@ export const DEMO_SCOPE = {
  */
 export const DEFAULT_BEHAVIOR = {
   tone: 'warm, friendly, and human',
-  responseLength: 'standard',
   priceDisclosure: 'relevant',
 };
 
@@ -188,16 +181,6 @@ export function normalizeFaqItem(item) {
 export function normalizeCommonQuestions(list) {
   if (!Array.isArray(list)) return [];
   return list.map(normalizeFaqItem).filter(Boolean);
-}
-
-/** Normalize free-form / enum spelling into a stored responseLength value. */
-export function normalizeResponseLength(value) {
-  if (value == null || value === '') return null;
-  const s = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (s === 'short' || s === 'brief' || s === 'concise') return 'short';
-  if (s === 'standard' || s === 'normal' || s === 'default') return 'standard';
-  if (RESPONSE_LENGTH_VALUES.includes(s)) return s;
-  return null;
 }
 
 /** Normalize free-form / enum spelling into a stored priceDisclosure value. */
@@ -244,9 +227,6 @@ export function normalizeBehaviorSettings(profile) {
   } else if (profile.tone !== undefined && profile.tone !== null) {
     profile.tone = String(profile.tone).trim() || null;
   }
-  if ('responseLength' in profile || profile.responseLength !== undefined) {
-    profile.responseLength = normalizeResponseLength(profile.responseLength);
-  }
   if ('priceDisclosure' in profile || profile.priceDisclosure !== undefined) {
     profile.priceDisclosure = normalizePriceDisclosure(profile.priceDisclosure);
   }
@@ -267,11 +247,6 @@ export function normalizeBehaviorSettings(profile) {
       const t = profile.draft.tone.trim();
       profile.draft.tone = t || null;
     }
-    if ('responseLength' in profile.draft) {
-      profile.draft.responseLength = normalizeResponseLength(
-        profile.draft.responseLength
-      );
-    }
     if ('priceDisclosure' in profile.draft) {
       profile.draft.priceDisclosure = normalizePriceDisclosure(
         profile.draft.priceDisclosure
@@ -291,12 +266,19 @@ export function effectiveBehavior(profile) {
     typeof p.tone === 'string' && p.tone.trim()
       ? p.tone.trim()
       : DEFAULT_BEHAVIOR.tone;
-  const responseLength =
-    normalizeResponseLength(p.responseLength) || DEFAULT_BEHAVIOR.responseLength;
   const priceDisclosure =
     normalizePriceDisclosure(p.priceDisclosure) ||
     DEFAULT_BEHAVIOR.priceDisclosure;
-  return { tone, responseLength, priceDisclosure };
+  return { tone, priceDisclosure };
+}
+
+/** Owner-facing Price policy sentence (null → default relevant wording). */
+export function pricePolicyOwnerLabel(value) {
+  const v =
+    normalizePriceDisclosure(value) || DEFAULT_BEHAVIOR.priceDisclosure;
+  return (
+    PRICE_POLICY_OWNER_LABELS[v] || PRICE_POLICY_OWNER_LABELS.relevant
+  );
 }
 
 /** Approved business facts only — no conversation settings. */
@@ -317,6 +299,9 @@ export function businessFactsView(profile) {
         : [],
     unknowns: Array.isArray(p.unknowns) ? p.unknowns : [],
     otherFacts: Array.isArray(p.otherFacts) ? p.otherFacts : [],
+    priceDisclosure:
+      normalizePriceDisclosure(p.priceDisclosure) ||
+      DEFAULT_BEHAVIOR.priceDisclosure,
   };
 }
 
@@ -383,11 +368,6 @@ export function emptyProfile() {
     otherFacts: [],
     /** Free-text how the bot should sound. null = use DEFAULT_BEHAVIOR.tone. */
     tone: null,
-    /**
-     * Reply length setting: 'short' | 'standard' | null.
-     * null = use DEFAULT_BEHAVIOR.responseLength ('standard').
-     */
-    responseLength: null,
     /**
      * Price disclosure: 'relevant' | 'on_request' | null.
      * null = use DEFAULT_BEHAVIOR.priceDisclosure ('relevant').
@@ -459,13 +439,11 @@ export function mergeDraft(profile, draft) {
   for (const key of BEHAVIOR_KEYS) {
     if (key === 'tone') {
       if (draft.tone != null && draft.tone !== '') next.tone = draft.tone;
-    } else if (key === 'responseLength') {
-      const n = normalizeResponseLength(draft.responseLength);
-      if (n != null) next.responseLength = n;
-    } else if (key === 'priceDisclosure') {
-      const n = normalizePriceDisclosure(draft.priceDisclosure);
-      if (n != null) next.priceDisclosure = n;
     }
+  }
+  {
+    const n = normalizePriceDisclosure(draft.priceDisclosure);
+    if (n != null) next.priceDisclosure = n;
   }
   for (const key of IDENTITY_KEYS) {
     const value = normalizeIdentityText(draft[key]);
@@ -503,7 +481,6 @@ export function applyDraftToLive(profile) {
       : profile.informationToCollect,
     unknowns: merged.unknowns || [],
     otherFacts: Array.isArray(merged.otherFacts) ? merged.otherFacts : [],
-    responseLength: merged.responseLength ?? null,
     priceDisclosure: merged.priceDisclosure ?? null,
     openingMessage: merged.openingMessage ?? null,
     draft: profile.draft,
@@ -540,7 +517,6 @@ export function draftDiffersFromLive(profile, draft) {
   const liveB = effectiveBehavior(profile);
   const mergedB = effectiveBehavior(merged);
   if (liveB.tone !== mergedB.tone) return true;
-  if (liveB.responseLength !== mergedB.responseLength) return true;
   if (liveB.priceDisclosure !== mergedB.priceDisclosure) return true;
   for (const key of IDENTITY_KEYS) {
     if (
@@ -573,20 +549,6 @@ export function draftDiffersFromLive(profile, draft) {
   return false;
 }
 
-function formatResponseLengthLabel(value, isDefault) {
-  const v = value || DEFAULT_BEHAVIOR.responseLength;
-  const label =
-    RESPONSE_LENGTH_LABELS[v] || RESPONSE_LENGTH_LABELS.standard;
-  return isDefault ? `${label} (default)` : label;
-}
-
-function formatPriceDisclosureLabel(value, isDefault) {
-  const v = value || DEFAULT_BEHAVIOR.priceDisclosure;
-  const label =
-    PRICE_DISCLOSURE_LABELS[v] || PRICE_DISCLOSURE_LABELS.relevant;
-  return isDefault ? `${label} (default)` : label;
-}
-
 function formatFactsBlock(profile) {
   const lines = [];
   lines.push(`Business: ${profile.name || '(not set)'}`);
@@ -605,6 +567,7 @@ function formatFactsBlock(profile) {
   }
   lines.push(`Hours: ${profile.hours || '(not set)'}`);
   lines.push(`Location / area: ${profile.locationOrArea || '(not set)'}`);
+  lines.push(`Price policy: ${pricePolicyOwnerLabel(profile.priceDisclosure)}`);
   if (profile.commonQuestions?.length) {
     lines.push('Common questions (FAQ — answers the customer bot may use):');
     for (const q of profile.commonQuestions) {
@@ -638,18 +601,10 @@ function formatFactsBlock(profile) {
   }
 
   const storedTone = profile.tone;
-  const storedLen = normalizeResponseLength(profile.responseLength);
-  const storedPrice = normalizePriceDisclosure(profile.priceDisclosure);
   const eff = effectiveBehavior(profile);
   lines.push('Conversation settings:');
   lines.push(
     `  Tone: ${storedTone ? storedTone : `${eff.tone} (default)`}`
-  );
-  lines.push(
-    `  Reply length: ${formatResponseLengthLabel(eff.responseLength, !storedLen)}`
-  );
-  lines.push(
-    `  Prices: ${formatPriceDisclosureLabel(eff.priceDisclosure, !storedPrice)}`
   );
   const identity = assistantIdentityView(profile);
   lines.push(

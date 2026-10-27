@@ -59,7 +59,6 @@ function baseApprovedLive() {
   p.informationToCollect = [];
   p.unknowns = [];
   p.tone = 'friendly';
-  p.responseLength = null;
   p.priceDisclosure = null;
   p.approvedAt = '2026-01-01T00:00:00.000Z';
   p.draft = {
@@ -73,7 +72,6 @@ function baseApprovedLive() {
     informationToCollect: p.informationToCollect,
     unknowns: p.unknowns,
     tone: p.tone,
-    responseLength: p.responseLength,
     priceDisclosure: p.priceDisclosure,
     askedTopics: ['commonQuestions', 'informationToCollect'],
   };
@@ -121,7 +119,6 @@ function liveDraftWith(live, overrides) {
     informationToCollect: [],
     unknowns: [],
     tone: live.tone,
-    responseLength: null,
     priceDisclosure: null,
     askedTopics: ['commonQuestions', 'informationToCollect'],
     ...overrides,
@@ -209,7 +206,6 @@ async function testDraftEditLeavesLiveUnchanged() {
       informationToCollect: [],
       unknowns: [],
       tone: 'friendly',
-      responseLength: null,
       priceDisclosure: null,
     },
     readyForReview: true,
@@ -687,7 +683,7 @@ async function testFormatSummaryIncludesOwnerGoal() {
   p.ownerGoal = 'Help customers book by messaging the owner';
   assert.match(formatSummary(p), /Bot goal: \(not set\)/, 'legacy free text is not a goal');
   assert.match(formatSummary(p), /Conversation settings:/);
-  assert.match(formatSummary(p), /Prices:.*\(default\)/);
+  assert.match(formatSummary(p), /Price policy: I mention prices when they're relevant/);
   console.log('PASS format_summary_owner_goal');
 }
 
@@ -696,7 +692,6 @@ async function testBehaviorDraftIsolatesLivePrompt() {
   clean();
   const live = baseApprovedLive();
   live.tone = 'friendly';
-  live.responseLength = null;
   live.priceDisclosure = null;
   saveProfile(live, PROFILE);
   const liveMock = { approvals: [] };
@@ -715,7 +710,6 @@ async function testBehaviorDraftIsolatesLivePrompt() {
       informationToCollect: [],
       unknowns: [],
       tone: 'warm and short',
-      responseLength: 'short',
       priceDisclosure: 'on_request',
     },
     readyForReview: true,
@@ -731,7 +725,6 @@ async function testBehaviorDraftIsolatesLivePrompt() {
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.priceDisclosure, 'on_request');
-  assert.equal(disk.responseLength, 'short');
   assert.equal(disk.tone, 'warm and short');
   assert.equal(disk.approvedAt, approvedAtBefore);
 
@@ -739,7 +732,7 @@ async function testBehaviorDraftIsolatesLivePrompt() {
   assert.match(livePrompt, /on request only/i);
   const summary = formatSummary(disk);
   assert.doesNotMatch(summary, /Pending \(not live until you approve\)/);
-  assert.match(summary, /only when the customer asks about pricing/);
+  assert.match(summary, /I share prices only when a customer asks/);
   console.log('PASS behavior_edit_saves_live_prompt');
 }
 
@@ -764,8 +757,7 @@ async function testBehaviorApprovePropagatesToLivePrompt() {
       informationToCollect: live.informationToCollect,
       unknowns: live.unknowns,
       tone: 'warm and short',
-      responseLength: 'short',
-      priceDisclosure: 'on_request',
+      priceDisclosure: live.priceDisclosure,
     },
     readyForReview: true,
     source: 'stub-builder',
@@ -776,21 +768,19 @@ async function testBehaviorApprovePropagatesToLivePrompt() {
   assert.equal(r.event, 'build_turn');
 
   const sent = loadProfile(PROFILE);
-  assert.equal(sent.priceDisclosure, 'on_request');
-  assert.equal(sent.responseLength, 'short');
+  assert.equal(sent.tone, 'warm and short');
   assert.equal(
     JSON.stringify(businessFactsView(sent)),
     factsBefore,
-    'business facts must be unchanged on behavior approve'
+    'business facts must be unchanged on style approve'
   );
 
   const sys = buildCustomerSystemPrompt(sent);
-  assert.match(sys, /on request only/i);
-  assert.match(sys, /Reply length: short/);
+  assert.match(sys, /Tone: warm and short/);
+  assert.doesNotMatch(sys, /Reply length:/);
 
   const disk = loadProfile(PROFILE);
-  assert.equal(disk.priceDisclosure, 'on_request');
-  assert.equal(disk.responseLength, 'short');
+  assert.equal(disk.tone, 'warm and short');
   console.log('PASS behavior_approve_propagates_to_live_prompt');
 }
 
@@ -818,28 +808,27 @@ async function testLegacyProfileSafeDefaults() {
     retiredField: 'dropped on load',
     draft: null,
   };
-  // Write raw JSON without responseLength / priceDisclosure keys
+  // Write raw JSON without priceDisclosure key
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
   fs.writeFileSync(PROFILE, JSON.stringify(legacy, null, 2), 'utf8');
 
   const disk = loadProfile(PROFILE);
   assert.equal(Object.hasOwn(disk, 'retiredField'), false, 'unknown keys dropped on load');
+  assert.equal(Object.hasOwn(disk, 'responseLength'), false, 'retired responseLength dropped on load');
   assert.equal(disk.tone, 'warm and calm');
-  assert.equal(disk.responseLength, null);
   assert.equal(disk.priceDisclosure, null);
   const eff = effectiveBehavior(disk);
-  assert.equal(eff.responseLength, DEFAULT_BEHAVIOR.responseLength);
   assert.equal(eff.priceDisclosure, DEFAULT_BEHAVIOR.priceDisclosure);
   assert.equal(eff.tone, 'warm and calm');
 
   const prompt = buildCustomerSystemPrompt(disk);
   assert.match(prompt, /Tone: warm and calm/);
   assert.match(prompt, /Price disclosure: relevant/);
-  assert.match(prompt, /Reply length: standard/);
+  assert.doesNotMatch(prompt, /Reply length:/);
 
   const summary = formatSummary(disk);
   assert.match(summary, /Tone: warm and calm/);
-  assert.match(summary, /\(default\)/);
+  assert.match(summary, /Price policy: I mention prices when they're relevant/);
   console.log('PASS legacy_profile_safe_defaults');
 }
 
@@ -848,12 +837,10 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
   clean();
   const live = baseApprovedLive();
   live.priceDisclosure = 'on_request';
-  live.responseLength = 'short';
   live.tone = 'warm and short';
   live.draft = {
     ...live.draft,
     priceDisclosure: 'on_request',
-    responseLength: 'short',
     tone: 'warm and short',
   };
   const factsBefore = JSON.stringify(businessFactsView(live));
@@ -872,7 +859,6 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
       informationToCollect: [],
       unknowns: [],
       tone: 'a bit friendlier',
-      responseLength: 'short',
       priceDisclosure: null,
     },
     live.draft
@@ -892,7 +878,6 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
   assert.equal(r.event, 'build_turn');
   const disk = loadProfile(PROFILE);
   assert.equal(disk.priceDisclosure, 'on_request');
-  assert.equal(disk.responseLength, 'short');
   assert.equal(disk.tone, 'a bit friendlier');
   assert.equal(JSON.stringify(businessFactsView(disk)), factsBefore);
   console.log('PASS style_only_edit_preserves_price_disclosure');
@@ -904,17 +889,14 @@ async function testBehaviorOnlyMergePreservesFacts() {
   const before = JSON.stringify(businessFactsView(live));
   const merged = mergeDraft(live, {
     tone: 'professional and concise',
-    responseLength: 'short',
     priceDisclosure: 'relevant',
   });
   assert.equal(JSON.stringify(businessFactsView(merged)), before);
   assert.equal(merged.tone, 'professional and concise');
-  assert.equal(merged.responseLength, 'short');
   assert.equal(merged.priceDisclosure, 'relevant');
   assert.equal(
     draftDiffersFromLive(live, {
       tone: 'professional and concise',
-      responseLength: 'short',
       priceDisclosure: 'relevant',
     }),
     true
@@ -952,7 +934,6 @@ function draftFrom(live, overrides = {}) {
     informationToCollect: live.informationToCollect,
     unknowns: live.unknowns,
     tone: live.tone,
-    responseLength: live.responseLength,
     priceDisclosure: live.priceDisclosure,
     ...overrides,
   };
@@ -977,7 +958,7 @@ async function testIdentityDraftIsolatesLive() {
   const r = await handleMessage(session, 'Use this opening…');
   assert.equal(r.event, 'build_turn');
   assert.equal(r.readyForReview, true, 'settings-only edit is presented as a save card');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, prices only when asked, custom opening/);
+  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHow I talk: friendly, custom opening/);
   assert.doesNotMatch(r.reply, /\(was:/);
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
@@ -1052,8 +1033,8 @@ async function testOtherFactsApprovePropagates() {
     'review card must list otherFacts'
   );
   const section = renderSection(1, loadProfile(PROFILE));
-  assert.ok(section.includes('• Other facts:'), 'section 1 must list otherFacts');
-  for (const f of facts) assert.ok(section.includes(`   - ${f}`));
+  assert.ok(!section.includes('Other facts'), 'section 1 no longer lists otherFacts');
+  assert.ok(section.includes('*Price policy:*'), section);
 
   const r = await handleMessage(session, '1');
   assert.equal(r.event, 'enter_test');
@@ -1071,7 +1052,6 @@ async function testOpeningOnlyEditPreservesName() {
   clean();
   const live = identityLive();
   live.openingMessage = CUSTOM_OPENING;
-  live.responseLength = 'short';
   live.tone = 'warm';
   live.draft = draftFrom(live, {
     openingMessage: CUSTOM_OPENING,
@@ -1098,7 +1078,6 @@ async function testOpeningOnlyEditPreservesName() {
   const disk = loadProfile(PROFILE);
   assert.equal(disk.openingMessage, newOpening);
   assert.equal(disk.priceDisclosure, 'on_request');
-  assert.equal(disk.responseLength, 'short');
   assert.equal(disk.tone, 'warm');
   assert.equal(JSON.stringify(businessFactsView(disk)), factsBefore);
   console.log('PASS opening_only_edit_preserves_name');
@@ -1268,7 +1247,6 @@ function testConfigCapabilitiesQuoteRules() {
 function testEnforceConfigRequests() {
   const prev = {
     tone: 'warm',
-    responseLength: null,
     priceDisclosure: 'on_request',
     openingMessage: null,
     commonQuestions: [],
@@ -1293,14 +1271,14 @@ function testEnforceConfigRequests() {
 
   // Supported change kept alongside an unsupported one
   const c = enforceConfigRequests(
-    { ...prev, responseLength: 'short', tone: 'warm, emoji in every message' },
+    { ...prev, openingMessage: 'Hi there', tone: 'warm, emoji in every message' },
     prev,
     [
-      { request: 'short replies', status: 'supported', field: 'responseLength' },
+      { request: 'custom opening', status: 'supported', field: 'openingMessage' },
       { request: 'emoji in every message', status: 'unsupported', field: 'tone' },
     ]
   );
-  assert.equal(c.draft.responseLength, 'short');
+  assert.equal(c.draft.openingMessage, 'Hi there');
   assert.equal(c.draft.tone, 'warm');
 
   // Ambiguous on a fact field → restored
@@ -1417,7 +1395,7 @@ async function testTranscriptShapedImmediateSave() {
   assert.equal(qa.event, 'menu_section');
   assert.match(qa.reply, /It's 100 shekel per haircut/);
   assert.doesNotMatch(qa.reply, /Pending change|Live now:/);
-  assert.match(qa.reply, /Here's what I have:/);
+  assert.match(qa.reply, /These are the questions I know how to answer:/);
 
   const approve = await handleMessage(session, 'Approve');
   assert.equal(approve.event, 'build_turn');

@@ -120,7 +120,6 @@ function builderPayload(message) {
       informationToCollect: null,
       unknowns: [],
       tone: null,
-      responseLength: null,
       priceDisclosure: null,
       openingMessage: null,
       openingMessageReset: false,

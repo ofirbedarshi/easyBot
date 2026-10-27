@@ -189,7 +189,7 @@ assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
 res = await send('1');
 assert.equal(res.event, 'menu_section');
-assert.ok(res.reply.startsWith("Your business\nHere's what I have:"), res.reply);
+assert.ok(res.reply.startsWith('🏪 This is what I know about your business:\n\n'), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
 
 // Not offered before first approval: 7 falls through to the Builder

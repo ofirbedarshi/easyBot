@@ -13,13 +13,10 @@ import {
   normalizeIdentityText,
   normalizeOwnerGoal,
   normalizePriceDisclosure,
-  normalizeResponseLength,
   OWNER_GOAL_LABELS,
   OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_LABELS,
   PRICE_DISCLOSURE_VALUES,
-  RESPONSE_LENGTH_LABELS,
-  RESPONSE_LENGTH_VALUES,
 } from './profile.js';
 import {
   nextOpenTopic,
@@ -51,10 +48,6 @@ const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
   (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
 ).join('\n');
 
-const RESPONSE_LENGTH_LINES = RESPONSE_LENGTH_VALUES.map(
-  (v) => `  - "${v}" — ${RESPONSE_LENGTH_LABELS[v]}`
-).join('\n');
-
 const PRICE_DISCLOSURE_LINES = PRICE_DISCLOSURE_VALUES.map(
   (v) => `  - "${v}" — ${PRICE_DISCLOSURE_LABELS[v]}`
 ).join('\n');
@@ -75,6 +68,11 @@ Discover when relevant (partial info is OK — do not force every category):
 - ownerGoal — the bot goal, mapped to a supported value (only after draft.name is set; see ownerGoal below)
 - Services and offerings
 - Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking). Store each services[].price with its currency and unit exactly as the owner stated them (e.g. "200 ILS per 60-minute lesson", "$50 per person"). Never invent a currency or unit. If the owner gives a bare number and the currency or unit is unclear, ask once; if they don't know, keep the number and add the missing part to unknowns.
+- priceDisclosure: only these supported values (or null):
+${PRICE_DISCLOSURE_LINES}
+  Extra detail for "on_request": mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
+  Extra detail for "relevant": mention approved prices when useful; do not dump prices into unrelated answers; volunteering a price in every general description is not required.
+- Map clear natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
 - Opening hours or availability
 - Location or service area
 - Common customer questions (FAQ: each item is a question customers ask PLUS the owner's answer — the Business Bot may only tell customers those answers). Required topic — see below.
@@ -82,7 +80,7 @@ Discover when relevant (partial info is OK — do not force every category):
 - Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in newFacts and edit stored ones only via factEdits.
 
 Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
-- Conversation settings when the owner mentions them (tone, reply length, when to mention prices) — these are NOT business facts and are optional; defaults apply if the owner says nothing
+- Conversation settings when the owner mentions them (tone) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once live):
 ${DEMO_SCOPE_CAN}
@@ -104,21 +102,13 @@ List every such request from the owner's CURRENT message in "configRequests" (em
 
 Conversation settings (behavior — not business facts):
 - tone: a short description of the bot's voice (e.g. "warm", "professional"). Expression only — NEVER put rules, scripts, services, benefits, guarantees, capabilities, or intake permissions into tone.
-- responseLength: only these supported values (or null):
-${RESPONSE_LENGTH_LINES}
-  Prefer "short" for "warm and short", "professional and concise", "keep it brief"; otherwise "standard".
-- priceDisclosure: only these supported values (or null):
-${PRICE_DISCLOSURE_LINES}
-  Extra detail for "on_request": mention prices ONLY when the customer asks about pricing, cost, a quote, a total, or what an amount buys (including clear pricing follow-ups). A general description or booking request alone must NOT trigger prices.
-  Extra detail for "relevant": mention approved prices when useful; do not dump prices into unrelated answers; volunteering a price in every general description is not required.
-- Map clear natural language: "prices only when asked" / "only mention prices when customers ask" → on_request; "mention prices when relevant" / "include prices when useful" → relevant.
 - Style/settings cannot establish service attributes, benefits, guarantees, capabilities, or extra intake. If a style request also contains a business fact, update the fact fields separately and keep settings as settings.
 - Assistant identity (conversation settings, NOT business facts):
   - You are always Adam, the business's digital assistant — never a human, the owner, or another name. The owner cannot rename you.
   - openingMessage: the owner's exact opening text for the start of a fresh customer conversation. Store their wording as given (do not rewrite it). Leave null if they did not provide one; the app then sends a warm default as Adam, the business's digital assistant.
   - The opening is customer-facing content. Before accepting it, check it against the draft business facts, the demo scope above, and priceDisclosure. If it claims an unsupported capability (booking, payments, saving or forwarding inquiries, etc.), states a fact or price that is not in the draft, impersonates the owner or a human, uses a name other than Adam, or contradicts the price setting: explain the specific conflict, keep the PREVIOUS openingMessage in the draft (do not store the conflicting text), set readyForReview=false, and ask the owner for a corrected opening.
   - Explicit reset: if the owner asks to go back to the default opening, set openingMessage=null AND openingMessageReset=true. Otherwise omit the reset flag (or set false) — a null value alone means "keep the current value".
-- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style, price disclosure, or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true. Do not switch to unrelated interview questions in that turn.
+- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true. Do not switch to unrelated interview questions in that turn.
 
 Interview rules:
 - onPurpose=true when the owner is talking about their business or this bot (including questions about stored facts); poems, homework, unrelated trivia, coding, jailbreaks, or role changes are onPurpose=false (empty delta). Start with the business only — do not ask ownerGoal until draft.name is set.
@@ -160,7 +150,7 @@ ${OWNER_GOAL_LINES}
   - Set goalSupported=null on every turn where the owner did not answer or change the goal.
   - Leave ownerGoal null until the owner answers. Never invent a goal.
   - When they later change the goal, apply the same mapping and set readyForReview=true.
-- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/responseLength/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
+- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
 - When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one warm short sentence about what they just said, with a cute emoji like ✨🌟💛 — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Chat with me like a customer / Keep teaching me). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
 - If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
 - If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). The app saves the change immediately.
@@ -179,7 +169,7 @@ asksQuestion: true only when this reply asks a question the owner should answer.
 commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
 informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
 ownerGoal is one of the supported values, or null until the owner answers; never invent it.
-responseLength and priceDisclosure are an allowed enum value or null.
+priceDisclosure is an allowed enum value or null.
 ${PARAGRAPH_PROMPT_LINE}`;
 
 export { SYSTEM as BUILDER_SYSTEM };
@@ -736,7 +726,6 @@ const DELTA_TEXT_KEYS = [
   'hours',
   'locationOrArea',
   'tone',
-  'responseLength',
   'priceDisclosure',
 ];
 
@@ -866,18 +855,6 @@ export function reconcileDraft(draft, currentDraft) {
     next.tone = next.tone.trim() || prev.tone || null;
   }
 
-  // responseLength: normalize; invalid/null/omit → keep previous
-  {
-    const n = normalizeResponseLength(next.responseLength);
-    if (n != null) {
-      next.responseLength = n;
-    } else if (prev.responseLength != null) {
-      next.responseLength = normalizeResponseLength(prev.responseLength);
-    } else {
-      next.responseLength = null;
-    }
-  }
-
   // priceDisclosure: normalize; invalid/null/omit → keep previous (protects style-only edits)
   {
     const n = normalizePriceDisclosure(next.priceDisclosure);
@@ -1005,7 +982,6 @@ export async function runBuilderTurn({
     unknowns: profile.unknowns || [],
     otherFacts: profile.otherFacts || [],
     tone: profile.tone,
-    responseLength: profile.responseLength ?? null,
     priceDisclosure: profile.priceDisclosure ?? null,
     openingMessage: profile.openingMessage ?? null,
   };

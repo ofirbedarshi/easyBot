@@ -36,6 +36,7 @@ import {
   renderSection,
   reviewActive,
   renderSetupContinue,
+  unwrapWhatsAppBold,
 } from './ownerNav.js';
 import {
   LEAD_ALREADY_SENT,
@@ -169,13 +170,6 @@ const BOT_ERROR_REPLY =
 export const ENTER_TEST_REPLY =
   "You're now chatting with me as a customer. Type *stop* when you want to keep teaching me.";
 
-/** One pair of surrounding WhatsApp bold asterisks, if present. */
-function unwrapWhatsAppBold(text) {
-  const t = String(text || '').trim();
-  const m = /^\*([^*]+)\*$/.exec(t);
-  return (m ? m[1] : t).trim();
-}
-
 /**
  * Exit TEST (and cancel lead): the whole message is `stop`, trimmed,
  * case-insensitive, optionally wrapped in WhatsApp `*bold*`. `/end` is a
@@ -303,7 +297,7 @@ async function handleNavigation(session, text) {
   if (tryWords || choice === 'try') return tryMyBot(session);
 
   const reply = wantsMenu
-    ? renderMenu(leadMenuOpts(session, profile))
+    ? renderChangeMenu(leadMenuOpts(session, profile))
     : renderSection(choice, profile);
   session.buildHistory.push({ role: 'user', content: text });
   session.buildHistory.push({
