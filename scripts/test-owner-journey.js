@@ -1,5 +1,5 @@
 /**
- * One handleMessage walk of the owner journey (architecture audit step 6).
+ * One handleMessage walk of the owner journey.
  * Stubbed Builder / Business Bot, no network. Asserts every outgoing reply
  * exactly. Does not send /reset (developer-only).
  */
@@ -30,13 +30,10 @@ import {
   lastShownNav,
   renderChangeMenu,
   renderSection,
-  renderSetupComplete,
 } from '../src/ownerNav.js';
 import { ownerPhase } from '../src/ownerPhase.js';
 
 const PROFILE = testProfilePath('owner-journey');
-const FAQ = topicByKey('commonQuestions');
-const INTAKE = topicByKey('informationToCollect');
 
 const NAME = 'Ofir garage';
 const WHAT = 'Garage';
@@ -143,6 +140,11 @@ async function playJourney(steps) {
     } else if (expect.approvedAt === true) {
       assert.ok(profile.approvedAt, `${label}: approvedAt should be set`);
     }
+    if (expect.firstTestedAt === null) {
+      assert.equal(profile.firstTestedAt, null, `${label}: firstTestedAt should be empty`);
+    } else if (expect.firstTestedAt === true) {
+      assert.ok(profile.firstTestedAt, `${label}: firstTestedAt should be set`);
+    }
     if (expect.live) {
       for (const [key, value] of Object.entries(expect.live)) {
         assert.deepEqual(profile[key], value, `${label}: live.${key}`);
@@ -171,9 +173,10 @@ function saveCard(extra = {}) {
         modelText: 'Noted ✨',
         prior: before,
         profile,
+        menuOpts: { leadOption: !!profile.firstTestedAt },
       }).reply,
     approvedAt: true,
-    nav: 'review',
+    nav: 'menu',
     ...extra,
   };
 }
@@ -181,10 +184,6 @@ function saveCard(extra = {}) {
 const identityDraft = { name: NAME };
 const nameWhatDraft = { name: NAME, whatWeDo: WHAT };
 const hoursDraft = { hours: HOURS };
-const goalDraft = {
-  ownerGoal: 'answer_and_collect',
-  ownerGoalRequested: 'answer questions and take customer details',
-};
 
 try {
 await playJourney([
@@ -218,7 +217,7 @@ await playJourney([
     },
   },
   {
-    name: 'identity: what you do → tell-more (partial details still missing)',
+    name: 'identity: what you do → tell-more',
     in: `it is a ${WHAT.toLowerCase()}`,
     model: modelTurn(nameWhatDraft, { message: 'Ofir garage is your garage ✨' }),
     expect: {
@@ -236,89 +235,22 @@ await playJourney([
     },
   },
   {
-    name: 'tell-more partial (hours only) → goal',
+    name: 'tell-more hours → ready menu without lead',
     in: `we are open ${HOURS}`,
     model: modelTurn(hoursDraft, { message: 'Noted the hours ✨' }),
     expect: {
       event: 'build_turn',
-      phase: 'setup',
-      reply: composeReply({
-        kind: 'ask_goal',
-        modelText: 'Noted the hours ✨',
-      }).reply,
-      approvedAt: null,
-      nav: null,
+      phase: 'ready',
+      reply: composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply,
+      approvedAt: true,
+      firstTestedAt: null,
+      nav: 'menu',
       live: { hours: HOURS },
     },
   },
   {
-    name: 'goal answer → FAQ',
-    in: 'answer questions and take customer details',
-    model: modelTurn(goalDraft, { message: 'Answering and collecting ✨' }),
-    expect: {
-      event: 'build_turn',
-      phase: 'wrapup',
-      reply: `${FAQ.ack}\n\n${FAQ.question}`,
-      approvedAt: null,
-      nav: null,
-      draft: { askedTopics: ['businessDetails', 'commonQuestions'] },
-    },
-  },
-  {
-    name: 'skip FAQ → intake',
-    in: 'skip',
-    model: modelTurn({}, { message: 'No questions yet ✨', topicResponse: 'skipped' }),
-    expect: {
-      event: 'build_turn',
-      phase: 'wrapup',
-      reply: `No questions yet ✨\n\n${INTAKE.question}`,
-      approvedAt: null,
-      nav: null,
-      draft: {
-        askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
-      },
-    },
-  },
-  {
-    name: 'intake still null → ask again',
-    in: 'not sure yet',
-    model: modelTurn({}, { message: 'I can wait ✨' }),
-    expect: {
-      event: 'build_turn',
-      phase: 'wrapup',
-      reply: `I can wait ✨\n\n${INTAKE.question}`,
-      approvedAt: null,
-      nav: null,
-      live: { informationToCollect: null },
-    },
-  },
-  {
-    name: 'intake none → setup-complete card',
-    in: 'none',
-    model: modelTurn({ informationToCollect: [] }, { message: 'All set ✨' }),
-    expect: {
-      event: 'build_turn',
-      phase: 'ready',
-      reply: ({ profile }) => renderSetupComplete(profile),
-      approvedAt: true,
-      nav: 'review',
-      live: { informationToCollect: [] },
-    },
-  },
-  {
-    name: 'keep teaching → editing menu',
-    in: 'keep teaching me',
-    expect: {
-      event: 'menu',
-      mode: 'BUILD',
-      phase: 'ready',
-      reply: expectedMenu(true),
-      nav: 'menu',
-    },
-  },
-  {
-    name: '2 → business section',
-    in: '2',
+    name: '1 → business section',
+    in: '1',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection(1, profile),
@@ -330,13 +262,13 @@ await playJourney([
     in: '*menu*',
     expect: {
       event: 'menu',
-      reply: expectedMenu(true),
+      reply: expectedMenu(false),
       nav: 'menu',
     },
   },
   {
-    name: '3 → Q&A section',
-    in: '3',
+    name: '2 → Q&A section',
+    in: '2',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection(2, profile),
@@ -348,7 +280,25 @@ await playJourney([
     in: 'menu',
     expect: {
       event: 'menu',
-      reply: expectedMenu(true),
+      reply: expectedMenu(false),
+      nav: 'menu',
+    },
+  },
+  {
+    name: '3 → intake section',
+    in: '3',
+    expect: {
+      event: 'menu_section',
+      reply: ({ profile }) => renderSection('intake', profile),
+      nav: 'section:intake',
+    },
+  },
+  {
+    name: '*menu* from intake',
+    in: '*menu*',
+    expect: {
+      event: 'menu',
+      reply: expectedMenu(false),
       nav: 'menu',
     },
   },
@@ -366,7 +316,7 @@ await playJourney([
     in: '*menu*',
     expect: {
       event: 'menu',
-      reply: expectedMenu(true),
+      reply: expectedMenu(false),
       nav: 'menu',
     },
   },
@@ -467,40 +417,16 @@ await playJourney([
     }),
   },
   {
-    name: 'change intake: also car model',
-    in: 'also ask for the car model',
-    model: modelTurn({ informationToCollect: ['name', 'phone', 'car model'] }, { message: 'Noted ✨' }),
-    expect: saveCard({
-      live: { informationToCollect: ['name', 'phone', 'car model'] },
-      draft: { informationToCollect: ['name', 'phone', 'car model'] },
-    }),
-  },
-  {
-    name: 'remove intake phone',
-    in: 'stop asking for phone',
-    model: modelTurn(
-      { informationToCollect: ['name', 'car model'] },
-      {
-        message: 'Noted ✨',
-        ownerEdits: [{ field: 'informationToCollect', item: 'phone', action: 'remove' }],
-      }
-    ),
-    expect: saveCard({
-      live: { informationToCollect: ['name', 'car model'] },
-      draft: { informationToCollect: ['name', 'car model'] },
-    }),
-  },
-  {
-    name: '*menu* after edits',
+    name: '*menu* after edits still has no lead',
     in: '*menu*',
     expect: {
       event: 'menu',
-      reply: expectedMenu(true),
+      reply: expectedMenu(false),
       nav: 'menu',
     },
   },
   {
-    name: '5 from menu → TEST',
+    name: '5 from menu → TEST and stamps firstTestedAt',
     in: '5',
     expect: {
       event: 'enter_test',
@@ -508,6 +434,7 @@ await playJourney([
       phase: 'test',
       reply: enterTestBanner(NAME),
       replies: ({ profile }) => [enterTestBanner(NAME), customerOpeningText(profile)],
+      firstTestedAt: true,
     },
   },
   {
@@ -522,7 +449,7 @@ await playJourney([
     },
   },
   {
-    name: '*stop* → ready menu',
+    name: '*stop* → ready menu WITH lead',
     in: '*stop*',
     expect: {
       event: 'enter_build',
@@ -534,7 +461,7 @@ await playJourney([
     },
   },
   {
-    name: '1 from menu → lead start',
+    name: '1 from post-test menu → lead start',
     in: '1',
     expect: {
       event: 'lead_question',
@@ -555,14 +482,26 @@ await playJourney([
     },
   },
   {
-    name: 'lead consent yes → channels',
+    name: 'lead consent yes → whatToDo',
     in: '1',
     expect: {
       event: 'lead_question',
       phase: 'lead',
       reply: composeReply({
         kind: 'lead_question',
-        parts: { step: 'channels', intro: LEAD_BRIDGE },
+        parts: { step: 'whatToDo', businessName: NAME },
+      }).reply,
+    },
+  },
+  {
+    name: 'lead whatToDo free text → channels',
+    in: 'Answer questions and collect details',
+    expect: {
+      event: 'lead_question',
+      phase: 'lead',
+      reply: composeReply({
+        kind: 'lead_question',
+        parts: { step: 'channels', intro: LEAD_BRIDGE, businessName: NAME },
       }).reply,
     },
   },
@@ -572,7 +511,10 @@ await playJourney([
     expect: {
       event: 'lead_question',
       phase: 'lead',
-      reply: composeReply({ kind: 'lead_question', parts: { step: 'actions' } }).reply,
+      reply: composeReply({
+        kind: 'lead_question',
+        parts: { step: 'actions', businessName: NAME },
+      }).reply,
     },
   },
   {
@@ -581,7 +523,10 @@ await playJourney([
     expect: {
       event: 'lead_question',
       phase: 'lead',
-      reply: composeReply({ kind: 'lead_question', parts: { step: 'dailyInquiries' } }).reply,
+      reply: composeReply({
+        kind: 'lead_question',
+        parts: { step: 'dailyInquiries', businessName: NAME },
+      }).reply,
     },
   },
   {
@@ -590,7 +535,10 @@ await playJourney([
     expect: {
       event: 'lead_question',
       phase: 'lead',
-      reply: composeReply({ kind: 'lead_question', parts: { step: 'chatTools' } }).reply,
+      reply: composeReply({
+        kind: 'lead_question',
+        parts: { step: 'chatTools', businessName: NAME },
+      }).reply,
     },
   },
   {
@@ -614,8 +562,8 @@ await playJourney([
     },
   },
   {
-    name: 'restart: 4 from no-lead menu → TEST',
-    in: '4',
+    name: 'restart: 5 from no-lead menu → TEST',
+    in: '5',
     expect: {
       event: 'enter_test',
       mode: 'TEST',
@@ -636,42 +584,11 @@ await playJourney([
     },
   },
 ]);
-  console.log('PASS owner-journey: wake → setup → wrapup → ready → test → lead → restart');
-
-  const faqAskedDraft = {
-    name: NAME,
-    whatWeDo: WHAT,
-    ownerGoal: 'answer_questions',
-    commonQuestions: [],
-    informationToCollect: null,
-    askedTopics: ['businessDetails', 'commonQuestions'],
-  };
-  const faqQModel = "I mean questions like 'What kinds of furniture do you make?'";
-  const faqQuestionInstead = applyReviewGate(
-    { ...emptyProfile(), ...faqAskedDraft, draft: faqAskedDraft },
-    { message: faqQModel, draft: faqAskedDraft, onPurpose: true, topicResponse: 'unclear' },
-    'Like what?',
-    { justAsked: FAQ }
-  );
-  assert.equal(faqQuestionInstead.message, `${faqQModel}\n\n${FAQ.question}`);
-  assert.ok(!faqQuestionInstead.message.includes(FAQ.ack));
-  assert.ok(!faqQuestionInstead.message.includes(INTAKE.ack));
-  assert.ok(!/noted/i.test(faqQuestionInstead.message));
-  console.log('PASS owner-journey: confused FAQ stays with model lead');
-
-  const faqSkip = applyReviewGate(
-    { ...emptyProfile(), ...faqAskedDraft, draft: faqAskedDraft },
-    { message: 'No questions yet ✨', draft: faqAskedDraft, onPurpose: true, topicResponse: 'skipped' },
-    'skip',
-    { justAsked: FAQ }
-  );
-  assert.equal(faqSkip.message, `No questions yet ✨\n\n${INTAKE.question}`);
-  console.log('PASS owner-journey: explicit FAQ skip still advances');
+  console.log('PASS owner-journey: wake → tell-more → ready menu → test → lead → restart');
 
   const detailsAskedDraft = {
     name: NAME,
     whatWeDo: WHAT,
-    ownerGoal: null,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -706,9 +623,9 @@ await playJourney([
     'skip',
     { justAsked: topicByKey('businessDetails') }
   );
-  assert.ok(detailsSkip.message.includes('Now tell me, how can I help you the most?'));
-  assert.ok(!detailsSkip.message.includes('so I can answer your customers well'));
-  console.log('PASS owner-journey: explicit tell-more skip still advances');
+  assert.equal(detailsSkip.presentReview, true);
+  assert.ok(!detailsSkip.message.includes(businessDetailsQuestion(detailsAskedDraft)));
+  console.log('PASS owner-journey: explicit tell-more skip presents ready');
 } catch (err) {
   console.error(`FAIL owner-journey: ${err.message}`);
   process.exit(1);

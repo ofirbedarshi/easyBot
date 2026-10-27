@@ -1,9 +1,9 @@
 /**
  * First-setup flow safety net (architecture audit §8 step 6).
  *
- * Pins current origin/main (#47) owner-visible behavior through the real
- * handleMessage entry point with a stubbed Builder and Business Bot (no
- * network). Later refactor PRs should keep these tables green.
+ * Pins current owner-visible behavior through the real handleMessage
+ * entry point with a stubbed Builder and Business Bot (no network).
+ * Agenda is identity → tell-me-more → complete (ready_first menu).
  *
  * Each flow is a data-driven table: owner input, stubbed model output, and
  * expected reply / key state (approvedAt, askedTopics, mode).
@@ -17,15 +17,15 @@ import {
   loadProfile,
   testProfilePath,
 } from '../src/profile.js';
-import { openingMessage, OWNER_GOAL_QUESTION } from '../src/builder.js';
-import { withSingleQuestion } from '../src/composeReply.js';
+import { openingMessage } from '../src/builder.js';
+import { composeReply } from '../src/composeReply.js';
 import { IDENTITY_FALLBACK_QUESTION } from '../src/setupAgenda.js';
 import {
   BUSINESS_DETAILS_ACK,
   BUSINESS_DETAILS_MARKER,
   businessDetailsQuestion,
-  topicByKey,
 } from '../src/builderTopics.js';
+import { READY_OPENER } from '../src/copy.js';
 import {
   createSession,
   enterTestBanner,
@@ -36,13 +36,9 @@ import {
   lastShownNav,
   renderChangeMenu,
   renderSavedChanges,
-  renderSetupComplete,
 } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('setup-flow');
-const FAQ = topicByKey('commonQuestions');
-const INTAKE = topicByKey('informationToCollect');
-const MODEL_INTAKE_Q = 'What details should I ask customers for?';
 
 const NAME = 'Ofir garage';
 const WHAT = 'Garage';
@@ -50,32 +46,15 @@ const SERVICE = { name: 'Oil change', price: '200 ILS', notes: null };
 const HOURS = 'Mon–Fri 8–18';
 const HOURS_EDIT = 'Sun–Thu 9–17';
 const AREA = 'Haifa';
-const FAQ_ITEM = {
-  question: 'Do you work on trucks?',
-  answer: 'Yes, light trucks too.',
-};
-const INTAKE_ITEMS = ['name', 'phone'];
 const CUSTOMER_Q = 'How much is an oil change?';
 const CUSTOMER_A = 'An oil change is 200 ILS.';
 
-const SETUP_COMPLETE_HEAD = "🎉 I'm all set! This is what I know about your business:";
 const CHANGED_ACK = "Here's what changed:";
 const LEGACY_CARD = "Here's your bot";
 
-const ACKS = [
-  BUSINESS_DETAILS_ACK,
-  FAQ.ack,
-  INTAKE.ack,
-  CHANGED_ACK,
-  SETUP_COMPLETE_HEAD,
-];
+const ACKS = [BUSINESS_DETAILS_ACK, CHANGED_ACK, READY_OPENER];
 
-const SCRIPT_QUESTIONS = [
-  { id: 'tell-more', needle: BUSINESS_DETAILS_MARKER },
-  { id: 'goal', needle: OWNER_GOAL_QUESTION },
-  { id: 'faq', needle: FAQ.question },
-  { id: 'intake', needle: INTAKE.question },
-];
+const SCRIPT_QUESTIONS = [{ id: 'tell-more', needle: BUSINESS_DETAILS_MARKER }];
 
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
@@ -86,8 +65,6 @@ function draft(overrides = {}) {
   return {
     name: NAME,
     whatWeDo: WHAT,
-    ownerGoal: null,
-    ownerGoalRequested: null,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -107,16 +84,6 @@ function fullFacts(overrides = {}) {
     services: [SERVICE],
     hours: HOURS,
     locationOrArea: AREA,
-    ...overrides,
-  });
-}
-
-function readyFacts(overrides = {}) {
-  return fullFacts({
-    ownerGoal: 'answer_and_collect',
-    ownerGoalRequested: 'answer questions and take customer details',
-    commonQuestions: [FAQ_ITEM],
-    informationToCollect: INTAKE_ITEMS,
     ...overrides,
   });
 }
@@ -153,7 +120,7 @@ function countNeedle(text, needle) {
   return n;
 }
 
-/** One required-topic / goal question per reply; the same ack only once. */
+/** One tell-me-more question per reply; the same ack only once. */
 function assertReplyShape(reply, label) {
   const text = String(reply || '');
   const present = SCRIPT_QUESTIONS.filter((q) => text.includes(q.needle)).map((q) => q.id);
@@ -173,16 +140,12 @@ function expectedTellMore(forDraft = draft()) {
   return `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(forDraft)}`;
 }
 
-function expectedFaq() {
-  return `${FAQ.ack}\n\n${FAQ.question}`;
+function expectedReadyFirst(leadOption = false) {
+  return composeReply({ kind: 'ready_first', menuOpts: { leadOption } }).reply;
 }
 
-function expectedIntake() {
-  return `${INTAKE.ack}\n\n${INTAKE.question}`;
-}
-
-function expectedMenu() {
-  return renderChangeMenu({ leadOption: true });
+function expectedMenu(leadOption = false) {
+  return renderChangeMenu({ leadOption });
 }
 
 function opening() {
@@ -328,7 +291,7 @@ function wake(text = 'hello') {
 
 function nameWhatTellMore() {
   return {
-    name: 'name+what → Nice! tell-more with only missing bullets',
+    name: 'name+what → Nice! tell-more with the two-line copy',
     in: `${NAME}, a ${WHAT.toLowerCase()}`,
     model: modelTurn(draft(), {
       message: "Ofir Garage is your garage ✨ What's next?",
@@ -341,105 +304,58 @@ function nameWhatTellMore() {
       askedTopics: ['businessDetails'],
       approvedAt: null,
       includes: [
-        '🛠️ What services do you offer, and how much do they cost?',
-        '🕒 What are your opening hours?',
-        '📍 Where are you located?',
+        `Tell me a bit more about ${NAME} (services and prices, opening hours, location, or anything else you'd like me to know).`,
+        'Or say "skip" for now.',
       ],
-      excludes: ["What's next?"],
+      excludes: ["What's next?", '🛠️', 'For example:'],
     },
   };
 }
 
-function tellMoreAnswerThenGoal(nextDraft = fullFacts()) {
+function tellMoreThenReady(nextDraft = fullFacts(), inbound = 'Oil change 200 ILS, Mon–Fri 8–18, Haifa') {
   return {
-    name: 'tell-more answer → scripted goal question',
-    in: 'Oil change 200 ILS, Mon–Fri 8–18, Haifa',
+    name: 'tell-more answer → ready_first menu without lead',
+    in: inbound,
     model: modelTurn(nextDraft, {
       message: 'Noted the hours, services, and location ✨',
     }),
     expect: {
       event: 'build_turn',
-      reply: `Noted the hours, services, and location ✨\n\n${OWNER_GOAL_QUESTION}`,
+      reply: expectedReadyFirst(false),
       askedTopics: ['businessDetails'],
-      approvedAt: null,
-      excludes: [FAQ.question, INTAKE.question, BUSINESS_DETAILS_MARKER],
-    },
-  };
-}
-
-function goalThenFaq(nextDraft) {
-  return {
-    name: 'goal answer → scripted FAQ',
-    in: 'answer questions and take customer details',
-    model: modelTurn(nextDraft, {
-      message: 'Answering questions and collecting details will help ✨',
-    }),
-    expect: {
-      event: 'build_turn',
-      reply: expectedFaq(),
-      askedTopics: ['businessDetails', 'commonQuestions'],
-      approvedAt: null,
-      excludes: [INTAKE.question, OWNER_GOAL_QUESTION],
-    },
-  };
-}
-
-function faqThenIntake(nextDraft) {
-  return {
-    name: 'FAQ answer → scripted intake',
-    in: 'Customers ask if we work on trucks. Yes, light trucks too.',
-    model: modelTurn(nextDraft, {
-      message: 'Got those answers ✨',
-    }),
-    expect: {
-      event: 'build_turn',
-      reply: expectedIntake(),
-      askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
-      approvedAt: null,
-      excludes: [FAQ.question, OWNER_GOAL_QUESTION],
-    },
-  };
-}
-
-function intakeThenCard(nextDraft, askedTopics) {
-  return {
-    name: 'intake answer → setup-complete card',
-    in: 'name and phone',
-    model: modelTurn(nextDraft, {
-      message: `${NAME} repairs cars ✨`,
-      asksQuestion: false,
-    }),
-    expect: {
-      event: 'build_turn',
-      mode: 'BUILD',
-      reply: ({ profile }) => renderSetupComplete(profile),
-      startsWith: SETUP_COMPLETE_HEAD,
-      approvedAt: true,
-      askedTopics,
-      nav: 'review',
-      excludes: [LEGACY_CARD, 'How I talk: default'],
-    },
-  };
-}
-
-function keepTeaching() {
-  return {
-    name: 'keep teaching → editing menu',
-    in: 'keep teaching me',
-    expect: {
-      event: 'menu',
-      mode: 'BUILD',
-      reply: expectedMenu(),
       approvedAt: true,
       nav: 'menu',
-      excludes: [LEGACY_CARD],
+      startsWith: READY_OPENER,
+      includes: ['1. 🏪 Tell me more about your business', '3. 📝 Choose details to collect from customers'],
+      excludes: [LEGACY_CARD, '🚀 Get me working for your business', BUSINESS_DETAILS_MARKER],
+    },
+  };
+}
+
+function skipTellMoreThenReady() {
+  return {
+    name: 'skip tell-more → ready_first menu without lead',
+    in: 'skip',
+    model: modelTurn(draft({ askedTopics: ['businessDetails'] }), {
+      message: `${NAME} is your garage ✨`,
+      readyForReview: true,
+      topicResponse: 'skipped',
+    }),
+    expect: {
+      event: 'build_turn',
+      reply: expectedReadyFirst(false),
+      askedTopics: ['businessDetails'],
+      approvedAt: true,
+      nav: 'menu',
+      startsWith: READY_OPENER,
+      excludes: [LEGACY_CARD, BUSINESS_DETAILS_MARKER, '🚀 Get me working for your business'],
     },
   };
 }
 
 function editHours(nextDraft) {
   return {
-    name: 'edit hours → single Here\'s what changed + save card',
+    name: "edit hours → Here's what changed + main menu",
     in: `hours are now ${HOURS_EDIT}`,
     model: modelTurn(nextDraft, {
       message: 'Ready for review.',
@@ -448,10 +364,10 @@ function editHours(nextDraft) {
     }),
     expect: {
       event: 'build_turn',
-      reply: ({ before, profile }) => renderSavedChanges(before, profile),
+      reply: ({ before, profile }) => renderSavedChanges(before, profile, { leadOption: false }),
       startsWith: CHANGED_ACK,
       approvedAt: true,
-      nav: 'review',
+      nav: 'menu',
       includes: [`*Hours:* ${HOURS_EDIT}`],
       excludes: ['Ready for review.', LEGACY_CARD],
     },
@@ -460,8 +376,8 @@ function editHours(nextDraft) {
 
 function tryMyBot() {
   return {
-    name: 'Try my bot → TEST banners',
-    in: '1',
+    name: '5 from ready menu → TEST banners',
+    in: '5',
     expect: {
       event: 'enter_test',
       mode: 'TEST',
@@ -488,13 +404,13 @@ function customerReply() {
 
 function stopToMenu() {
   return {
-    name: 'stop → exit banner + menu',
+    name: 'stop → exit banner + menu with lead',
     in: 'stop',
     expect: {
       event: 'enter_build',
       mode: 'BUILD',
       reply: exitTestBanner(),
-      replies: [exitTestBanner(), expectedMenu()],
+      replies: [exitTestBanner(), expectedMenu(true)],
       approvedAt: true,
       nav: 'menu',
       excludes: [LEGACY_CARD],
@@ -502,27 +418,12 @@ function stopToMenu() {
   };
 }
 
-await test('happy path: wake → tell-more → goal → FAQ → intake → card → edit → TEST → stop', async () => {
+await test('happy path: wake → tell-more → hours → ready_first → edit → TEST → stop', async () => {
   await playFlow([
     wake('hello'),
     nameWhatTellMore(),
-    tellMoreAnswerThenGoal(),
-    goalThenFaq(fullFacts({
-      ownerGoal: 'answer_and_collect',
-      ownerGoalRequested: 'answer questions and take customer details',
-    })),
-    faqThenIntake(fullFacts({
-      ownerGoal: 'answer_and_collect',
-      ownerGoalRequested: 'answer questions and take customer details',
-      commonQuestions: [FAQ_ITEM],
-    })),
-    intakeThenCard(readyFacts(), [
-      'businessDetails',
-      'commonQuestions',
-      'informationToCollect',
-    ]),
-    keepTeaching(),
-    editHours(readyFacts({ hours: HOURS_EDIT })),
+    tellMoreThenReady(),
+    editHours(fullFacts({ hours: HOURS_EDIT, askedTopics: ['businessDetails'] })),
     tryMyBot(),
     customerReply(),
     stopToMenu(),
@@ -533,7 +434,7 @@ await test('everything in the first interview message skips tell-more', async ()
   await playFlow([
     wake(),
     {
-      name: 'full dump → goal, no tell-more',
+      name: 'full dump → ready_first, no tell-more',
       in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
       model: modelTurn(fullFacts(), {
         message: 'Got it, thanks!',
@@ -541,236 +442,93 @@ await test('everything in the first interview message skips tell-more', async ()
       }),
       expect: {
         event: 'build_turn',
-        reply: `Got it, thanks!\n\n${OWNER_GOAL_QUESTION}`,
+        reply: expectedReadyFirst(false),
         askedTopics: [],
-        approvedAt: null,
-        excludes: [BUSINESS_DETAILS_MARKER, BUSINESS_DETAILS_ACK, FAQ.question],
+        approvedAt: true,
+        nav: 'menu',
+        startsWith: READY_OPENER,
+        excludes: [BUSINESS_DETAILS_MARKER, BUSINESS_DETAILS_ACK, LEGACY_CARD],
       },
     },
   ]);
 });
 
-await test('partial tell-more answer still advances to the goal', async () => {
+await test('partial tell-more answer still presents ready', async () => {
   await playFlow([
     wake(),
     nameWhatTellMore(),
     {
-      name: 'hours only → goal, do not re-ask tell-more',
+      name: 'hours only → ready_first, do not re-ask tell-more',
       in: 'we are open weekdays 8 to 6',
-      model: modelTurn(draft({ hours: HOURS }), {
+      model: modelTurn(draft({ hours: HOURS, askedTopics: ['businessDetails'] }), {
         message: 'Noted the hours.',
         readyForReview: true,
       }),
       expect: {
         event: 'build_turn',
-        reply: `Noted the hours.\n\n${OWNER_GOAL_QUESTION}`,
+        reply: expectedReadyFirst(false),
         askedTopics: ['businessDetails'],
-        approvedAt: null,
-        excludes: [BUSINESS_DETAILS_MARKER, FAQ.question, INTAKE.question],
+        approvedAt: true,
+        nav: 'menu',
+        startsWith: READY_OPENER,
+        excludes: [BUSINESS_DETAILS_MARKER, LEGACY_CARD],
       },
     },
   ]);
 });
 
-await test('skip tell-more and skip FAQ still reach the card', async () => {
+await test('skip tell-more presents ready_first', async () => {
   await playFlow([
     wake(),
     nameWhatTellMore(),
+    skipTellMoreThenReady(),
+  ]);
+});
+
+await test('model asks its own question, no wrap-up flags, still reaches ready', async () => {
+  await playFlow([
+    wake(),
     {
-      name: 'skip tell-more → goal',
-      in: 'skip',
-      model: modelTurn(draft({ askedTopics: ['businessDetails'] }), {
-        message: `${NAME} is your garage ✨`,
-        readyForReview: true,
-        topicResponse: 'skipped',
+      name: 'full dump + model question → ready_first',
+      in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
+      model: modelTurn(fullFacts(), {
+        message: 'What details should I ask customers for?',
+        asksQuestion: true,
+        readyForReview: false,
+        wantsReview: false,
+        askingTopic: null,
       }),
       expect: {
         event: 'build_turn',
-        reply: `${NAME} is your garage ✨\n\n${OWNER_GOAL_QUESTION}`,
-        askedTopics: ['businessDetails'],
-        approvedAt: null,
-        excludes: [FAQ.question, INTAKE.question, BUSINESS_DETAILS_MARKER],
-      },
-    },
-    {
-      name: 'goal after skip → FAQ',
-      in: 'just answer questions',
-      model: modelTurn(
-        draft({
-          ownerGoal: 'answer_questions',
-          ownerGoalRequested: 'just answer questions',
-        }),
-        { message: 'Answering questions it is ✨' }
-      ),
-      expect: {
-        event: 'build_turn',
-        reply: expectedFaq(),
-        askedTopics: ['businessDetails', 'commonQuestions'],
-        approvedAt: null,
-      },
-    },
-    {
-      name: 'skip FAQ → intake (no stall)',
-      in: 'skip',
-      model: modelTurn(
-        draft({
-          ownerGoal: 'answer_questions',
-          ownerGoalRequested: 'just answer questions',
-        }),
-        {
-          message: `${NAME} is your garage ✨`,
-          asksQuestion: true,
-          readyForReview: false,
-          wantsReview: false,
-          topicResponse: 'skipped',
-        }
-      ),
-      expect: {
-        event: 'build_turn',
-        reply: withSingleQuestion(`${NAME} is your garage ✨`, INTAKE.question),
-        askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
-        approvedAt: null,
-        excludes: [FAQ.question],
-      },
-    },
-    {
-      name: 'intake none → setup-complete card',
-      in: 'none',
-      model: modelTurn(
-        draft({
-          ownerGoal: 'answer_questions',
-          ownerGoalRequested: 'just answer questions',
-          informationToCollect: [],
-        }),
-        { message: `${NAME} is your garage ✨`, asksQuestion: false }
-      ),
-      expect: {
-        event: 'build_turn',
-        reply: ({ profile }) => renderSetupComplete(profile),
-        startsWith: SETUP_COMPLETE_HEAD,
+        reply: expectedReadyFirst(false),
+        askedTopics: [],
         approvedAt: true,
-        askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
-        nav: 'review',
+        nav: 'menu',
+        startsWith: READY_OPENER,
+        excludes: ['What details should I ask customers for?', BUSINESS_DETAILS_MARKER],
       },
     },
   ]);
 });
 
-await test('#47 dead-end: model asks its own question, no wrap-up flags, still reaches the card', async () => {
+await test('"ok" after ready_first is the menu, not a leftover card', async () => {
   await playFlow([
     wake(),
     {
-      name: 'full dump → goal',
+      name: 'full dump → ready_first',
       in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
       model: modelTurn(fullFacts(), { message: 'Got it, thanks!' }),
       expect: {
-        event: 'build_turn',
-        reply: `Got it, thanks!\n\n${OWNER_GOAL_QUESTION}`,
+        reply: expectedReadyFirst(false),
         askedTopics: [],
-        approvedAt: null,
+        approvedAt: true,
+        nav: 'menu',
       },
     },
     {
-      name: 'goal + model intake question / no wrap-up flags → FAQ',
-      in: 'answer questions and take customer details',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take customer details',
-        }),
-        {
-          message: MODEL_INTAKE_Q,
-          asksQuestion: true,
-          readyForReview: false,
-          wantsReview: false,
-          askingTopic: null,
-        }
-      ),
-      expect: {
-        event: 'build_turn',
-        reply: expectedFaq(),
-        askedTopics: ['commonQuestions'],
-        approvedAt: null,
-        excludes: [MODEL_INTAKE_Q, INTAKE.question],
-      },
-    },
-    {
-      name: 'skip FAQ → intake',
-      in: 'skip',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take customer details',
-        }),
-        {
-          message: MODEL_INTAKE_Q,
-          asksQuestion: true,
-          readyForReview: false,
-          wantsReview: false,
-          topicResponse: 'skipped',
-        }
-      ),
-      expect: {
-        event: 'build_turn',
-        reply: withSingleQuestion(MODEL_INTAKE_Q, INTAKE.question),
-        askedTopics: ['commonQuestions', 'informationToCollect'],
-        approvedAt: null,
-        excludes: [MODEL_INTAKE_Q, FAQ.question],
-      },
-    },
-    intakeThenCard(
-      readyFacts(),
-      ['commonQuestions', 'informationToCollect']
-    ),
-  ]);
-});
-
-await test('"ok" after the setup-complete card is the menu, not the leftover card', async () => {
-  await playFlow([
-    wake(),
-    {
-      name: 'full dump → goal',
-      in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
-      model: modelTurn(fullFacts(), { message: 'Got it, thanks!' }),
-      expect: {
-        reply: `Got it, thanks!\n\n${OWNER_GOAL_QUESTION}`,
-        askedTopics: [],
-      },
-    },
-    {
-      name: 'goal → FAQ',
-      in: 'answer questions and take details',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take details',
-        })
-      ),
-      expect: { reply: expectedFaq(), askedTopics: ['commonQuestions'] },
-    },
-    {
-      name: 'FAQ → intake',
-      in: 'Customers ask if we work on trucks. Yes, light trucks too.',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take details',
-          commonQuestions: [FAQ_ITEM],
-        })
-      ),
-      expect: {
-        reply: expectedIntake(),
-        askedTopics: ['commonQuestions', 'informationToCollect'],
-      },
-    },
-    intakeThenCard(readyFacts({ ownerGoalRequested: 'answer questions and take details' }), [
-      'commonQuestions',
-      'informationToCollect',
-    ]),
-    {
-      name: 'ok after card → model text plus editing menu',
+      name: 'ok after ready → model text plus editing menu',
       in: 'ok',
-      model: modelTurn(readyFacts({ ownerGoalRequested: 'answer questions and take details' }), {
+      model: modelTurn(fullFacts(), {
         message: 'Here is your bot again.',
       }),
       expect: {
@@ -778,24 +536,23 @@ await test('"ok" after the setup-complete card is the menu, not the leftover car
         mode: 'BUILD',
         approvedAt: true,
         nav: 'menu',
-        includes: ['Here is your bot again.', '1. 🚀 Get me working for your business'],
-        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default'],
+        includes: ['Here is your bot again.', '1. 🏪 Tell me more about your business'],
+        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', '🚀 Get me working for your business'],
       },
     },
   ]);
 });
 
-await test('no "?" during setup still advances (before name, and after the goal)', async () => {
+await test('no "?" during setup still advances (before name, and after tell-more)', async () => {
   await playFlow([
     wake(),
     {
-      name: 'no-? ack before name attaches identity fallback, not FAQ',
+      name: 'no-? ack before name attaches identity fallback',
       in: 'a small coffee shop with pastries',
       model: modelTurn(
         {
           name: null,
           whatWeDo: 'A small coffee shop with pastries',
-          ownerGoal: null,
           services: [],
           hours: null,
           locationOrArea: null,
@@ -812,85 +569,31 @@ await test('no "?" during setup still advances (before name, and after the goal)
         reply: `A cozy coffee shop with pastries sounds lovely ✨\n\n${IDENTITY_FALLBACK_QUESTION}`,
         askedTopics: [],
         approvedAt: null,
-        excludes: [FAQ.question, INTAKE.question, OWNER_GOAL_QUESTION, BUSINESS_DETAILS_MARKER],
+        excludes: [BUSINESS_DETAILS_MARKER],
       },
     },
   ]);
 
   await playFlow([
     wake(),
+    nameWhatTellMore(),
     {
-      name: 'full dump → goal',
-      in: 'Ofir garage, a garage. Oil change 200 ILS, Mon–Fri 8–18 in Haifa.',
-      model: modelTurn(fullFacts(), { message: 'Got it, thanks!' }),
-      expect: { reply: `Got it, thanks!\n\n${OWNER_GOAL_QUESTION}` },
-    },
-    {
-      name: 'no-? ack after goal → FAQ (no stall)',
-      in: 'answer questions and take customer details',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take customer details',
-        }),
-        {
-          message: `${NAME} repairs cars ✨`,
-          asksQuestion: false,
-          readyForReview: false,
-          wantsReview: false,
-        }
-      ),
+      name: 'no-? ack after tell-more skip → ready_first',
+      in: 'skip',
+      model: modelTurn(draft({ askedTopics: ['businessDetails'] }), {
+        message: `${NAME} repairs cars ✨`,
+        asksQuestion: false,
+        readyForReview: false,
+        wantsReview: false,
+        topicResponse: 'skipped',
+      }),
       expect: {
         event: 'build_turn',
-        reply: expectedFaq(),
-        askedTopics: ['commonQuestions'],
-        approvedAt: null,
-        excludes: [INTAKE.question],
-      },
-    },
-    {
-      name: 'no-? ack after FAQ → intake',
-      in: 'skip',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take customer details',
-        }),
-        {
-          message: `${NAME} repairs cars ✨`,
-          asksQuestion: false,
-          readyForReview: false,
-          wantsReview: false,
-          topicResponse: 'skipped',
-        }
-      ),
-      expect: {
-        reply: withSingleQuestion(`${NAME} repairs cars ✨`, INTAKE.question),
-        askedTopics: ['commonQuestions', 'informationToCollect'],
-        approvedAt: null,
-      },
-    },
-    {
-      name: 'no-? ack after intake settled → card',
-      in: 'none',
-      model: modelTurn(
-        fullFacts({
-          ownerGoal: 'answer_and_collect',
-          ownerGoalRequested: 'answer questions and take customer details',
-          informationToCollect: [],
-        }),
-        {
-          message: `${NAME} repairs cars ✨`,
-          asksQuestion: false,
-          readyForReview: false,
-          wantsReview: false,
-        }
-      ),
-      expect: {
-        reply: ({ profile }) => renderSetupComplete(profile),
-        startsWith: SETUP_COMPLETE_HEAD,
+        reply: expectedReadyFirst(false),
+        askedTopics: ['businessDetails'],
         approvedAt: true,
-        nav: 'review',
+        nav: 'menu',
+        startsWith: READY_OPENER,
       },
     },
   ]);

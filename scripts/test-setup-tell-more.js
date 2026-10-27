@@ -1,23 +1,27 @@
 /**
  * Setup interview: after name + what they do, the app asks one scripted
- * tell-me-more question (missing services / hours / location only), then
- * appends the fixed owner-goal question itself. No network. Stubbed Builder.
+ * tell-me-more question, then skip / partial / dump-ahead present ready.
+ * No network. Stubbed Builder.
  */
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
-import { applyReviewGate, OWNER_GOAL_QUESTION } from '../src/builder.js';
+import { applyReviewGate } from '../src/builder.js';
 import {
   BUSINESS_DETAILS_ACK,
+  BUSINESS_DETAILS_MARKER,
   businessDetailsQuestion,
   topicByKey,
 } from '../src/builderTopics.js';
+import { businessDetailsQuestionText } from '../src/copy.js';
+import { composeReply } from '../src/composeReply.js';
 import { createSession, handleMessage } from '../src/session.js';
+import { lastShownNav } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('setup-tell-more');
 const DETAILS = topicByKey('businessDetails');
-const FAQ = topicByKey('commonQuestions');
+const NAME = 'Ofir garage';
 
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
@@ -26,9 +30,8 @@ function clean() {
 
 function nameWhatDraft(overrides = {}) {
   return {
-    name: 'Ofir garage',
+    name: NAME,
     whatWeDo: 'Garage',
-    ownerGoal: null,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -66,15 +69,12 @@ function modelTurn(draft, overrides = {}) {
   };
 }
 
-function assertEndsWithGoal(reply, label) {
-  assert.ok(
-    String(reply).endsWith(OWNER_GOAL_QUESTION),
-    `${label}: expected reply to end with OWNER_GOAL_QUESTION`
-  );
-  assert.ok(
-    !String(reply).includes(FAQ.question),
-    `${label}: FAQ must not replace the goal question`
-  );
+function expectedReadyFirst() {
+  return composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply;
+}
+
+function expectedTellMore(draft = nameWhatDraft()) {
+  return `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(draft)}`;
 }
 
 const results = [];
@@ -89,74 +89,28 @@ async function test(name, fn) {
   }
 }
 
-await test('name+what only → tell-me-more with all three bullets', () => {
+await test('name+what only → tell-me-more with the two-line copy', () => {
   const draft = nameWhatDraft();
   const gated = applyReviewGate(setupProfile(draft), modelTurn(draft), 'Ofir garage, a garage');
-  const expected = `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(draft)}`;
+  const expected = expectedTellMore(draft);
   assert.equal(gated.message, expected);
   assert.equal(gated.asksQuestion, true);
   assert.equal(gated.presentReview, false);
   assert.deepEqual(gated.draft.askedTopics, ['businessDetails']);
-  assert.ok(gated.message.includes('🛠️ What services do you offer, and how much do they cost?'));
-  assert.ok(gated.message.includes('🕒 What are your opening hours?'));
-  assert.ok(gated.message.includes('📍 Where are you located?'));
+  assert.equal(businessDetailsQuestion(draft), businessDetailsQuestionText(NAME));
   assert.equal(
     businessDetailsQuestion(draft),
     [
-      'Tell me a bit more about Ofir garage, so I can answer your customers well 🏪',
-      '',
-      'For example:',
-      '🛠️ What services do you offer, and how much do they cost?',
-      '🕒 What are your opening hours?',
-      '📍 Where are you located?',
-      '',
-      "Or anything else you'd like me to know ✨",
+      `Tell me a bit more about ${NAME} (services and prices, opening hours, location, or anything else you'd like me to know).`,
+      'Or say "skip" for now.',
     ].join('\n')
   );
+  assert.ok(gated.message.includes(BUSINESS_DETAILS_MARKER));
+  assert.ok(!gated.message.includes('🛠️'));
+  assert.ok(!gated.message.includes('For example:'));
 });
 
-await test('name+what+hours → services and location bullets only', () => {
-  const draft = nameWhatDraft({ hours: 'Mon–Fri 8–18' });
-  const gated = applyReviewGate(setupProfile(draft), modelTurn(draft), 'we open 8 to 6');
-  const expectedQ = businessDetailsQuestion(draft);
-  assert.equal(gated.message, `${BUSINESS_DETAILS_ACK}\n\n${expectedQ}`);
-  assert.ok(expectedQ.includes('🛠️ What services do you offer, and how much do they cost?'));
-  assert.ok(!expectedQ.includes('🕒 What are your opening hours?'));
-  assert.ok(expectedQ.includes('📍 Where are you located?'));
-  assert.deepEqual(gated.draft.askedTopics, ['businessDetails']);
-  assert.equal(
-    expectedQ,
-    [
-      'Tell me a bit more about Ofir garage, so I can answer your customers well 🏪',
-      '',
-      'For example:',
-      '🛠️ What services do you offer, and how much do they cost?',
-      '📍 Where are you located?',
-      '',
-      "Or anything else you'd like me to know ✨",
-    ].join('\n')
-  );
-});
-
-await test('everything present → no tell-me-more, app asks goal', () => {
-  const draft = nameWhatDraft({
-    services: [{ name: 'Oil change', price: '200 ILS', notes: null }],
-    hours: 'Mon–Fri 8–18',
-    locationOrArea: 'Haifa',
-  });
-  const gated = applyReviewGate(
-    setupProfile(draft),
-    modelTurn(draft, { message: 'Got it, thanks!', readyForReview: true }),
-    'full dump'
-  );
-  assert.ok(!gated.message.includes(DETAILS.askedMarker));
-  assert.ok(!gated.draft.askedTopics.includes('businessDetails'));
-  assertEndsWithGoal(gated.message, 'all details present');
-  assert.equal(gated.asksQuestion, true);
-  assert.equal(gated.presentReview, false);
-});
-
-await test('skip → goal question even when model text has no question', () => {
+await test('skip → presentReview true (not a follow-up question)', () => {
   const draft = nameWhatDraft({ askedTopics: ['businessDetails'] });
   const gated = applyReviewGate(
     setupProfile(draft),
@@ -168,17 +122,14 @@ await test('skip → goal question even when model text has no question', () => 
     'skip',
     { justAsked: DETAILS }
   );
-  assertEndsWithGoal(gated.message, 'skip');
-  assert.equal(
-    gated.message,
-    `Ofir Garage is your garage ✨\n\n${OWNER_GOAL_QUESTION}`
-  );
+  assert.equal(gated.presentReview, true);
+  assert.equal(gated.asksQuestion, false);
   assert.deepEqual(gated.draft.askedTopics, ['businessDetails']);
-  assert.equal(gated.asksQuestion, true);
-  assert.equal(gated.presentReview, false);
+  assert.ok(!gated.message.includes(BUSINESS_DETAILS_MARKER));
+  assert.ok(!gated.message.includes('What would you most like me to help with'));
 });
 
-await test('partial answer → goal question even when model text has no question', () => {
+await test('partial hours → presentReview true', () => {
   const draft = nameWhatDraft({
     askedTopics: ['businessDetails'],
     hours: 'Mon–Fri 8–18',
@@ -188,13 +139,30 @@ await test('partial answer → goal question even when model text has no questio
     modelTurn(draft, { message: 'Noted the hours.', readyForReview: true }),
     'we are open weekdays 8 to 6'
   );
-  assertEndsWithGoal(gated.message, 'partial');
-  assert.equal(gated.message, `Noted the hours.\n\n${OWNER_GOAL_QUESTION}`);
+  assert.equal(gated.presentReview, true);
+  assert.equal(gated.asksQuestion, false);
   assert.deepEqual(gated.draft.askedTopics, ['businessDetails']);
   assert.ok(!gated.message.includes(DETAILS.askedMarker), 'do not re-ask tell-me-more');
 });
 
-await test('handleBuild skip after tell-me-more asks the goal', async () => {
+await test('dump-ahead all details → presentReview true, no businessDetails ask', () => {
+  const draft = nameWhatDraft({
+    services: [{ name: 'Oil change', price: '200 ILS', notes: null }],
+    hours: 'Mon–Fri 8–18',
+    locationOrArea: 'Haifa',
+  });
+  const gated = applyReviewGate(
+    setupProfile(draft),
+    modelTurn(draft, { message: 'Got it, thanks!', readyForReview: true }),
+    'full dump'
+  );
+  assert.equal(gated.presentReview, true);
+  assert.equal(gated.asksQuestion, false);
+  assert.ok(!gated.message.includes(DETAILS.askedMarker));
+  assert.ok(!gated.draft.askedTopics.includes('businessDetails'));
+});
+
+await test('handleBuild skip after tell-me-more writes approvedAt and ready_first', async () => {
   const draft = nameWhatDraft({ askedTopics: ['businessDetails'] });
   clean();
   saveProfile(setupProfile(draft), PROFILE);
@@ -207,16 +175,21 @@ await test('handleBuild skip after tell-me-more asks the goal', async () => {
   });
   session.mode = 'BUILD';
   session.buildHistory = [
-    { role: 'assistant', content: BUSINESS_DETAILS_ACK + '\n\n' + businessDetailsQuestion(draft), asksQuestion: true },
+    {
+      role: 'assistant',
+      content: expectedTellMore(draft),
+      asksQuestion: true,
+    },
   ];
 
   const out = await handleMessage(session, 'skip');
   assert.equal(out.ok, true);
   assert.equal(out.event, 'build_turn');
-  assertEndsWithGoal(out.reply, 'handleBuild skip');
-  assert.equal(session.buildHistory.at(-1).asksQuestion, true);
+  assert.equal(out.reply, expectedReadyFirst());
+  assert.equal(session.buildHistory.at(-1).asksQuestion, false);
+  assert.equal(lastShownNav(session.buildHistory), 'menu');
   assert.deepEqual(loadProfile(PROFILE).draft.askedTopics, ['businessDetails']);
-  assert.equal(loadProfile(PROFILE).approvedAt, null);
+  assert.ok(loadProfile(PROFILE).approvedAt, 'approvedAt must be written on handleBuild skip');
 });
 
 const failed = results.filter((r) => !r.pass);

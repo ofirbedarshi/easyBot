@@ -7,7 +7,6 @@ import {
   identityResetFlag,
   normalizeCommonQuestions,
   normalizeIdentityText,
-  normalizeOwnerGoal,
   normalizePriceDisclosure,
 } from './profile.js';
 
@@ -103,8 +102,6 @@ function unionStrings(prevList, incoming) {
 const DELTA_TEXT_KEYS = [
   'name',
   'whatWeDo',
-  'ownerGoal',
-  'ownerGoalRequested',
   'hours',
   'locationOrArea',
   'tone',
@@ -297,13 +294,6 @@ export function reconcileDraft(draft, currentDraft) {
   } else if (next.informationToCollect === undefined && prev.informationToCollect === null) {
     next.informationToCollect = null;
   }
-
-  next.ownerGoal =
-    normalizeOwnerGoal(next.ownerGoal) ?? normalizeOwnerGoal(prev.ownerGoal) ?? null;
-  next.ownerGoalRequested =
-    normalizeIdentityText(next.ownerGoalRequested) ??
-    normalizeIdentityText(prev.ownerGoalRequested) ??
-    null;
 
   if ((next.tone == null || next.tone === '') && prev.tone) {
     next.tone = prev.tone;

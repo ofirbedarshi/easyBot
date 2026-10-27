@@ -150,11 +150,6 @@ async function replayBuilderGoal() {
       content: "What's the name of your hair salon?",
     },
     { role: 'user', content: 'Harbor Cuts' },
-    {
-      role: 'assistant',
-      content:
-        "What's the main thing you'd like your bot to do for your business?",
-    },
   ];
   const raw = await runBuilderTurn({
     buildHistory,
@@ -166,8 +161,8 @@ async function replayBuilderGoal() {
     justAsked: topicJustAsked(buildHistory),
   });
   return {
-    ownerGoal: gated.draft?.ownerGoal,
-    goalSupported: raw.goalSupported,
+    asksTellMore: /Or say "skip" for now/.test(gated.message),
+    presentReview: gated.presentReview === true,
     message: gated.message,
     hasUnavailableLine: /isn't available yet/i.test(gated.message),
   };
@@ -189,7 +184,7 @@ async function main() {
   const builder = await replayBuilderGoal();
   console.log(JSON.stringify(builder, null, 2));
 
-  const ok = bot.score.pass && !builder.hasUnavailableLine;
+  const ok = bot.score.pass && builder.asksTellMore && !builder.hasUnavailableLine;
   cost.print();
   if (!ok) {
     console.error('\nREPLAY FAIL');

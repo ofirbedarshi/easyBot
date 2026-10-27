@@ -9,38 +9,26 @@ export const OPENING_MESSAGE =
 export const IDENTITY_FALLBACK_QUESTION =
   "First of all, what's your business called, and what does it do?";
 
-export const OWNER_GOAL_QUESTION =
-  "Now tell me, how can I help you the most? 🌟\n\nFor example, I can:\n💬 Answer your customers' questions\n📝 Ask customers for their details and pass them on to you\n\nOr anything else you have in mind 😊";
-
-export const GOAL_FALLBACK_DISCLAIMER =
-  "I'd love to! 😊 Right now I can answer your customers' questions and collect their details for you. More is coming soon ✨";
-
 export const OFF_PURPOSE_OWNER_REPLY =
   "I'm here to help small businesses chat with their customers 😊 Want to tell me about your business?";
 
 export const PARSE_FALLBACK_MESSAGE = 'Tell me a bit more about your business.';
 
 export const BUSINESS_DETAILS_ACK = 'Nice! ✨';
-export const BUSINESS_DETAILS_MARKER = 'so I can answer your customers well 🏪';
-export const SERVICE_BULLET = '🛠️ What services do you offer, and how much do they cost?';
-export const HOURS_BULLET = '🕒 What are your opening hours?';
-export const LOCATION_BULLET = '📍 Where are you located?';
-export const BUSINESS_DETAILS_EXAMPLE = 'For example:';
-export const BUSINESS_DETAILS_OR_ELSE = "Or anything else you'd like me to know ✨";
+export const BUSINESS_DETAILS_SKIP_LINE = 'Or say "skip" for now.';
+export const BUSINESS_DETAILS_MARKER = BUSINESS_DETAILS_SKIP_LINE;
 
-export const FAQ_ACK = 'Got it! 💛';
-export const FAQ_QUESTION =
-  'What do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.';
+export function businessDetailsQuestionText(name) {
+  const biz = String(name || '').trim();
+  return [
+    `Tell me a bit more about ${biz} (services and prices, opening hours, location, or anything else you'd like me to know).`,
+    BUSINESS_DETAILS_SKIP_LINE,
+  ].join('\n');
+}
 
-export const INTAKE_ACK = 'Perfect, noted! ✨';
-export const INTAKE_QUESTION =
-  'One last thing before we wrap up 🙌\nShould I collect any details from customers in the chat? For example, their name, phone number, etc.\nIf not, just say "none".';
+export const READY_OPENER = "I'm ready for a first try! 🎉";
 
-export const OWNER_GOAL_LABELS = {
-  answer_questions: 'Answer customer questions',
-  collect_details: 'Collect details from interested customers',
-  answer_and_collect: 'Answer customer questions and collect their details',
-};
+export const INTAKE_MENU_LABEL = '📝 Choose details to collect from customers';
 
 export const PRICE_POLICY_OWNER_LABELS = {
   relevant: "I mention prices when they're relevant",
@@ -66,6 +54,8 @@ export const NAV = {
   menuHint: 'Type *menu* to go back to the main menu.',
   notAdded: 'not added yet',
   noQuestions: 'No questions yet.',
+  intakeIntro: "📝 These are the details I'll ask customers for:",
+  noIntake: 'No details yet.',
   fields: {
     name: 'Name',
     whatYouDo: 'What you do',
@@ -89,7 +79,6 @@ export const REVIEW = {
     hours: 'Hours',
     pricePolicy: 'Price policy',
     unknowns: 'Not decided',
-    goal: 'My goal',
     intake: "I'll ask customers for",
     faq: 'Q&A',
     talks: 'How I talk',
@@ -109,14 +98,10 @@ export const REVIEW = {
   customOpening: 'custom opening',
   changesIntro: "Here's what changed:",
   optionsPrompt: 'What should we do next?',
-  options: ['🤖 Chat with me like a customer', '✏️ Keep teaching me'],
-  optionsFooter: '(or just tell me what to learn 🙂)',
   changeAsk: 'What should we do next?',
 };
 
 export const OTHER_FACTS_LABEL = 'Other facts';
-
-export const SETUP_COMPLETE_INTRO = "🎉 I'm all set! This is what I know about your business:";
 
 export const CHANGE_LABELS = {
   name: NAV.fields.name,
@@ -179,6 +164,21 @@ export const LEAD_MENU_LABEL = 'Get me working for your business';
 export const LEAD_INTRO = "Awesome! So glad you're interested 🙌";
 export const LEAD_BRIDGE =
   "Great! To get things moving, I'd love you to answer a few quick questions 😊";
+
+export function leadWhatToDoQuestion(name) {
+  const biz =
+    typeof name === 'string' && name.trim() ? name.trim() : FALLBACK_BUSINESS_NAME;
+  return [
+    `What would you like me to do for ${biz}? 🤔`,
+    'For example:',
+    "💬 Answer customers' questions",
+    '📝 Collect customer details and pass them on to you',
+    '📅 Book appointments in your calendar',
+    '🔍 Filter out non-serious inquiries',
+    '💰 Help push customers toward a sale',
+    'Or anything else you have in mind 😊',
+  ].join('\n');
+}
 export const LEAD_THANKS_YES = "Thanks! We'll get back to you soon 🙏";
 export const LEAD_THANKS_NO = "Thanks! We got your details 🙏";
 export const LEAD_ALREADY_SENT = "You've already sent your request. We'll get back to you soon.";
@@ -189,6 +189,9 @@ export const LEAD_STEPS = {
   contactConsent: {
     text: 'Can we contact you on this number to follow up and help you get started? 📞',
     options: ['✅ Yes, sure', '❌ No, thanks'],
+  },
+  whatToDo: {
+    text: leadWhatToDoQuestion,
   },
   channels: {
     text: 'Where would you like me to work? (you can pick more than one, e.g. "1, 3")',

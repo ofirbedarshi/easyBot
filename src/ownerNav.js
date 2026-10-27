@@ -1,6 +1,7 @@
 import { LEAD_MENU_LABEL } from './copy.js';
 import {
   composeReply,
+  menuItems,
   sectionLines,
   summaryLines,
 } from './composeReply.js';
@@ -52,20 +53,13 @@ export function isMenuRequest(text) {
 }
 
 /** Standalone 1–max (optional trailing "." or ")"), else null. */
-export function parseMenuChoice(text, max = 5) {
+export function parseMenuChoice(text, max = 9) {
   const m = /^\s*(\d)\s*[.)]?\s*$/.exec(String(text || ''));
   const n = m ? Number(m[1]) : 0;
   return n >= 1 && n <= max ? n : null;
 }
 
-/**
- * Ordered editing-menu items: 'lead', sections 1–3 (numbers), 'try'.
- * Rendering and number parsing both use this list, so a picked number always
- * maps to the item shown at that position.
- */
-export function menuItems({ leadOption = false } = {}) {
-  return [...(leadOption ? ['lead'] : []), 1, 2, 3, 'try'];
-}
+export { menuItems };
 
 /** Bare menu number → item from `menuItems(menuOpts)`, else null. */
 export function parseMenuItem(text, menuOpts) {
@@ -116,24 +110,21 @@ export function renderReturnToEditing(menuOpts) {
 
 export { summaryLines, sectionLines, LEAD_MENU_LABEL };
 
-/** Two review options (1 Chat with me like a customer, 2 Keep teaching me). */
-export function renderReviewOptions() {
-  return composeReply({ kind: 'review_options' }).reply;
+/**
+ * Save confirmation: changed lines (new values only), then the main menu.
+ */
+export function renderSavedChanges(before, after, menuOpts) {
+  return composeReply({
+    kind: 'saved_changes',
+    prior: before,
+    profile: after,
+    menuOpts,
+  }).reply;
 }
 
-/**
- * Save confirmation: changed lines (new values only), then next-step options.
- */
-export function renderSavedChanges(before, after) {
-  return composeReply({ kind: 'saved_changes', prior: before, profile: after }).reply;
-}
-
-/**
- * First-approval card: the 🏪 business lines, then the two next-step options.
- * No model text. Later edits use renderSavedChanges (changed fields only).
- */
-export function renderSetupComplete(profile) {
-  return composeReply({ kind: 'setup_complete', profile }).reply;
+/** First-ready: opener plus the main menu. */
+export function renderReadyFirst(menuOpts) {
+  return composeReply({ kind: 'ready_first', menuOpts }).reply;
 }
 
 /**
@@ -149,24 +140,18 @@ export function renderChangeMenu(menuOpts) {
   return composeReply({ kind: 'change_menu', menuOpts }).reply;
 }
 
-const REVIEW_TRY = new Set(['chat with me like a customer', 'try', 'try it']);
-const REVIEW_CHANGE = new Set(['keep teaching me', 'change', 'changes']);
+const TRY_WORDS = new Set(['chat with me like a customer', 'try', 'try it']);
 
-const REVIEW_NUMBER = /^\s*([12])\s*[.)]?\s*$/;
-
-/** 1 / "chat with me like a customer" → 'try'; 2 / "keep teaching me" → 'change'; else null. */
+/** "chat with me like a customer" / "try" / "try it" while a menu is showing. */
 export function parseReviewChoice(text) {
-  const m = REVIEW_NUMBER.exec(String(text || ''));
-  if (m) return m[1] === '1' ? 'try' : 'change';
   const s = normalizeShort(text);
-  if (REVIEW_TRY.has(s)) return 'try';
-  if (REVIEW_CHANGE.has(s)) return 'change';
+  if (TRY_WORDS.has(s)) return 'try';
   return null;
 }
 
-/** Standalone 1 or 2 (optional trailing "." or ")"), matching the review options. */
+/** Bare digits are menu numbers, not try-words. */
 export function isReviewNumberChoice(text) {
-  return REVIEW_NUMBER.test(String(text || ''));
+  return parseMenuChoice(text, 9) != null;
 }
 
 /**
@@ -180,7 +165,7 @@ export function interveningBuilderQuestion(buildHistory) {
   return last.asksQuestion === true;
 }
 
-/** True when the latest assistant Builder entry was the two-option review. */
+/** True when the latest assistant Builder entry was the two-option review. Dead. */
 export function reviewActive(buildHistory) {
   return lastAssistant(buildHistory)?.nav === 'review';
 }

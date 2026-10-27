@@ -3,11 +3,10 @@
  * persisted askedTopics, and a pure advance function. The model extracts
  * facts and may write a short ack; it does not pick the next question.
  *
- * `draft.askedTopics` is the only persisted progress (app-owned, same as
- * today). `setupStep` is derived from field presence + that list.
+ * `draft.askedTopics` is the only persisted progress (app-owned).
+ * `setupStep` is derived from field presence + that list.
  */
 import { IDENTITY_FALLBACK_QUESTION } from './copy.js';
-import { normalizeOwnerGoal } from './profile.js';
 import {
   businessDetailsSettled,
   hasNameAndWhat,
@@ -17,30 +16,11 @@ import {
 
 export { IDENTITY_FALLBACK_QUESTION };
 
-export const SETUP_STEPS = Object.freeze([
-  'identity',
-  'businessDetails',
-  'goal',
-  'faq',
-  'intake',
-  'complete',
-]);
-
-const WRAP_UP_ASKED_KEYS = new Set(['commonQuestions', 'informationToCollect']);
+export const SETUP_STEPS = Object.freeze(['identity', 'businessDetails', 'complete']);
 
 function askedList(draft, askedTopics) {
   if (Array.isArray(askedTopics)) return askedTopics;
   return Array.isArray(draft?.askedTopics) ? draft.askedTopics : [];
-}
-
-function faqSettled(draft, asked) {
-  const topic = topicByKey('commonQuestions');
-  return !!(topic && (topic.isAnswered(draft) || asked.includes(topic.key)));
-}
-
-function intakeSettled(draft) {
-  const topic = topicByKey('informationToCollect');
-  return !!(topic && topic.isAnswered(draft));
 }
 
 /**
@@ -48,44 +28,29 @@ function intakeSettled(draft) {
  * (the stored list). During a turn, pass prior-asked so this turn's
  * question is not treated as already settled.
  *
- * Forward-only: once a wrap-up key is asked or `ownerGoal` is set, do not
- * return to identity / tell-me-more / goal.
+ * Forward-only: once tell-me-more is asked, do not return to identity.
  *
  * @param {object|null|undefined} draft
  * @param {string[]} [askedTopics]
- * @returns {'identity'|'businessDetails'|'goal'|'faq'|'intake'|'complete'}
+ * @returns {'identity'|'businessDetails'|'complete'}
  */
 export function setupStep(draft, askedTopics) {
   const asked = askedList(draft, askedTopics);
-  const goalSet = !!normalizeOwnerGoal(draft?.ownerGoal);
-  const wrapAsked = asked.some((k) => WRAP_UP_ASKED_KEYS.has(k));
-  const leftIdentity = hasNameAndWhat(draft) || asked.length > 0 || goalSet || wrapAsked;
+  const leftIdentity = hasNameAndWhat(draft) || asked.length > 0;
 
   if (!hasNameAndWhat(draft) && !leftIdentity) return 'identity';
-  if (!wrapAsked && !goalSet) {
-    if (!businessDetailsSettled(draft, asked)) return 'businessDetails';
-    return 'goal';
-  }
-  if (!faqSettled(draft, asked)) return 'faq';
-  if (!intakeSettled(draft)) return 'intake';
+  if (!businessDetailsSettled(draft, asked)) return 'businessDetails';
   return 'complete';
 }
 
 function topicForStep(step) {
   if (step === 'businessDetails') return topicByKey('businessDetails');
-  if (step === 'faq') return topicByKey('commonQuestions');
-  if (step === 'intake') return topicByKey('informationToCollect');
   return null;
 }
 
 /** Fixed ack only on the first ask, and only if the previous step has an answer. */
 function previousStepAnswered(step, draft) {
   if (step === 'businessDetails') return hasNameAndWhat(draft);
-  if (step === 'faq') return !!normalizeOwnerGoal(draft?.ownerGoal);
-  if (step === 'intake') {
-    const faq = topicByKey('commonQuestions');
-    return !!(faq && faq.isAnswered(draft));
-  }
   return false;
 }
 
@@ -108,11 +73,6 @@ function detailsGained(before, after) {
   );
 }
 
-function faqGained(before, after) {
-  const topic = topicByKey('commonQuestions');
-  return !!(topic && topic.isAnswered(after) && !topic.isAnswered(before));
-}
-
 function justAskedKeyOf(justAsked) {
   if (!justAsked) return null;
   if (typeof justAsked === 'string') return justAsked;
@@ -127,7 +87,6 @@ function shouldStayOnOptional(topicKey, input, draft) {
   if (topic?.isAnswered(draft)) return false;
   const prior = input.priorDraft || {};
   if (topicKey === 'businessDetails' && detailsGained(prior, draft)) return false;
-  if (topicKey === 'commonQuestions' && faqGained(prior, draft)) return false;
   return true;
 }
 
@@ -135,15 +94,6 @@ function shouldStayOnOptional(topicKey, input, draft) {
  * Advance the agenda after extraction. Does not read owner text. The model
  * no longer returns flow flags; this function never did.
  *
- * @param {{
- *   priorAsked?: string[],
- *   draftAfterExtract?: object,
- *   modelMessage?: string,
- *   unresolvedConfig?: boolean,
- *   topicResponse?: string|null,
- *   justAsked?: { key?: string }|string|null,
- *   priorDraft?: object,
- * }} [input]
  * @returns {{
  *   step: string,
  *   askedTopics: string[],
@@ -178,11 +128,6 @@ export function stepSetupAgenda(input = {}) {
     priorAsked.includes('businessDetails')
   ) {
     step = 'businessDetails';
-  } else if (
-    shouldStayOnOptional('commonQuestions', input, draft) &&
-    priorAsked.includes('commonQuestions')
-  ) {
-    step = 'faq';
   }
 
   if (step === 'identity') {
@@ -192,19 +137,6 @@ export function stepSetupAgenda(input = {}) {
       askedTopics: priorAsked,
       topic: null,
       question: needsFallback ? IDENTITY_FALLBACK_QUESTION : null,
-      ack: null,
-      presentComplete: false,
-      stay: false,
-      keepLead: false,
-    };
-  }
-
-  if (step === 'goal') {
-    return {
-      step,
-      askedTopics: priorAsked,
-      topic: null,
-      question: null,
       ack: null,
       presentComplete: false,
       stay: false,
@@ -228,8 +160,7 @@ export function stepSetupAgenda(input = {}) {
   const topic = topicForStep(step);
   const askedTopics = topic ? [...new Set([...priorAsked, topic.key])] : priorAsked;
   const keepLead =
-    (step === 'businessDetails' && shouldStayOnOptional('businessDetails', input, draft)) ||
-    (step === 'faq' && shouldStayOnOptional('commonQuestions', input, draft));
+    step === 'businessDetails' && shouldStayOnOptional('businessDetails', input, draft);
   return {
     step,
     askedTopics,

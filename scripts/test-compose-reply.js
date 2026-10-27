@@ -9,12 +9,9 @@ import {
   BOT_ERROR_REPLY,
   BUILDER_ERROR_PREFIX,
   BUSINESS_DETAILS_ACK,
-  FAQ_ACK,
-  FAQ_QUESTION,
   GENERIC_ERROR_REPLY,
   IDENTITY_FALLBACK_QUESTION,
-  INTAKE_ACK,
-  INTAKE_QUESTION,
+  INTAKE_MENU_LABEL,
   LEAD_ALREADY_SENT,
   LEAD_BRIDGE,
   LEAD_INTRO,
@@ -27,11 +24,10 @@ import {
   NAV,
   OFF_PURPOSE_OWNER_REPLY,
   OPENING_MESSAGE,
-  OWNER_GOAL_QUESTION,
   PARSE_FALLBACK_MESSAGE,
+  READY_OPENER,
   RESET_REPLY,
   REVIEW,
-  SETUP_COMPLETE_INTRO,
   TEST_REFUSE,
   defaultCustomerOpeningText,
   enterTestBannerText,
@@ -46,12 +42,11 @@ import {
 import {
   renderChangeMenu,
   renderMenu,
+  renderReadyFirst,
   renderReview,
-  renderReviewOptions,
   renderReturnToEditing,
   renderSavedChanges,
   renderSection,
-  renderSetupComplete,
   renderSetupContinue,
 } from '../src/ownerNav.js';
 
@@ -64,7 +59,6 @@ const salon = {
   hours: 'Sun–Thu 8–20',
   locationOrArea: 'Tel Aviv',
   priceDisclosure: 'relevant',
-  ownerGoal: 'answer_questions',
   informationToCollect: ['name', 'phone'],
   commonQuestions: [{ question: 'Do you have parking?', answer: 'Yes, on the street.' }],
   unknowns: [],
@@ -81,7 +75,6 @@ const empty = {
   hours: null,
   locationOrArea: null,
   priceDisclosure: null,
-  ownerGoal: null,
   informationToCollect: null,
   commonQuestions: [],
 };
@@ -90,24 +83,21 @@ const menuLead = { leadOption: true };
 const menuNoLead = { leadOption: false };
 
 function menuText(opts) {
-  const items = [...(opts.leadOption ? ['lead'] : []), 1, 2, 3, 'try'];
-  const label = (item) =>
-    item === 'lead' ? `🚀 ${LEAD_MENU_LABEL}` : item === 'try' ? NAV.menu[3] : NAV.menu[item - 1];
+  const items = [...(opts.leadOption ? ['lead'] : []), 1, 2, 'intake', 3, 'try'];
+  const label = (item) => {
+    if (item === 'lead') return `🚀 ${LEAD_MENU_LABEL}`;
+    if (item === 'try') return NAV.menu[3];
+    if (item === 'intake') return INTAKE_MENU_LABEL;
+    return NAV.menu[item - 1];
+  };
   return [...items.map((item, i) => `${i + 1}. ${label(item)}`), '', NAV.menuFooter].join('\n');
 }
 
-function reviewOptions() {
-  return [
-    REVIEW.optionsPrompt,
-    ...REVIEW.options.map((label, i) => `${i + 1}. ${label}`),
-    '',
-    REVIEW.optionsFooter,
-  ].join('\n');
-}
-
-function leadQuestion(id) {
+function leadQuestion(id, businessName) {
   const q = LEAD_STEPS[id];
-  return [q.text, ...q.options.map((label, i) => `${i + 1}. ${label}`)].join('\n');
+  const text = typeof q.text === 'function' ? q.text(businessName) : q.text;
+  if (!q.options) return text;
+  return [text, ...q.options.map((label, i) => `${i + 1}. ${label}`)].join('\n');
 }
 
 function field(label, value) {
@@ -153,45 +143,6 @@ test('ask_topic tell-me-more', () => {
   assert.equal(out.asksQuestion, true);
 });
 
-test('ask_topic faq and intake', () => {
-  const faq = topicByKey('commonQuestions');
-  const intake = topicByKey('informationToCollect');
-  assert.equal(
-    composeReply({
-      kind: 'ask_topic',
-      parts: { topic: faq, ack: FAQ_ACK, draft: {} },
-    }).reply,
-    `${FAQ_ACK}\n\n${FAQ_QUESTION}`
-  );
-  assert.equal(
-    composeReply({
-      kind: 'ask_topic',
-      parts: { topic: intake, ack: INTAKE_ACK, draft: {} },
-    }).reply,
-    `${INTAKE_ACK}\n\n${INTAKE_QUESTION}`
-  );
-});
-
-test('ask_topic without ack keeps model lead', () => {
-  const intake = topicByKey('informationToCollect');
-  assert.equal(
-    composeReply({
-      kind: 'ask_topic',
-      modelText: 'We collect it at booking. Shall I start?',
-      parts: { topic: intake, ack: null, draft: {} },
-    }).reply,
-    `We collect it at booking.\n\n${INTAKE_QUESTION}`
-  );
-  assert.equal(
-    composeReply({
-      kind: 'ask_topic',
-      modelText: 'When will you collect it?',
-      parts: { topic: intake, ack: null, draft: {} },
-    }).reply,
-    INTAKE_QUESTION
-  );
-});
-
 test('ask_topic businessDetails without ack keeps model lead', () => {
   const draft = { name: NAME, whatWeDo: 'Yoga', services: [], hours: null, locationOrArea: null };
   const topic = topicByKey('businessDetails');
@@ -204,52 +155,30 @@ test('ask_topic businessDetails without ack keeps model lead', () => {
   assert.ok(!out.reply.includes(BUSINESS_DETAILS_ACK));
 });
 
-test('ask_topic keepLead keeps an explanation that ends with an example ?', () => {
-  const faq = topicByKey('commonQuestions');
-  const lead = "I mean questions like 'What kinds of furniture do you make?'";
-  const out = composeReply({
-    kind: 'ask_topic',
-    modelText: lead,
-    parts: { topic: faq, ack: null, draft: {}, keepLead: true },
-  });
-  assert.equal(out.reply, `${lead}\n\n${FAQ_QUESTION}`);
-  assert.ok(out.reply.includes("What kinds of furniture do you make?"));
-  assert.ok(!out.reply.includes(FAQ_ACK));
+test('ready_first opener plus menu without and with lead', () => {
+  const without = composeReply({ kind: 'ready_first', menuOpts: menuNoLead });
+  assert.equal(without.reply, `${READY_OPENER}\n\n${menuText(menuNoLead)}`);
+  assert.equal(without.reply, renderReadyFirst(menuNoLead));
+  assert.equal(without.nav, 'menu');
+  assert.ok(menuText(menuNoLead).includes(`3. ${INTAKE_MENU_LABEL}`));
+  assert.match(menuText(menuNoLead), /^1\. 🏪 Tell me more about your business\n/);
+  assert.match(menuText(menuNoLead), /\n5\. 🤖 Chat with me like a customer\n/);
+
+  const withLead = composeReply({ kind: 'ready_first', menuOpts: menuLead });
+  assert.equal(withLead.reply, `${READY_OPENER}\n\n${menuText(menuLead)}`);
+  assert.equal(withLead.reply, renderReadyFirst(menuLead));
+  assert.equal(withLead.nav, 'menu');
+  assert.ok(menuText(menuLead).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n`));
+  assert.ok(menuText(menuLead).includes(`4. ${INTAKE_MENU_LABEL}`));
+  assert.match(menuText(menuLead), /\n6\. 🤖 Chat with me like a customer\n/);
 });
 
-test('ask_goal', () => {
-  const model = 'Got it, thanks!';
-  const out = composeReply({ kind: 'ask_goal', modelText: model });
-  assert.equal(out.reply, `${model}\n\n${OWNER_GOAL_QUESTION}`);
-  assert.equal(out.asksQuestion, true);
-});
-
-test('setup_complete', () => {
-  const expected = [
-    SETUP_COMPLETE_INTRO,
-    '',
-    field(NAV.fields.name, NAME),
-    field(NAV.fields.whatYouDo, salon.whatWeDo),
-    `*${NAV.fields.services}:*`,
-    'Private lesson — $80 / 60 min',
-    field(NAV.fields.hours, salon.hours),
-    field(NAV.fields.location, salon.locationOrArea),
-    field(NAV.fields.pricePolicy, PRICE_POLICY_OWNER_LABELS.relevant),
-    '',
-    reviewOptions(),
-  ].join('\n');
-  const out = composeReply({ kind: 'setup_complete', profile: salon });
-  assert.equal(out.reply, expected);
-  assert.equal(out.reply, renderSetupComplete(salon));
-  assert.equal(out.nav, 'review');
-});
-
-test('saved_changes card only and with ack', () => {
+test('saved_changes card plus menu, and with ack', () => {
   const prior = { ...salon, hours: 'old hours' };
-  const card = renderSavedChanges(prior, salon);
+  const cardAndMenu = renderSavedChanges(prior, salon, menuNoLead);
   assert.equal(
-    composeReply({ kind: 'saved_changes', prior, profile: salon }).reply,
-    card
+    composeReply({ kind: 'saved_changes', prior, profile: salon, menuOpts: menuNoLead }).reply,
+    cardAndMenu
   );
   const ack = 'Hours updated ✨';
   assert.equal(
@@ -258,10 +187,20 @@ test('saved_changes card only and with ack', () => {
       modelText: ack,
       prior,
       profile: salon,
+      menuOpts: menuNoLead,
     }).reply,
-    `${ack}\n\n${card}`
+    `${ack}\n\n${cardAndMenu}`
   );
-  assert.match(card, /^Here's what changed:\n\*Hours:\* Sun–Thu 8–20\n\n/);
+  assert.match(cardAndMenu, /^Here's what changed:\n\*Hours:\* Sun–Thu 8–20\n\n/);
+  assert.ok(cardAndMenu.includes(menuText(menuNoLead)));
+  const withAck = composeReply({
+    kind: 'saved_changes',
+    modelText: ack,
+    prior,
+    profile: salon,
+    menuOpts: menuNoLead,
+  });
+  assert.equal(withAck.nav, 'menu');
 });
 
 test('saved_changes shows emptied otherFacts and unknowns with existing none label', () => {
@@ -376,6 +315,17 @@ test('lead kinds', () => {
   assert.equal(
     composeReply({
       kind: 'lead_question',
+      parts: { step: 'whatToDo', businessName: NAME },
+    }).reply,
+    LEAD_STEPS.whatToDo.text(NAME)
+  );
+  assert.ok(!composeReply({
+    kind: 'lead_question',
+    parts: { step: 'whatToDo', businessName: NAME },
+  }).reply.includes('\n1. '));
+  assert.equal(
+    composeReply({
+      kind: 'lead_question',
       parts: { step: 'channels', intro: LEAD_BRIDGE },
     }).reply,
     `${LEAD_BRIDGE}\n\n${leadQuestion('channels')}`
@@ -447,42 +397,25 @@ test('review leftover card', () => {
       `Area: ${salon.locationOrArea}`,
       `Hours: ${salon.hours}`,
       `Price policy: ${PRICE_POLICY_OWNER_LABELS.relevant}`,
-      'My goal: Answer customer questions',
       "I'll ask customers for: name, phone",
       'Q&A: 1 answer',
       'How I talk: warm',
     ].join('\n'),
-    reviewOptions(),
   ].join('\n\n');
   const out = composeReply({ kind: 'review', profile });
   assert.equal(out.reply, expected);
   assert.equal(out.reply, renderReview(profile));
+  assert.ok(!out.reply.includes('My goal'));
+  assert.ok(!out.reply.includes('Keep teaching me'));
+  assert.equal(out.nav, null);
 });
 
-test('review_options setup_continue return_to_editing', () => {
-  assert.equal(composeReply({ kind: 'review_options' }).reply, reviewOptions());
-  assert.equal(composeReply({ kind: 'review_options' }).reply, renderReviewOptions());
+test('setup_continue return_to_editing', () => {
   assert.equal(composeReply({ kind: 'setup_continue' }).reply, NAV.setupContinue);
   assert.equal(
     composeReply({ kind: 'return_to_editing', menuOpts: menuLead }).reply,
     `${NAV.returned}\n\n${menuText(menuLead)}`
   );
-});
-
-test('empty profile cards use not-added copy', () => {
-  const expected = [
-    SETUP_COMPLETE_INTRO,
-    '',
-    field(NAV.fields.name, NAV.notAdded),
-    field(NAV.fields.whatYouDo, NAV.notAdded),
-    field(NAV.fields.services, NAV.notAdded),
-    field(NAV.fields.hours, NAV.notAdded),
-    field(NAV.fields.location, NAV.notAdded),
-    field(NAV.fields.pricePolicy, PRICE_POLICY_OWNER_LABELS.relevant),
-    '',
-    reviewOptions(),
-  ].join('\n');
-  assert.equal(composeReply({ kind: 'setup_complete', profile: empty }).reply, expected);
 });
 
 test('withSingleQuestion and reviewAck stay byte-identical helpers', () => {

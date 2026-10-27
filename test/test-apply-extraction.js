@@ -14,7 +14,6 @@ function stored(overrides = {}) {
   return {
     name: 'Ofir garage',
     whatWeDo: 'Garage',
-    ownerGoal: 'answer_and_collect',
     services: [svc('Oil change', '200 ILS')],
     hours: 'Mon–Fri 8–18',
     locationOrArea: 'Haifa',

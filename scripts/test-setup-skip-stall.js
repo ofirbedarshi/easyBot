@@ -1,7 +1,7 @@
 /**
- * Setup interview after the owner skips FAQ: the app continues the
- * required-topic sequence (intake) even when the model echoes a fragment
- * of Adam's previous message and does not set a wrap-up flag.
+ * Setup interview after the owner skips tell-me-more: the app presents
+ * ready even when the model echoes a fragment of the previous message
+ * and does not set wrap-up flags.
  *
  * No network. Stubbed Builder turn.
  */
@@ -10,29 +10,30 @@ import fs from 'fs';
 import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
 import { applyReviewGate } from '../src/builder.js';
-import { topicByKey } from '../src/builderTopics.js';
+import {
+  BUSINESS_DETAILS_ACK,
+  businessDetailsQuestion,
+  topicByKey,
+} from '../src/builderTopics.js';
+import { composeReply } from '../src/composeReply.js';
 import { createSession, handleMessage } from '../src/session.js';
+import { lastShownNav } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('setup-skip-stall');
-const INTAKE = topicByKey('informationToCollect');
-const FAQ = topicByKey('commonQuestions');
+const DETAILS = topicByKey('businessDetails');
 const ECHO = 'Ofir Garage is your garage ✨';
-const EXPECTED_SKIP_REPLY = `${ECHO}\n\n${INTAKE.question}`;
-const PREVIOUS =
-  "I've got it—Ofir Garage is your garage ✨\n\nWhat would you most like me to help with? 🌟";
+const NAME = 'Ofir garage';
+const WHAT = 'Garage';
 
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
 }
 
-/** Profile + draft as stored just before the owner said Skip. */
-function preSkipProfile() {
-  const facts = {
-    name: 'Ofir garage',
-    whatWeDo: 'Garage',
-    ownerGoal: 'answer_questions',
-    ownerGoalRequested: 'Answer customer question',
+function nameWhatDraft(overrides = {}) {
+  return {
+    name: NAME,
+    whatWeDo: WHAT,
     services: [],
     hours: null,
     locationOrArea: null,
@@ -42,8 +43,14 @@ function preSkipProfile() {
     tone: null,
     priceDisclosure: null,
     openingMessage: null,
-    askedTopics: ['commonQuestions'],
+    askedTopics: ['businessDetails'],
+    ...overrides,
   };
+}
+
+/** Profile + draft as stored just before the owner said Skip. */
+function preSkipProfile() {
+  const facts = nameWhatDraft();
   return {
     ...emptyProfile(),
     ...facts,
@@ -68,8 +75,8 @@ function productionModelTurn(overrides = {}) {
   };
 }
 
-function assertIntakeAsked(reply, label) {
-  assert.equal(reply, EXPECTED_SKIP_REPLY, label);
+function expectedReadyFirst() {
+  return composeReply({ kind: 'ready_first', menuOpts: { leadOption: false } }).reply;
 }
 
 const results = [];
@@ -84,14 +91,17 @@ async function test(name, fn) {
   }
 }
 
+function assertPresentsReady(gated, label) {
+  assert.equal(gated.presentReview, true, `${label}: presentReview`);
+  assert.equal(gated.asksQuestion, false, `${label}: asksQuestion`);
+  assert.deepEqual(gated.draft.askedTopics, ['businessDetails'], `${label}: askedTopics`);
+}
+
 function testGateProductionEchoAsksQuestion() {
   const gated = applyReviewGate(preSkipProfile(), productionModelTurn(), 'Skip', {
-    justAsked: FAQ,
+    justAsked: DETAILS,
   });
-  assertIntakeAsked(gated.message, 'applyReviewGate production flags');
-  assert.equal(gated.asksQuestion, true);
-  assert.equal(gated.presentReview, false);
-  assert.deepEqual(gated.draft.askedTopics, ['commonQuestions', 'informationToCollect']);
+  assertPresentsReady(gated, 'applyReviewGate production flags');
 }
 
 function testGateEchoWithoutAsksQuestion() {
@@ -99,9 +109,9 @@ function testGateEchoWithoutAsksQuestion() {
     preSkipProfile(),
     productionModelTurn({ asksQuestion: false }),
     'Skip',
-    { justAsked: FAQ }
+    { justAsked: DETAILS }
   );
-  assertIntakeAsked(gated.message, 'applyReviewGate asksQuestion=false');
+  assertPresentsReady(gated, 'applyReviewGate asksQuestion=false');
 }
 
 function testGateEchoWithAskingTopicNoQuestionMark() {
@@ -109,12 +119,13 @@ function testGateEchoWithAskingTopicNoQuestionMark() {
     preSkipProfile(),
     productionModelTurn({ askingTopic: 'informationToCollect' }),
     'Skip',
-    { justAsked: FAQ }
+    { justAsked: DETAILS }
   );
-  assertIntakeAsked(gated.message, 'applyReviewGate askingTopic without ?');
+  assertPresentsReady(gated, 'applyReviewGate askingTopic without ?');
 }
 
 async function testHandleBuildProductionSkip() {
+  const draft = nameWhatDraft();
   clean();
   saveProfile(preSkipProfile(), PROFILE);
   const session = createSession({
@@ -125,36 +136,39 @@ async function testHandleBuildProductionSkip() {
   });
   session.mode = 'BUILD';
   session.buildHistory = [
-    { role: 'assistant', content: PREVIOUS },
-    { role: 'user', content: 'Answer customer question?' },
-    { role: 'assistant', content: FAQ.ack + '\n\n' + FAQ.question, asksQuestion: true },
+    {
+      role: 'assistant',
+      content: `${BUSINESS_DETAILS_ACK}\n\n${businessDetailsQuestion(draft)}`,
+      asksQuestion: true,
+    },
   ];
 
   const out = await handleMessage(session, 'Skip');
   assert.equal(out.ok, true);
   assert.equal(out.event, 'build_turn');
-  assertIntakeAsked(out.reply, 'handleBuild production skip');
+  assert.equal(out.reply, expectedReadyFirst(), 'handleBuild production skip');
 
   const last = session.buildHistory.at(-1);
   assert.equal(last.role, 'assistant');
-  assert.equal(last.content, EXPECTED_SKIP_REPLY);
-  assert.equal(last.asksQuestion, true);
+  assert.equal(last.content, expectedReadyFirst());
+  assert.equal(last.asksQuestion, false);
+  assert.equal(lastShownNav(session.buildHistory), 'menu');
 
   const stored = loadProfile(PROFILE);
-  assert.equal(stored.approvedAt, null);
-  assert.deepEqual(stored.draft.askedTopics, ['commonQuestions', 'informationToCollect']);
+  assert.ok(stored.approvedAt, 'approvedAt must be written on handleBuild skip');
+  assert.deepEqual(stored.draft.askedTopics, ['businessDetails']);
 }
 
-await test('gate: production echo + asksQuestion=true appends intake', async () => {
+await test('gate: production echo + asksQuestion=true presents ready', async () => {
   testGateProductionEchoAsksQuestion();
 });
-await test('gate: same echo with asksQuestion=false still appends intake', async () => {
+await test('gate: same echo with asksQuestion=false still presents ready', async () => {
   testGateEchoWithoutAsksQuestion();
 });
-await test('gate: askingTopic set but no ? still appends intake', async () => {
+await test('gate: askingTopic set but no ? still presents ready', async () => {
   testGateEchoWithAskingTopicNoQuestionMark();
 });
-await test('handleBuild: production skip state asks the last scripted question', async () => {
+await test('handleBuild: production skip writes approvedAt and ready_first', async () => {
   await testHandleBuildProductionSkip();
 });
 

@@ -25,11 +25,9 @@ import {
 import {
   applyReviewGate,
   enforceConfigRequests,
-  GOAL_FALLBACK_DISCLAIMER,
-  OWNER_GOAL_QUESTION,
   reconcileDraft,
-  withSingleQuestion,
 } from '../src/builder.js';
+import { withSingleQuestion } from '../src/composeReply.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import { createSession, handleMessage as runMessage } from '../src/session.js';
 import { topicByKey } from '../src/builderTopics.js';
@@ -47,7 +45,6 @@ function baseApprovedLive() {
   const p = emptyProfile();
   p.name = 'Sunny Yoga';
   p.whatWeDo = 'Private yoga lessons';
-  p.ownerGoal = 'answer_and_collect';
   p.services = [{ name: 'Private lesson', price: '$70 / 60 min', notes: null }];
   p.hours = 'Mon–Fri 9–5';
   p.locationOrArea = 'Austin';
@@ -60,7 +57,6 @@ function baseApprovedLive() {
   p.draft = {
     name: p.name,
     whatWeDo: p.whatWeDo,
-    ownerGoal: p.ownerGoal,
     services: p.services,
     hours: p.hours,
     locationOrArea: p.locationOrArea,
@@ -107,7 +103,6 @@ function liveDraftWith(live, overrides) {
   return {
     name: live.name,
     whatWeDo: live.whatWeDo,
-    ownerGoal: live.ownerGoal,
     services: live.services,
     hours: live.hours,
     locationOrArea: live.locationOrArea,
@@ -188,14 +183,12 @@ async function testDraftEditSavesLive() {
   const pendingServices = [
     { name: 'Private lesson', price: '$80 / 60 min', notes: null },
   ];
-  const pendingGoal = 'answer_questions';
 
   const session = makeSession(async () => ({
-    message: 'Updated the draft price and goal — approve when ready.',
+    message: 'Updated the draft price — approve when ready.',
     draft: {
       name: 'Sunny Yoga',
       whatWeDo: 'Private yoga lessons',
-      ownerGoal: pendingGoal,
       services: pendingServices,
       hours: 'Mon–Fri 9–5',
       locationOrArea: 'Austin',
@@ -209,19 +202,18 @@ async function testDraftEditSavesLive() {
     source: 'stub-builder',
   }), liveMock);
 
-  const r = await handleMessage(session, 'Change private lessons to $80 and update the goal.');
+  const r = await handleMessage(session, 'Change private lessons to $80.');
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.services[0].price, '$80 / 60 min');
-  assert.equal(disk.ownerGoal, pendingGoal);
   assert.ok(disk.approvedAt);
   assert.match(r.reply, /Here's what changed:/);
   const summary = formatSummary(disk);
   assert.doesNotMatch(summary, /Pending \(not live until you approve\)/);
   assert.match(summary, /\$80 \/ 60 min/);
-  assert.match(summary, /Bot goal:/);
+  assert.doesNotMatch(summary, /Bot goal:/);
   console.log('PASS draft_edit_saves_live');
 }
 
@@ -233,14 +225,11 @@ async function testEditUpdatesLiveBotImmediately() {
   const newServices = [
     { name: 'Private lesson', price: '$80 / 60 min', notes: null },
   ];
-  const newGoal = 'collect_details';
-
   const session = makeSession(async () => ({
     message: 'Approved updates applied.',
     draft: {
       name: 'Sunny Yoga',
       whatWeDo: 'Private yoga lessons',
-      ownerGoal: newGoal,
       services: newServices,
       hours: 'Mon–Fri 9–5',
       locationOrArea: 'Austin',
@@ -260,11 +249,9 @@ async function testEditUpdatesLiveBotImmediately() {
 
   const sent = loadProfile(PROFILE);
   assert.equal(sent.services[0].price, '$80 / 60 min');
-  assert.equal(sent.ownerGoal, newGoal);
 
   const disk = loadProfile(PROFILE);
   assert.equal(disk.services[0].price, '$80 / 60 min');
-  assert.equal(disk.ownerGoal, newGoal);
   assert.ok(disk.approvedAt);
   console.log('PASS edit_updates_live_bot_immediately');
 }
@@ -301,458 +288,165 @@ function testHasEnoughForFirstBotRequiresName() {
   console.log('PASS has_enough_for_first_bot_requires_name');
 }
 
-async function testIntakeGateBlocksApprove() {
+async function testApprovedAtRequiresPresentReview() {
   clean();
   saveProfile(emptyProfile(), PROFILE);
-  const liveMock = { approvals: [] };
+  const nameWhat = {
+    name: 'Cafe',
+    whatWeDo: 'Coffee shop',
+    services: [],
+    hours: null,
+    locationOrArea: null,
+    commonQuestions: [],
+    informationToCollect: null,
+    unknowns: [],
+    tone: 'warm',
+  };
 
   const session = makeSession(async () => ({
-    message: 'Looks ready to approve.',
-    draft: {
-      name: 'Cafe',
-      whatWeDo: 'Coffee shop',
-      ownerGoal: 'answer_questions',
-      services: [{ name: 'Latte', price: '$4', notes: null }],
-      hours: '7–3',
-      locationOrArea: 'Downtown',
-      commonQuestions: [],
-      informationToCollect: null,
-      unknowns: [],
-      tone: 'warm',
-    },
-    readyForReview: true,
+    message: 'Cafe is a coffee shop ✨',
+    draft: nameWhat,
     source: 'stub-builder',
-  }), liveMock);
+  }));
 
-  session.deps.runBuilderTurn = async () => ({
-    message:
-      'Looks ready.\n\nBefore we finalize: should the customer bot collect any information from the customer in chat (for example name, phone number, preferred time)? If yes, list what. If not, say none.',
-    draft: {
-      name: 'Cafe',
-      whatWeDo: 'Coffee shop',
-      ownerGoal: 'answer_questions',
-      services: [{ name: 'Latte', price: '$4', notes: null }],
-      hours: '7–3',
-      locationOrArea: 'Downtown',
-      commonQuestions: [],
-      informationToCollect: null,
-      unknowns: [],
-      tone: 'warm',
-    },
-    readyForReview: true,
-    topicResponse: 'skipped',
-    source: 'stub-builder',
-  });
-
-  // Required topics are asked by the app in order: FAQ first, then intake.
-  const r = await handleMessage(session, 'That is everything.');
+  const r = await handleMessage(session, 'I run Cafe, a coffee shop');
   assert.equal(r.ok, true);
   assert.ok(!r.approved);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /what do customers usually ask you/i);
-  assert.equal(loadProfile(PROFILE).name, 'Cafe');
-  assert.equal(loadProfile(PROFILE).approvedAt, null, 'ready timestamp waits until first-time topics settle');
-  assert.ok(!/collect any details/i.test(r.reply), 'one topic per turn');
+  assert.match(r.reply, /Tell me a bit more about Cafe/);
+  assert.match(r.reply, /skip/i);
+  const afterAsk = loadProfile(PROFILE);
+  assert.equal(afterAsk.name, 'Cafe');
+  assert.equal(
+    afterAsk.approvedAt,
+    null,
+    'askedTopics including businessDetails is not enough — presentReview is the gate'
+  );
+  assert.deepEqual(afterAsk.draft.askedTopics, ['businessDetails']);
+  assert.equal(
+    afterAsk.informationToCollect,
+    null,
+    'informationToCollect stays null until the owner sets it'
+  );
 
-  // Owner skips FAQ → settled (skippable); intake asked next, still no approval.
-  const r2 = await handleMessage(session, 'skip');
-  assert.ok(!r2.approved);
-  assert.match(r2.reply, /collect any details/i);
-  assert.ok(!/what do customers usually ask you/i.test(r2.reply), 'FAQ asked once');
-
-  // Intake still null after the owner replied → intake asked again (not skippable).
-  const r3 = await handleMessage(session, 'hmm');
-  assert.ok(!r3.approved);
-  assert.match(r3.reply, /collect any details/i);
-
-  // Intake answered → review presented, not approved yet.
   session.deps.runBuilderTurn = async () => ({
     message: 'Got it, thanks!',
-    draft: {
-      name: 'Cafe',
-      whatWeDo: 'Coffee shop',
-      services: [{ name: 'Latte', price: '$4', notes: null }],
-      commonQuestions: [],
-      informationToCollect: [],
-      unknowns: [],
-    },
-    readyForReview: true,
+    draft: nameWhat,
+    topicResponse: 'skipped',
     source: 'stub-builder',
   });
-  const r4 = await handleMessage(session, 'none');
-  assert.ok(!r4.approved);
-  assert.match(r4.reply, /Chat with me like a customer/);
-  assert.deepEqual(loadProfile(PROFILE).informationToCollect, []);
-  console.log('PASS required_topics_still_asked');
-}
+  const r2 = await handleMessage(session, 'skip');
+  assert.match(r2.reply, /I'm ready for a first try!/);
+  const afterSkip = loadProfile(PROFILE);
+  assert.ok(afterSkip.approvedAt, 'skip of tell-me-more presents review and writes approvedAt');
+  assert.equal(afterSkip.informationToCollect, null);
 
-function testGoalSupport() {
-  const facts = {
-    name: 'Waser',
-    whatWeDo: 'Math tutoring',
-    services: [{ name: 'Lesson', price: '$80 per hour', notes: null }],
-    hours: 'Mon–Fri 9–17',
-    locationOrArea: 'Tel Aviv',
+  clean();
+  saveProfile(emptyProfile(), PROFILE);
+  const dump = {
+    name: 'Harbor',
+    whatWeDo: 'Cafe',
+    services: [{ name: 'Latte', price: '$4', notes: null }],
+    hours: '7–3',
+    locationOrArea: 'Downtown',
     commonQuestions: [],
     informationToCollect: null,
+    unknowns: [],
   };
-
-  assert.match(OWNER_GOAL_QUESTION, /how can I help you the most/);
-  assert.match(OWNER_GOAL_QUESTION, /Answer your customers' questions/);
-  assert.match(OWNER_GOAL_QUESTION, /Ask customers for their details/);
-  assert.doesNotMatch(OWNER_GOAL_QUESTION, /booking an appointment/);
-
-  // Unsupported (model flag) → fallback goal + mapped-goal line before the next question.
-  const u = applyReviewGate(
-    emptyProfile(),
-    {
-      message: "I'll set the goal to booking sessions. Could you share common questions customers ask?",
-      draft: { ...facts, ownerGoal: 'answer_questions', ownerGoalRequested: 'lead customers to book a session' },
-      goalSupported: false,
-      goalUnsupportedPart: 'book sessions',
-      readyForReview: false,
-    },
-    'lead customers to book a session'
-  );
-  assert.equal(u.draft.ownerGoal, 'answer_and_collect');
-  assert.equal(u.draft.ownerGoalRequested, 'lead customers to book a session');
-  assert.ok(u.message.startsWith(GOAL_FALLBACK_DISCLAIMER), 'model ack replaced by mapped-goal line');
-  assert.doesNotMatch(u.message, /isn't available yet/);
-  assert.ok(
-    u.message.indexOf(GOAL_FALLBACK_DISCLAIMER) < u.message.indexOf('What do customers usually ask'),
-    'mapped-goal line before the question'
-  );
-
-  // Mixed collect + book, model marks supported → keep that goal, no fallback line.
-  const mixed = applyReviewGate(
-    emptyProfile(),
-    {
-      message: 'Got it, thanks!',
-      draft: {
-        ...facts,
-        ownerGoal: 'answer_and_collect',
-        ownerGoalRequested: 'answer questions and take messages when people want to book',
-      },
-      goalSupported: true,
-      readyForReview: false,
-    },
-    'answer questions and take messages when people want to book'
-  );
-  assert.equal(mixed.draft.ownerGoal, 'answer_and_collect');
-  assert.match(mixed.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
-  assert.ok(!mixed.message.includes("isn't available yet"));
-  assert.ok(!mixed.message.includes(GOAL_FALLBACK_DISCLAIMER));
-
-  // Model omitted goalSupported: the owner's words are not inspected.
-  const missed = applyReviewGate(
-    emptyProfile(),
-    {
-      message: "I'll set the goal to help customers book. Should the bot collect anything?",
-      draft: { ...facts, ownerGoal: 'answer_questions' },
-      goalSupported: null,
-      readyForReview: false,
-    },
-    'lead customers to book a session with me'
-  );
-  assert.equal(missed.draft.ownerGoal, 'answer_questions');
-  assert.match(missed.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
-  assert.ok(!missed.message.includes(GOAL_FALLBACK_DISCLAIMER));
-
-  // Supported → no fallback line.
-  const s = applyReviewGate(
-    emptyProfile(),
-    {
-      message: 'Got it.',
-      draft: { ...facts, ownerGoal: 'answer_questions' },
-      goalSupported: true,
-      readyForReview: false,
-    },
-    'answer questions'
-  );
-  assert.equal(s.draft.ownerGoal, 'answer_questions');
-  assert.ok(!s.message.includes(GOAL_FALLBACK_DISCLAIMER));
-
-  // reconcileDraft: invalid/omitted goal keeps previous; free text never stored.
-  assert.equal(reconcileDraft({ ownerGoal: 'sell more' }, { ownerGoal: 'collect_details' }).ownerGoal, 'collect_details');
-  assert.equal(reconcileDraft({}, { ownerGoal: null }).ownerGoal, null);
-  assert.equal(reconcileDraft({ ownerGoal: 'answer_questions' }, {}).ownerGoal, 'answer_questions');
-  assert.equal(
-    reconcileDraft({}, { ownerGoalRequested: 'book lessons' }).ownerGoalRequested,
-    'book lessons'
-  );
-  console.log('PASS goal_support');
+  const dumpSession = makeSession(async () => ({
+    message: 'Got everything.',
+    draft: dump,
+    source: 'stub-builder',
+  }));
+  const r3 = await handleMessage(dumpSession, 'Harbor cafe downtown, latte $4, 7-3');
+  assert.match(r3.reply, /I'm ready for a first try!/);
+  assert.ok(loadProfile(PROFILE).approvedAt, 'dump-ahead presents review and writes approvedAt');
+  assert.equal(loadProfile(PROFILE).informationToCollect, null);
+  console.log('PASS approved_at_requires_present_review');
 }
 
 function testRequiredTopicsGate() {
-  const facts = {
+  const nameWhat = {
     name: 'Waser',
     whatWeDo: 'Math tutoring',
-    ownerGoal: 'answer_questions',
+    services: [],
+    hours: null,
+    locationOrArea: null,
+    commonQuestions: [],
+    informationToCollect: null,
+    unknowns: [],
+  };
+  const dump = {
+    ...nameWhat,
     services: [{ name: 'Lesson', price: '$80 per hour', notes: null }],
     hours: 'Mon–Fri 9–17',
     locationOrArea: 'Tel Aviv',
-    commonQuestions: [],
-    informationToCollect: [],
   };
-  const turn = { message: 'Got it, thanks!', draft: facts, readyForReview: true };
+  const topic = topicByKey('businessDetails');
+  const tellMore = topic.questionFor(nameWhat);
 
-  // FAQ never asked → asked now, recorded, no review.
-  const a = applyReviewGate(emptyProfile(), turn, 'no');
-  assert.equal(a.presentReview, false);
-  assert.match(a.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
-  assert.deepEqual(a.draft.askedTopics, ['commonQuestions']);
-
-  // App-asked FAQ uses the fixed ack, not the model's lead.
-  const specificLead =
-    'A family bakery in the old town sounds like a place neighbors already know.';
-  const specific = applyReviewGate(
+  // First tell-me-more ask: presentReview false; askedTopics records the ask.
+  const a = applyReviewGate(
     emptyProfile(),
-    { message: specificLead, draft: facts, readyForReview: true },
-    'we are a family-run bakery in the old town'
+    { message: 'Waser is a tutoring shop ✨', draft: nameWhat },
+    'we tutor math'
   );
-  assert.equal(specific.presentReview, false);
-  assert.equal(
-    specific.message,
-    'Got it! 💛\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
-  );
-  assert.deepEqual(specific.draft.askedTopics, ['commonQuestions']);
+  assert.equal(a.presentReview, false);
+  assert.deepEqual(a.draft.askedTopics, ['businessDetails']);
+  assert.equal(a.message, `Nice! ✨\n\n${tellMore}`);
 
-  // Asked on a prior turn + skipped → settled even with no FAQ stored → review.
-  const b = applyReviewGate(
+  // Dump-ahead: all details present → presentReview without asking.
+  const dumped = applyReviewGate(
+    emptyProfile(),
+    { message: 'Got it, thanks!', draft: dump },
+    'full dump'
+  );
+  assert.equal(dumped.presentReview, true);
+  assert.doesNotMatch(dumped.message, /Tell me a bit more/);
+
+  // Skip after the ask → presentReview true.
+  const skipped = applyReviewGate(
     { ...emptyProfile(), draft: a.draft },
-    { ...turn, topicResponse: 'skipped' },
+    { message: 'Got it, thanks!', draft: nameWhat, topicResponse: 'skipped' },
     'skip',
-    { justAsked: topicByKey('commonQuestions') }
+    { justAsked: topic }
   );
-  assert.equal(b.presentReview, true);
+  assert.equal(skipped.presentReview, true);
 
-  // FAQ with an answer → settled without asking.
-  const withFaq = {
-    ...facts,
-    commonQuestions: [{ question: 'Online lessons?', answer: 'No, only at home.' }],
-  };
-  const c = applyReviewGate(emptyProfile(), { ...turn, draft: withFaq }, 'x');
-  assert.equal(c.presentReview, true);
+  // Completing tell-me-more with all details → presentReview.
+  const complete = applyReviewGate(
+    { ...emptyProfile(), draft: a.draft },
+    {
+      message: 'Hours and location too.',
+      draft: dump,
+      topicResponse: 'answered',
+    },
+    'hours and location',
+    { justAsked: topic }
+  );
+  assert.equal(complete.presentReview, true);
 
-  // Once ownerGoal is set, wrap-up starts even without model wrap-up flags
-  // (the model's own question is replaced by scripted FAQ).
-  const d = applyReviewGate(emptyProfile(), { ...turn, readyForReview: false, message: 'Per hour?' }, 'hi');
-  assert.match(d.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
-  assert.deepEqual(d.draft.askedTopics, ['commonQuestions']);
-
-  // Before name + goal, a model question is left alone (FAQ is not injected).
-  const beforeGoal = applyReviewGate(
+  // Before name + offering, a model question is left alone.
+  const before = applyReviewGate(
     emptyProfile(),
     {
-      ...turn,
-      readyForReview: false,
       message: 'Per hour?',
-      draft: {
-        ...facts,
-        name: null,
-        ownerGoal: null,
-        services: [],
-        hours: null,
-        locationOrArea: null,
-        askedTopics: [],
-      },
+      draft: { ...nameWhat, name: null, whatWeDo: null },
     },
     'hi'
   );
-  assert.equal(beforeGoal.message, 'Per hour?');
+  assert.equal(before.message, 'Per hour?');
+  assert.equal(before.presentReview, false);
 
-  // Once FAQ was asked, skip continues to intake even without wrap-up flags.
-  const intake = topicByKey('informationToCollect');
-  const afterFaq = applyReviewGate(
-    { ...emptyProfile(), draft: { askedTopics: ['commonQuestions'] } },
-    {
-      message: 'Ofir Garage is your garage ✨',
-      draft: { ...facts, informationToCollect: null },
-      readyForReview: false,
-      wantsReview: false,
-      asksQuestion: true,
-      topicResponse: 'skipped',
-    },
-    'skip',
-    { justAsked: topicByKey('commonQuestions') }
+  // Approved profiles skip setup topics (edits are not blocked).
+  const live = { ...emptyProfile(), ...dump, approvedAt: '2026-01-01T00:00:00Z' };
+  const e = applyReviewGate(
+    live,
+    { message: 'Warmer.', draft: { ...dump, tone: 'warm' } },
+    'warmer'
   );
-  assert.equal(afterFaq.presentReview, false);
-  assert.equal(afterFaq.asksQuestion, true);
-  assert.equal(afterFaq.message, `Ofir Garage is your garage ✨\n\n${intake.question}`);
-  assert.deepEqual(afterFaq.draft.askedTopics, ['commonQuestions', 'informationToCollect']);
-
-  // Model asks FAQ in its own words → fixed question swapped in and recorded.
-  const own = applyReviewGate(
-    emptyProfile(),
-    {
-      ...turn,
-      readyForReview: false,
-      message: 'Great, so the goal is answering questions. Could you share common questions customers ask?',
-    },
-    'answer questions'
-  );
-  assert.equal(
-    own.message,
-    'Got it! 💛\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
-  );
-  assert.deepEqual(own.draft.askedTopics, ['commonQuestions']);
-
-  // wantsReview with an open required topic → ask the topic, not review.
-  const wantOpen = applyReviewGate(
-    emptyProfile(),
-    {
-      message: 'Here is the updated summary:\nQ&A:\n- invented $99',
-      draft: facts,
-      readyForReview: false,
-      wantsReview: true,
-    },
-    'show me the summary'
-  );
-  assert.equal(wantOpen.presentReview, false);
-  assert.match(wantOpen.message, /What do customers usually ask you/);
-
-  // wantsReview with intake answered → review; model summary text is stripped.
-  const readyFacts = {
-    ...facts,
-    commonQuestions: [{ question: 'Online lessons?', answer: 'No, only at home.' }],
-  };
-  const wantReview = applyReviewGate(
-    emptyProfile(),
-    {
-      message: 'Here is the updated summary:\nQ&A:\n- invented $99',
-      draft: readyFacts,
-      readyForReview: false,
-      wantsReview: true,
-    },
-    'show me the summary'
-  );
-  assert.equal(wantReview.presentReview, true);
-  assert.equal(wantReview.asksQuestion, false);
-  assert.doesNotMatch(wantReview.message, /invented|\$99|updated summary/i);
-
-  // Agenda complete (FAQ + intake settled) → first save card even if the
-  // model asked a leftover question.
-  const midQ = applyReviewGate(
-    emptyProfile(),
-    {
-      message: 'How many instructors work there?',
-      draft: { ...readyFacts, services: [{ name: 'Lesson', price: '$90 per hour', notes: null }] },
-      readyForReview: false,
-      wantsReview: false,
-      asksQuestion: true,
-    },
-    'the lesson is 90 now'
-  );
-  assert.equal(midQ.presentReview, true);
-  assert.equal(midQ.asksQuestion, false);
-  assert.equal(midQ.draft.services[0].price, '$90 per hour');
-
-  // Owner skips → review next, FAQ not repeated.
-  const own2 = applyReviewGate(
-    { ...emptyProfile(), draft: own.draft },
-    { ...turn, topicResponse: 'skipped' },
-    'skip',
-    { justAsked: topicByKey('commonQuestions') }
-  );
-  assert.equal(own2.presentReview, true);
-
-  // Goal-like wording is not treated as FAQ via mentions (before wrap-up starts).
-  const goalQ = applyReviewGate(
-    emptyProfile(),
-    {
-      ...turn,
-      readyForReview: false,
-      message: "What's the main thing you'd like your bot to do? For example: collect contact details from interested customers.",
-      draft: {
-        ...facts,
-        name: null,
-        ownerGoal: null,
-        services: [],
-        hours: null,
-        locationOrArea: null,
-        informationToCollect: null,
-        askedTopics: [],
-      },
-    },
-    'waser'
-  );
-  assert.match(goalQ.message, /^What's the main thing/);
-  assert.deepEqual(goalQ.draft.askedTopics, []);
-
-  // Approved profiles skip required topics (edits are not blocked).
-  const live = { ...emptyProfile(), ...facts, approvedAt: '2026-01-01T00:00:00Z' };
-  const e = applyReviewGate(live, { ...turn, draft: { ...facts, tone: 'warm' } }, 'warmer');
   assert.equal(e.presentReview, true);
   console.log('PASS required_topics_gate');
-}
-
-async function testNullOwnerGoalDoesNotWipeLive() {
-  clean();
-  const live = baseApprovedLive();
-  saveProfile(live, PROFILE);
-
-  const merged = mergeDraft(live, {
-    name: 'Sunny Yoga',
-    whatWeDo: 'Private yoga lessons',
-    ownerGoal: null,
-    services: live.services,
-    hours: live.hours,
-    locationOrArea: live.locationOrArea,
-    commonQuestions: [],
-    informationToCollect: [],
-    unknowns: [],
-    tone: 'friendly',
-  });
-  assert.equal(
-    merged.ownerGoal,
-    'answer_and_collect',
-    'null draft ownerGoal must not clear live'
-  );
-
-  const liveMock = { approvals: [] };
-  const session = makeSession(async () => ({
-    message: 'Approved.',
-    draft: {
-      name: 'Sunny Yoga',
-      whatWeDo: 'Private yoga lessons',
-      ownerGoal: null,
-      services: live.services,
-      hours: live.hours,
-      locationOrArea: live.locationOrArea,
-      commonQuestions: [],
-      informationToCollect: [],
-      unknowns: [],
-      tone: 'friendly',
-    },
-    readyForReview: true,
-    source: 'stub-builder',
-  }), liveMock);
-
-  // Null ownerGoal merges to the live config: nothing changed, model text plus menu.
-  const r = await applyChange(session);
-  assert.equal(r.ok, true);
-  assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /Approved\./);
-  assert.match(r.reply, /Tell me more about your business/);
-  assert.doesNotMatch(r.reply, /Here's your bot for Sunny Yoga:/);
-  assert.doesNotMatch(r.reply, /How I talk: default/);
-  assert.equal(loadProfile(PROFILE).ownerGoal, 'answer_and_collect');
-  console.log('PASS null_owner_goal_does_not_wipe_live');
-}
-
-async function testFormatSummaryIncludesOwnerGoal() {
-  const p = emptyProfile();
-  p.name = 'X';
-  p.whatWeDo = 'Y';
-  const s = formatSummary(p);
-  assert.match(s, /Bot goal: \(not set\)/);
-  p.ownerGoal = 'collect_details';
-  assert.match(formatSummary(p), /Bot goal: Collect details from interested customers/);
-  p.ownerGoal = 'Help customers book by messaging the owner';
-  assert.match(formatSummary(p), /Bot goal: \(not set\)/, 'legacy free text is not a goal');
-  assert.match(formatSummary(p), /Conversation settings:/);
-  assert.match(formatSummary(p), /Price policy: I mention prices when they're relevant/);
-  console.log('PASS format_summary_owner_goal');
 }
 
 /** Case B: pending behavior settings must not affect the live prompt. */
@@ -770,7 +464,6 @@ async function testBehaviorDraftIsolatesLivePrompt() {
     draft: {
       name: live.name,
       whatWeDo: live.whatWeDo,
-      ownerGoal: live.ownerGoal,
       services: live.services,
       hours: live.hours,
       locationOrArea: live.locationOrArea,
@@ -817,7 +510,6 @@ async function testBehaviorApprovePropagatesToLivePrompt() {
     draft: {
       name: live.name,
       whatWeDo: live.whatWeDo,
-      ownerGoal: live.ownerGoal,
       services: live.services,
       hours: live.hours,
       locationOrArea: live.locationOrArea,
@@ -858,7 +550,6 @@ async function testLegacyProfileSafeDefaults() {
   const legacy = {
     name: 'Quiet Mat Yoga',
     whatWeDo: 'In-person private yoga lessons',
-    ownerGoal: null,
     services: [
       {
         name: 'Private yoga lesson',
@@ -919,7 +610,6 @@ async function testStyleOnlyEditPreservesPriceDisclosure() {
     {
       name: live.name,
       whatWeDo: live.whatWeDo,
-      ownerGoal: live.ownerGoal,
       services: live.services,
       hours: live.hours,
       locationOrArea: live.locationOrArea,
@@ -994,7 +684,6 @@ function draftFrom(live, overrides = {}) {
   return {
     name: live.name,
     whatWeDo: live.whatWeDo,
-    ownerGoal: live.ownerGoal,
     services: live.services,
     hours: live.hours,
     locationOrArea: live.locationOrArea,
@@ -1028,7 +717,9 @@ async function testIdentityDraftIsolatesLive() {
   assert.match(r.reply, /Here's what changed:/, 'settings-only edit is presented as a save card');
   assert.match(r.reply, /Here's what changed:\n\*How I talk:\* friendly, custom opening/);
   assert.doesNotMatch(r.reply, /\(was:/);
-  assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
+  assert.match(r.reply, /1\. 🏪 Tell me more about your business/);
+  assert.match(r.reply, /📝 Choose details to collect from customers/);
+  assert.match(r.reply, /🤖 Chat with me like a customer/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
   const disk = loadProfile(PROFILE);
   assert.equal(disk.openingMessage, CUSTOM_OPENING);
@@ -1096,13 +787,13 @@ async function testOtherFactsApprovePropagates() {
   }), liveMock);
 
   const review = await handleMessage(session, 'Please apply this change.');
-  assert.ok(review.reply.startsWith("🎉 I'm all set!"), review.reply);
-  assert.doesNotMatch(review.reply, /Other facts/, 'first-approval card is the 🏪 lines only');
+  assert.match(review.reply, /I'm ready for a first try!/);
+  assert.doesNotMatch(review.reply, /Other facts/, 'first-ready menu does not list otherFacts');
   const section = renderSection(1, loadProfile(PROFILE));
   assert.ok(!section.includes('Other facts'), 'section 1 no longer lists otherFacts');
   assert.ok(section.includes('*Price policy:*'), section);
 
-  const r = await handleMessage(session, '1');
+  const r = await handleMessage(session, 'chat with me like a customer');
   assert.equal(r.event, 'enter_test');
   const disk = loadProfile(PROFILE);
   assert.deepEqual(disk.otherFacts, facts);
@@ -1461,8 +1152,6 @@ async function testTranscriptShapedImmediateSave() {
   assert.equal(disk.commonQuestions[0].answer, "It's 100 shekel per haircut.");
   assert.match(buildCustomerSystemPrompt(disk), /100 shekel per haircut/);
 
-  const menu = await handleMessage(session, '2');
-  assert.equal(menu.event, 'menu');
   const qa = await handleMessage(session, '2');
   assert.equal(qa.event, 'menu_section');
   assert.match(qa.reply, /It's 100 shekel per haircut/);
@@ -1485,14 +1174,11 @@ async function main() {
   testEnforceConfigRequests();
   testIntakeGateAsksOneQuestion();
   testRequiredTopicsGate();
-  testGoalSupport();
   testHasEnoughForFirstBotRequiresName();
   await testTranscriptShapedImmediateSave();
-  await testFormatSummaryIncludesOwnerGoal();
   await testDraftEditSavesLive();
   await testEditUpdatesLiveBotImmediately();
-  await testIntakeGateBlocksApprove();
-  await testNullOwnerGoalDoesNotWipeLive();
+  await testApprovedAtRequiresPresentReview();
   await testBehaviorDraftIsolatesLivePrompt();
   await testBehaviorApprovePropagatesToLivePrompt();
   await testLegacyProfileSafeDefaults();

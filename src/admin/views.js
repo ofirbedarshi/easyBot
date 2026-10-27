@@ -1,12 +1,10 @@
 import { stageLabel } from './stage.js';
 import {
-  OWNER_GOAL_LABELS,
   assistantIdentityView,
   defaultCustomerOpening,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
-  normalizeOwnerGoal,
   pricePolicyOwnerLabel,
 } from '../profile.js';
 
@@ -22,6 +20,7 @@ const LEAD_ANSWER_LABELS = {
   chatTools: 'Chat tools',
   chatToolsOther: 'Other chat tool',
   contactConsent: 'Contact consent',
+  whatToDo: 'What they want the bot to do',
 };
 
 const MODE_LABELS = {
@@ -638,8 +637,6 @@ function serviceItem(service) {
 
 function profileFactsHtml(profile) {
   const p = profile || {};
-  const goal = normalizeOwnerGoal(p.ownerGoal);
-  const goalLabel = goal ? OWNER_GOAL_LABELS[goal] : '';
   const services = Array.isArray(p.services) ? p.services : [];
   const faqs = normalizeCommonQuestions(p.commonQuestions);
   const collect = Array.isArray(p.informationToCollect)
@@ -717,7 +714,6 @@ function profileFactsHtml(profile) {
   return `<div class="profile-rows">
     ${profileRow('Business', textOrUnset(p.name))}
     ${profileRow('What they do', textOrUnset(p.whatWeDo))}
-    ${profileRow('Bot goal', goalLabel ? esc(goalLabel) : unsetHtml())}
     ${profileRow('Hours', textOrUnset(p.hours))}
     ${profileRow('Location', textOrUnset(p.locationOrArea))}
     ${profileRow('Price policy', esc(prices))}

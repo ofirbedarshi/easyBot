@@ -34,6 +34,10 @@ const QUESTIONS = {
     text: LEAD_STEPS.contactConsent.text,
     options: LEAD_STEPS.contactConsent.options,
     multi: false,
+    next: 'whatToDo',
+  },
+  whatToDo: {
+    freeText: true,
     next: 'channels',
     nextIntro: LEAD_BRIDGE,
   },
@@ -118,10 +122,11 @@ export function leadResumePending(state) {
   return !!state?.submittedAt && state.resumeMenu === true;
 }
 
-export function startLeadIntake() {
+export function startLeadIntake(businessName) {
   const first = 'contactConsent';
+  const name = typeof businessName === 'string' ? businessName.trim() : '';
   return {
-    state: { step: first, answers: {} },
+    state: { step: first, answers: {}, businessName: name },
     reply: composeReply({ kind: 'lead_start' }).reply,
   };
 }
@@ -134,20 +139,37 @@ export function startLeadIntake() {
 export function stepLeadIntake(state, text) {
   const answers = { ...state.answers };
   const step = state.step;
+  const businessName = state.businessName || '';
 
   if (FOLLOW_UPS[step]) {
     answers[step] = String(text || '').trim();
-    return advance(QUESTIONS[FOLLOW_UPS[step].parent].next, answers);
+    return advance(QUESTIONS[FOLLOW_UPS[step].parent].next, answers, null, businessName);
   }
 
   const q = QUESTIONS[step];
+  if (q.freeText) {
+    const t = String(text || '').trim();
+    if (!t) {
+      return {
+        state: { step, answers, businessName },
+        reply: composeReply({
+          kind: 'lead_question',
+          parts: { step, businessName },
+        }).reply,
+        done: false,
+      };
+    }
+    answers[step] = t;
+    return advance(q.next, answers, q.nextIntro, businessName);
+  }
+
   const picks = parseChoices(text, q.options.length, q.multi);
   if (!picks) {
     return {
-      state: { step, answers },
+      state: { step, answers, businessName },
       reply: composeReply({
         kind: 'lead_invalid',
-        parts: { step, multi: q.multi },
+        parts: { step, multi: q.multi, businessName },
       }).reply,
       done: false,
     };
@@ -156,25 +178,28 @@ export function stepLeadIntake(state, text) {
   answers[step] = q.multi ? labels : labels[0];
   if (q.followUp && picks.includes(q.followUp.option)) {
     return {
-      state: { step: q.followUp.step, answers },
+      state: { step: q.followUp.step, answers, businessName },
       reply: composeReply({ kind: 'lead_followup', parts: { text: q.followUp.text } }).reply,
       done: false,
     };
   }
-  return advance(q.next, answers, q.nextIntro);
+  return advance(q.next, answers, q.nextIntro, businessName);
 }
 
-function advance(next, answers, intro = null) {
+function advance(next, answers, intro = null, businessName = '') {
   if (!next) {
     return {
-      state: { step: null, answers },
+      state: { step: null, answers, businessName },
       reply: composeReply({ kind: 'lead_thanks', parts: { answers } }).reply,
       done: true,
     };
   }
   return {
-    state: { step: next, answers },
-    reply: composeReply({ kind: 'lead_question', parts: { step: next, intro } }).reply,
+    state: { step: next, answers, businessName },
+    reply: composeReply({
+      kind: 'lead_question',
+      parts: { step: next, intro, businessName },
+    }).reply,
     done: false,
   };
 }

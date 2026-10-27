@@ -1,10 +1,8 @@
 import {
-  OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
 
 const nullableString = { type: ['string', 'null'] };
-const nullableBoolean = { type: ['boolean', 'null'] };
 const nullableEnum = (values) => ({
   anyOf: [{ type: 'string', enum: [...values] }, { type: 'null' }],
 });
@@ -69,8 +67,6 @@ const draftObject = {
   required: [
     'name',
     'whatWeDo',
-    'ownerGoal',
-    'ownerGoalRequested',
     'services',
     'hours',
     'locationOrArea',
@@ -85,8 +81,6 @@ const draftObject = {
   properties: {
     name: nullableString,
     whatWeDo: nullableString,
-    ownerGoal: nullableEnum(OWNER_GOAL_VALUES),
-    ownerGoalRequested: nullableString,
     services: { type: ['array', 'null'], items: serviceItem },
     hours: nullableString,
     locationOrArea: nullableString,
@@ -120,8 +114,6 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'factEdits',
       'resolvedUnknowns',
       'configRequests',
-      'goalSupported',
-      'goalUnsupportedPart',
       'onPurpose',
       'topicResponse',
     ],
@@ -142,8 +134,6 @@ export const BUILDER_RESPONSE_SCHEMA = {
       factEdits: { type: 'array', items: factEditItem },
       resolvedUnknowns: { type: 'array', items: { type: 'integer' } },
       configRequests: { type: 'array', items: configRequestItem },
-      goalSupported: nullableBoolean,
-      goalUnsupportedPart: nullableString,
       onPurpose: {
         type: 'boolean',
         description:

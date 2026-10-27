@@ -23,13 +23,10 @@ function sectionBetween(prompt, startMarker, endMarker) {
   return prompt.slice(from, end);
 }
 
-function testOwnerGoalSeparatedFromFacts() {
-  const goal =
-    'Answer from the approved facts, then invite them to leave the listed details';
+function testFactsGoStraightToSettings() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Maya Yoga',
     whatWeDo: 'Yoga lessons',
-    ownerGoal: 'answer_and_collect',
     services: [{ name: 'Private', price: '$70 for 60 minutes', notes: null }],
     hours: 'Weekday evenings',
     locationOrArea: 'Oak Street',
@@ -39,66 +36,32 @@ function testOwnerGoalSeparatedFromFacts() {
     tone: 'warm',
   });
 
+  assert.doesNotMatch(prompt, /=== BOT OBJECTIVE ===/);
   const facts = sectionBetween(
     prompt,
     '=== APPROVED BUSINESS FACTS ===',
-    '=== BOT OBJECTIVE ==='
-  );
-  const objective = sectionBetween(
-    prompt,
-    '=== BOT OBJECTIVE ===',
     '=== CONVERSATION SETTINGS ==='
+  );
+  const settings = sectionBetween(
+    prompt,
+    '=== CONVERSATION SETTINGS ===',
+    '=== BEHAVIOR RULES ==='
   );
 
   assert.ok(facts.includes('Maya Yoga'), 'business name in facts');
   assert.ok(facts.includes('$70 for 60 minutes'), 'service price in facts');
+  assert.ok(!/Owner goal/i.test(facts), 'facts must not mention a bot goal');
+  assert.ok(/Tone:/i.test(settings), 'settings follow facts immediately');
   assert.ok(
-    !facts.includes(goal),
-    'ownerGoal must not appear inside APPROVED BUSINESS FACTS'
+    /must NOT establish facts/i.test(settings),
+    'settings must warn they do not establish facts'
   );
-  assert.ok(
-    !/Owner goal for this bot:/i.test(facts),
-    'facts must not label ownerGoal as a business fact line'
-  );
-  assert.ok(objective.includes(goal), 'ownerGoal appears under BOT OBJECTIVE');
-  assert.ok(
-    /must NOT establish facts/i.test(objective),
-    'objective must warn that ownerGoal does not establish facts'
-  );
-}
-
-function testObjectivePerGoal() {
-  const base = { name: 'X', whatWeDo: 'Y', services: [], informationToCollect: [] };
-  const objective = (ownerGoal) =>
-    sectionBetween(
-      buildCustomerSystemPrompt({ ...base, ownerGoal }),
-      '=== BOT OBJECTIVE ===',
-      '=== CONVERSATION SETTINGS ==='
-    );
-  assert.match(
-    objective('answer_questions'),
-    /anything else they would like to know/
-  );
-  assert.doesNotMatch(objective('answer_questions'), /INFORMATION TO COLLECT/);
-  assert.match(
-    objective('collect_details'),
-    /missing INFORMATION TO COLLECT items/
-  );
-  assert.match(
-    objective('answer_and_collect'),
-    /Answer from the approved facts[\s\S]*INFORMATION TO COLLECT/
-  );
-  // Legacy free text is never sent to the Business Bot.
-  const legacy = objective('Book as many sessions as possible');
-  assert.match(legacy, /none set/i);
-  assert.doesNotMatch(legacy, /Book as many/);
 }
 
 function testFactsFaqUnknownsIntakeRendered() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Harbor Cafe',
     whatWeDo: 'Neighborhood cafe',
-    ownerGoal: null,
     services: [{ name: 'Latte', price: '$4', notes: null }],
     hours: 'Mon–Fri 8am–4pm',
     locationOrArea: 'Waterfront',
@@ -141,11 +104,10 @@ function testFactsFaqUnknownsIntakeRendered() {
   assert.ok(/CLOSED-WORLD CONTRACT/i.test(prompt));
 }
 
-function testEmptyIntakeAndNullOwnerGoal() {
+function testEmptyIntakeAnswerOnly() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Spark Clean',
     whatWeDo: 'Home cleaning',
-    ownerGoal: null,
     services: [{ name: 'Standard clean', price: '$120 per visit', notes: null }],
     informationToCollect: [],
     unknowns: [],
@@ -155,20 +117,12 @@ function testEmptyIntakeAndNullOwnerGoal() {
     /do not ask the customer for any intake details/i.test(prompt),
     'empty intake must instruct collect nothing'
   );
-  const objective = sectionBetween(
-    prompt,
-    '=== BOT OBJECTIVE ===',
-    '=== CONVERSATION SETTINGS ==='
-  );
-  assert.ok(/none set/i.test(objective), 'null ownerGoal stated as unset');
+  assert.doesNotMatch(prompt, /=== BOT OBJECTIVE ===/);
   assert.match(prompt, /ask if there is anything else they would like to know/i);
   assert.match(prompt, /Do not ask for intake details/);
-  assert.ok(
-    !intakeGoalEnabled({
-      ownerGoal: null,
-      informationToCollect: [],
-    })
-  );
+  assert.ok(!intakeGoalEnabled({ informationToCollect: [] }));
+  assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
+  assert.ok(!intakeGoalEnabled({}));
 }
 
 function testNoForcedBookingProcess() {
@@ -194,7 +148,6 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Test Biz',
     whatWeDo: 'Services',
-    ownerGoal: 'answer_and_collect',
     services: [{ name: 'A', price: '$1', notes: null }],
     informationToCollect: ['name', 'phone', 'preferred time'],
     unknowns: [],
@@ -213,7 +166,6 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
   );
   assert.match(prompt, /do not ask for details again/i);
   assert.ok(intakeGoalEnabled({
-    ownerGoal: 'answer_and_collect',
     informationToCollect: ['name', 'phone', 'preferred time'],
   }));
 }
@@ -257,7 +209,7 @@ function testConversationSettingsSectionSeparated() {
   const facts = sectionBetween(
     prompt,
     '=== APPROVED BUSINESS FACTS ===',
-    '=== BOT OBJECTIVE ==='
+    '=== CONVERSATION SETTINGS ==='
   );
   const settings = sectionBetween(
     prompt,
@@ -315,7 +267,7 @@ function testOnRequestPolicyOnlyWhenSet() {
   assert.ok(/Price disclosure: relevant/i.test(relevant));
 }
 
-function testNextStepFollowsGoalAndIntake() {
+function testNextStepFollowsIntake() {
   const facts = {
     name: 'Harbor Cuts',
     whatWeDo: 'Hair salon',
@@ -324,36 +276,21 @@ function testNextStepFollowsGoalAndIntake() {
   };
   const collect = buildCustomerSystemPrompt({
     ...facts,
-    ownerGoal: 'answer_and_collect',
     informationToCollect: ['name', 'phone'],
   });
   const questions = buildCustomerSystemPrompt({
     ...facts,
-    ownerGoal: 'answer_questions',
     informationToCollect: [],
   });
-  const collectNoList = buildCustomerSystemPrompt({
+  const unset = buildCustomerSystemPrompt({
     ...facts,
-    ownerGoal: 'collect_details',
-    informationToCollect: [],
+    informationToCollect: null,
   });
 
-  assert.ok(intakeGoalEnabled({
-    ownerGoal: 'answer_and_collect',
-    informationToCollect: ['name', 'phone'],
-  }));
-  assert.ok(!intakeGoalEnabled({
-    ownerGoal: 'answer_questions',
-    informationToCollect: [],
-  }));
-  assert.ok(!intakeGoalEnabled({
-    ownerGoal: 'collect_details',
-    informationToCollect: [],
-  }));
-  assert.ok(!intakeGoalEnabled({
-    ownerGoal: 'answer_questions',
-    informationToCollect: ['name'],
-  }));
+  assert.ok(intakeGoalEnabled({ informationToCollect: ['name', 'phone'] }));
+  assert.ok(!intakeGoalEnabled({ informationToCollect: [] }));
+  assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
+  assert.ok(intakeGoalEnabled({ informationToCollect: ['name'] }));
 
   assert.match(collect, /invite them to leave their listed details/i);
   assert.match(collect, /Interest or a booking request: ask for the missing listed items now/);
@@ -364,8 +301,8 @@ function testNextStepFollowsGoalAndIntake() {
   assert.match(questions, /Do not ask for intake details/);
   assert.doesNotMatch(questions, /invite them to leave their listed details/i);
 
-  assert.match(collectNoList, /Do not ask for intake details/);
-  assert.doesNotMatch(collectNoList, /invite them to leave their listed details/i);
+  assert.match(unset, /Do not ask for intake details/);
+  assert.doesNotMatch(unset, /invite them to leave their listed details/i);
 }
 
 function testOpeningNotInStandingPrompt() {
@@ -455,16 +392,15 @@ function testStayOnBusinessRule() {
 }
 
 function main() {
-  testOwnerGoalSeparatedFromFacts();
-  testObjectivePerGoal();
+  testFactsGoStraightToSettings();
   testFactsFaqUnknownsIntakeRendered();
-  testEmptyIntakeAndNullOwnerGoal();
+  testEmptyIntakeAnswerOnly();
   testNoForcedBookingProcess();
   testIntakeConfirmDoesNotRefuseKeepingDetails();
   testPricingProcessIsCompleteAnswer();
   testConversationSettingsSectionSeparated();
   testOnRequestPolicyOnlyWhenSet();
-  testNextStepFollowsGoalAndIntake();
+  testNextStepFollowsIntake();
   testOpeningNotInStandingPrompt();
   testDefaultOpeningText();
   testLegacyDefaultsInPrompt();

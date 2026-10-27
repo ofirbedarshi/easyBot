@@ -111,8 +111,6 @@ function builderPayload(message) {
     draft: {
       name: null,
       whatWeDo: null,
-      ownerGoal: null,
-      ownerGoalRequested: null,
       services: [],
       hours: null,
       locationOrArea: null,
@@ -129,8 +127,6 @@ function builderPayload(message) {
     factEdits: [],
     resolvedUnknowns: [],
     configRequests: [],
-    goalSupported: null,
-    goalUnsupportedPart: null,
     onPurpose: true,
   });
 }
