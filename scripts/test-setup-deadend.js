@@ -7,6 +7,7 @@
  */
 import assert from 'assert';
 import fs from 'fs';
+import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
 import { applyReviewGate } from '../src/builder.js';
 import { topicByKey } from '../src/builderTopics.js';

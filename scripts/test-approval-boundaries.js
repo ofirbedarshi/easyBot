@@ -441,7 +441,7 @@ function testGoalSupport() {
     'answer questions and take messages when people want to book'
   );
   assert.equal(mixed.draft.ownerGoal, 'answer_and_collect');
-  assert.equal(mixed.message, 'Got it, thanks!');
+  assert.match(mixed.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
   assert.ok(!mixed.message.includes("isn't available yet"));
   assert.ok(!mixed.message.includes(GOAL_FALLBACK_DISCLAIMER));
 
@@ -457,10 +457,8 @@ function testGoalSupport() {
     'lead customers to book a session with me'
   );
   assert.equal(missed.draft.ownerGoal, 'answer_questions');
-  assert.equal(
-    missed.message,
-    "I'll set the goal to help customers book. Should the bot collect anything?"
-  );
+  assert.match(missed.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
+  assert.ok(!missed.message.includes(GOAL_FALLBACK_DISCLAIMER));
 
   // Supported → no fallback line.
   const s = applyReviewGate(
@@ -539,14 +537,22 @@ function testRequiredTopicsGate() {
   assert.match(d.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
   assert.deepEqual(d.draft.askedTopics, ['commonQuestions']);
 
-  // Before the goal, a model question is left alone (FAQ is not injected).
+  // Before name + goal, a model question is left alone (FAQ is not injected).
   const beforeGoal = applyReviewGate(
     emptyProfile(),
     {
       ...turn,
       readyForReview: false,
       message: 'Per hour?',
-      draft: { ...facts, ownerGoal: null },
+      draft: {
+        ...facts,
+        name: null,
+        ownerGoal: null,
+        services: [],
+        hours: null,
+        locationOrArea: null,
+        askedTopics: [],
+      },
     },
     'hi'
   );
@@ -639,14 +645,23 @@ function testRequiredTopicsGate() {
   const own2 = applyReviewGate({ ...emptyProfile(), draft: own.draft }, turn, 'skip');
   assert.equal(own2.presentReview, true);
 
-  // Goal question with intake-like examples is not treated as a topic question.
+  // Goal-like wording is not treated as FAQ via mentions (before wrap-up starts).
   const goalQ = applyReviewGate(
     emptyProfile(),
     {
       ...turn,
-      draft: { ...facts, informationToCollect: null },
       readyForReview: false,
       message: "What's the main thing you'd like your bot to do? For example: collect contact details from interested customers.",
+      draft: {
+        ...facts,
+        name: null,
+        ownerGoal: null,
+        services: [],
+        hours: null,
+        locationOrArea: null,
+        informationToCollect: null,
+        askedTopics: [],
+      },
     },
     'waser'
   );

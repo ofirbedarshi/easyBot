@@ -329,7 +329,10 @@ async function testNumberAfterInterveningQuestionGoesToBuilder() {
   assert.equal(ans.event, 'build_turn');
   assert.equal(session.mode, 'BUILD');
   assert.equal(calls.builder, 3);
-  assert.match(ans.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
+  assert.ok(ans.reply.startsWith('What should we do next?'), ans.reply);
+  assert.match(ans.reply, /🏪 Tell me more about your business/);
+  assert.doesNotMatch(ans.reply, /Here's your bot/);
+  assert.doesNotMatch(ans.reply, /How I talk: default/);
 }
 
 async function testTryMyBotWordsAfterInterveningQuestion() {
