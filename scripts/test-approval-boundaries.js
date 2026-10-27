@@ -1028,10 +1028,8 @@ async function testOtherFactsApprovePropagates() {
   }), liveMock);
 
   const review = await handleMessage(session, 'Please apply this change.');
-  assert.ok(
-    review.reply.includes(`Other facts: ${facts[0]}; ${facts[1].replace(/\.$/, '')}`),
-    'review card must list otherFacts'
-  );
+  assert.ok(review.reply.startsWith("🎉 I'm all set!"), review.reply);
+  assert.doesNotMatch(review.reply, /Other facts/, 'first-approval card is the 🏪 lines only');
   const section = renderSection(1, loadProfile(PROFILE));
   assert.ok(!section.includes('Other facts'), 'section 1 no longer lists otherFacts');
   assert.ok(section.includes('*Price policy:*'), section);

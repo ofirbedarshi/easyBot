@@ -687,15 +687,25 @@ async function testReviewRenderHelpers() {
     services: [{ ...live.services[0], notes: 'new note' }],
     ownerGoal: 'answer_questions',
   });
-  assert.ok(changed.startsWith("Here's what changed:\n*Hours:* Sun–Thu 9–18\n"), changed);
-  assert.match(changed, /\n\*Hours:\* Sun–Thu 9–18\n/);
-  assert.match(changed, /\n\*Services & prices:\* Private lesson — 200 ILS \/ 60 min\n/);
+  assert.equal(
+    changed.split('\n\n')[0],
+    [
+      "Here's what changed:",
+      '*Services & prices:* Private lesson — 200 ILS / 60 min',
+      '*Hours:* Sun–Thu 9–18',
+      '*My goal:* Answer customer questions',
+    ].join('\n')
+  );
   assert.doesNotMatch(changed, /\(was:|\(updated\)/);
-  assert.match(changed, /\n\*My goal:\* Answer customer questions/);
   assert.doesNotMatch(changed, /\n\*Location:\*/, 'unchanged lines hidden');
   const renamed = renderSavedChanges(live, { ...live, name: 'Ofir Baber' });
   assert.match(renamed, /\n\*Name:\* Ofir Baber\n/);
   assert.doesNotMatch(renamed, /\n\*What you do:\*/, 'name-only edit hides unchanged lines');
+  const extras = renderSavedChanges(live, {
+    ...live,
+    otherFacts: ['Weekday-only parking'],
+  });
+  assert.match(extras, /\n\*Other facts:\* Weekday-only parking/);
   assert.equal(parseReviewChoice('1'), 'try');
   assert.equal(parseReviewChoice('chat with me like a customer'), 'try');
   assert.equal(parseReviewChoice('2.'), 'change');
