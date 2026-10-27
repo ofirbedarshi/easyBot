@@ -17,6 +17,7 @@ const SUITES = [
   { id: 'setup-deadend', file: 'scripts/test-setup-deadend.js' },
   { id: 'setup-flow', file: 'scripts/test-setup-flow.js' },
   { id: 'setup-edit-flow', file: 'scripts/test-setup-edit-flow.js' },
+  { id: 'owner-phase', file: 'scripts/test-owner-phase.js' },
   { id: 'builder-nav', file: 'scripts/test-builder-nav.js' },
   { id: 'customer-prompt', file: 'scripts/test-customer-prompt.js' },
   { id: 'twilio-webhook', file: 'scripts/test-twilio-webhook.js' },

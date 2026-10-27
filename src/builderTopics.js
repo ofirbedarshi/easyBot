@@ -1,4 +1,5 @@
 import { normalizeCommonQuestions } from './profile.js';
+import { ownerPhase } from './ownerPhase.js';
 
 /**
  * Topics the Builder must raise before the first review, in asking order.
@@ -125,7 +126,7 @@ export function businessDetailsSettled(draft, askedTopics = []) {
  * `priorAskedTopics` are topics the app asked before the current owner message.
  */
 export function nextOpenTopic(profile, draft, priorAskedTopics = []) {
-  if (profile?.approvedAt) return null;
+  if (ownerPhase(null, profile) === 'ready') return null;
   const asked = new Set(priorAskedTopics || []);
   const wrapUpStarted = [...asked].some((k) => WRAP_UP_TOPIC_KEYS.has(k));
   for (const topic of REQUIRED_TOPICS) {
@@ -149,7 +150,7 @@ export function topicModelAsked(profile, draft, priorAskedTopics, message, askin
   if (!/\?/.test(text)) return null;
   const open = REQUIRED_TOPICS.filter(
     (t) =>
-      !profile?.approvedAt &&
+      ownerPhase(null, profile) !== 'ready' &&
       !t.isAnswered(draft) &&
       !(t.skippable && (priorAskedTopics || []).includes(t.key)) &&
       (t.phase !== 'afterName' || (hasNameAndWhat(draft) && !wrapUpStarted(priorAskedTopics)))
