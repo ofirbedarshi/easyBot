@@ -279,8 +279,8 @@ await playJourney([
     },
   },
   {
-    name: '1 → business section',
-    in: '1',
+    name: '2 → business section',
+    in: '2',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection(1, profile),
@@ -297,8 +297,8 @@ await playJourney([
     },
   },
   {
-    name: '2 → Q&A section',
-    in: '2',
+    name: '3 → Q&A section',
+    in: '3',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection(2, profile),
@@ -315,8 +315,8 @@ await playJourney([
     },
   },
   {
-    name: '3 → intake section',
-    in: '3',
+    name: '4 → intake section',
+    in: '4',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection('intake', profile),
@@ -333,8 +333,8 @@ await playJourney([
     },
   },
   {
-    name: '4 → How I talk section',
-    in: '4',
+    name: '5 → How I talk section',
+    in: '5',
     expect: {
       event: 'menu_section',
       reply: ({ profile }) => renderSection(3, profile),
@@ -456,8 +456,8 @@ await playJourney([
     },
   },
   {
-    name: '5 from menu → TEST and stamps firstTestedAt',
-    in: '5',
+    name: '1 from menu → TEST and stamps firstTestedAt',
+    in: '1',
     expect: {
       event: 'enter_test',
       mode: 'TEST',
@@ -592,8 +592,8 @@ await playJourney([
     },
   },
   {
-    name: 'restart: 5 from no-lead menu → TEST',
-    in: '5',
+    name: 'restart: 1 from no-lead menu → TEST',
+    in: '1',
     expect: {
       event: 'enter_test',
       mode: 'TEST',

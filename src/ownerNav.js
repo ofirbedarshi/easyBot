@@ -92,8 +92,8 @@ export function menuActive(buildHistory) {
 }
 
 /**
- * Editing menu. `leadOption` adds the lead item first, which shifts the other
- * items down by one.
+ * Editing menu. `leadOption` adds the lead item first (Chat stays next);
+ * that shifts the other items down by one.
  */
 export function renderMenu(menuOpts) {
   return composeReply({ kind: 'menu', menuOpts }).reply;

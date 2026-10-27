@@ -379,7 +379,7 @@ function tellMoreThenReady(nextDraft = fullFacts(), inbound = 'Oil change 200 IL
       approvedAt: true,
       nav: 'menu',
       startsWith: readyOpener(OWNER),
-      includes: ['1. 🏪 Tell me more about your business', '3. 📝 Choose details to collect from customers'],
+      includes: ['2. 🏪 Tell me more about your business', '4. 📝 Choose details to collect from customers'],
       excludes: [LEGACY_CARD, '🚀 Get me working for your business', BUSINESS_DETAILS_MARKER],
     },
   };
@@ -429,8 +429,8 @@ function editHours(nextDraft) {
 
 function tryMyBot() {
   return {
-    name: '5 from ready menu → TEST banners',
-    in: '5',
+    name: '1 from ready menu → TEST banners',
+    in: '1',
     expect: {
       event: 'enter_test',
       mode: 'TEST',
@@ -594,7 +594,7 @@ await test('"ok" after ready_first is the menu, not a leftover card', async () =
         mode: 'BUILD',
         approvedAt: true,
         nav: 'menu',
-        includes: ['Here is your bot again.', '1. 🏪 Tell me more about your business'],
+        includes: ['Here is your bot again.', '2. 🏪 Tell me more about your business'],
         excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', '🚀 Get me working for your business'],
       },
     },

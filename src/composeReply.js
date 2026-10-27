@@ -302,13 +302,14 @@ export function sectionLines(section, p) {
 }
 
 /**
- * Ordered editing-menu items: 'lead', sections 1–3 (numbers), 'intake', 'try'.
- * Rendering and number parsing both use this list, so a picked number always
- * maps to the item shown at that position. Lead is included only when
- * `leadOption` is true (approved + firstTestedAt + no lead submitted).
+ * Ordered editing-menu items: optional 'lead', then 'try', then sections
+ * 1–3 (numbers) and 'intake'. Rendering and number parsing both use this
+ * list, so a picked number always maps to the item shown at that position.
+ * Lead is included only when `leadOption` is true (approved + firstTestedAt
+ * + no lead submitted) and stays first when shown.
  */
 export function menuItems({ leadOption = false } = {}) {
-  return [...(leadOption ? ['lead'] : []), 1, 2, 'intake', 3, 'try'];
+  return [...(leadOption ? ['lead'] : []), 'try', 1, 2, 'intake', 3];
 }
 
 function menuLabel(item) {

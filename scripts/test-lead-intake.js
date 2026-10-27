@@ -109,7 +109,7 @@ assert.equal(r.state.answers.contactConsent, 'No, thanks');
 // Menu: item 1 only when requested
 assert.ok(!renderMenu().includes(LEAD_MENU_LABEL));
 assert.ok(
-  renderMenu({ leadOption: true }).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n2. 🏪 Tell me more about your business\n`)
+  renderMenu({ leadOption: true }).startsWith(`1. 🚀 ${LEAD_MENU_LABEL}\n2. 🤖 Chat with me like a customer\n`)
 );
 
 // Session flow (memory store)
@@ -205,7 +205,7 @@ const sess = await store.loadSession(sender);
 assert.equal(sess.buildHistory.filter((m) => m.role === 'user').length, 0);
 assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 
-// Next BUILD message shows the editing menu (no lead item), then 1 is business info
+// Next BUILD message shows the editing menu (no lead item), then 2 is business info
 res = await send('hello');
 assert.equal(res.event, 'menu');
 assert.equal(
@@ -213,18 +213,18 @@ assert.equal(
   [
     'What should we do next?',
     '',
-    '1. 🏪 Tell me more about your business',
-    '2. ❓ Teach me more questions and answers',
-    '3. 📝 Choose details to collect from customers',
-    '4. 💬 Tell me how to talk to your customers',
-    '5. 🤖 Chat with me like a customer',
+    '1. 🤖 Chat with me like a customer',
+    '2. 🏪 Tell me more about your business',
+    '3. ❓ Teach me more questions and answers',
+    '4. 📝 Choose details to collect from customers',
+    '5. 💬 Tell me how to talk to your customers',
     '',
     'Pick a number, or just tell me what you want me to learn.',
   ].join('\n')
 );
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
-res = await send('1');
+res = await send('2');
 assert.equal(res.event, 'menu_section');
 assert.ok(res.reply.startsWith('🏪 This is what I know about your business:\n\n'), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);

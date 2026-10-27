@@ -722,7 +722,7 @@ async function testIdentityDraftIsolatesLive() {
   assert.match(r.reply, /Here's what changed:/, 'settings-only edit is presented as a save card');
   assert.match(r.reply, /Here's what changed:\n\*How I talk:\* friendly, custom opening/);
   assert.doesNotMatch(r.reply, /\(was:/);
-  assert.match(r.reply, /1\. 🏪 Tell me more about your business/);
+  assert.match(r.reply, /2\. 🏪 Tell me more about your business/);
   assert.match(r.reply, /📝 Choose details to collect from customers/);
   assert.match(r.reply, /🤖 Chat with me like a customer/);
   assert.doesNotMatch(r.reply, /What outcome/, 'model follow-up question stripped');
@@ -1158,7 +1158,7 @@ async function testTranscriptShapedImmediateSave() {
   assert.equal(disk.commonQuestions[0].answer, "It's 100 shekel per haircut.");
   assert.match(buildCustomerSystemPrompt(disk), /100 shekel per haircut/);
 
-  const qa = await handleMessage(session, '2');
+  const qa = await handleMessage(session, '3');
   assert.equal(qa.event, 'menu_section');
   assert.match(qa.reply, /It's 100 shekel per haircut/);
   assert.doesNotMatch(qa.reply, /Pending change|Live now:/);
@@ -1166,11 +1166,11 @@ async function testTranscriptShapedImmediateSave() {
 
   const approve = await handleMessage(session, 'Approve');
   assert.equal(approve.event, 'build_turn');
-  assert.match(approve.reply, /1\. 🏪 Tell me more about your business/);
+  assert.match(approve.reply, /2\. 🏪 Tell me more about your business/);
   assert.doesNotMatch(approve.reply, /Pending change/);
 
   const nowWhat = await handleMessage(session, 'Now what');
-  assert.match(nowWhat.reply, /1\. 🏪 Tell me more about your business/);
+  assert.match(nowWhat.reply, /2\. 🏪 Tell me more about your business/);
   assert.doesNotMatch(nowWhat.reply, /Pending change/);
   console.log('PASS transcript_shaped_immediate_save');
 }
