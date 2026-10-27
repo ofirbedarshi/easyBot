@@ -167,8 +167,33 @@ function stateFrom(session, profile) {
 const BOT_ERROR_REPLY =
   "Sorry, your bot couldn't answer right now. Please try again in a moment.";
 
-export const ENTER_TEST_REPLY =
-  "You're now chatting with me as a customer. Type *stop* when you want to keep teaching me.";
+function businessDisplayName(profile) {
+  const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
+  return name || 'this business';
+}
+
+/** Scripted TEST-entry banner. Code only; `{business}` is the profile name. */
+export function enterTestBanner(business) {
+  return [
+    '🎭 ━━━━━━━━━━━━ 🎭',
+    '*Test mode is on*',
+    '',
+    `Now you're the customer, and I'm ${business}'s assistant.`,
+    'Type *stop* when you want to keep teaching me.',
+    '🎭 ━━━━━━━━━━━━ 🎭',
+  ].join('\n');
+}
+
+/** Scripted TEST-exit banner. Code only. */
+export function exitTestBanner() {
+  return [
+    '🎭 ━━━━━━━━━━━━ 🎭',
+    '*Test mode is off*',
+    '',
+    "I'm back to learning about your business.",
+    '🎭 ━━━━━━━━━━━━ 🎭',
+  ].join('\n');
+}
 
 /**
  * Exit TEST (and cancel lead): the whole message is `stop`, trimmed,
@@ -335,10 +360,11 @@ async function enterTest(session) {
   const opening = customerOpeningText(profile);
   session.testHistory = [{ role: 'assistant', content: opening }];
   session.testSessionId = `test-${Date.now()}`;
-  const reply = `${ENTER_TEST_REPLY}\n\n${opening}`;
+  const banner = enterTestBanner(businessDisplayName(profile));
   return {
     ok: true,
-    reply,
+    reply: banner,
+    replies: [banner, opening],
     source: 'app',
     event: 'enter_test',
     ...(await getStateAsync(session)),
@@ -346,23 +372,48 @@ async function enterTest(session) {
 }
 
 async function enterBuild(session) {
+  const leavingTest = session.mode === 'TEST';
   session.mode = 'BUILD';
   const profile = await loadAsync(session);
   if (profile.approvedAt) {
-    const reply = renderReturnToEditing(leadMenuOpts(session, profile));
-    session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+    const menu = leavingTest
+      ? renderChangeMenu(leadMenuOpts(session, profile))
+      : renderReturnToEditing(leadMenuOpts(session, profile));
+    session.buildHistory.push({ role: 'assistant', content: menu, nav: 'menu' });
+    if (leavingTest) {
+      const banner = exitTestBanner();
+      return {
+        ok: true,
+        reply: banner,
+        replies: [banner, menu],
+        source: 'app',
+        event: 'enter_build',
+        ...(await getStateAsync(session)),
+      };
+    }
     return {
       ok: true,
-      reply,
+      reply: menu,
       source: 'app',
       event: 'enter_build',
       ...(await getStateAsync(session)),
     };
   }
-  const reply = renderSetupContinue();
+  const continueReply = renderSetupContinue();
+  if (leavingTest) {
+    const banner = exitTestBanner();
+    return {
+      ok: true,
+      reply: banner,
+      replies: [banner, continueReply],
+      source: 'app',
+      event: 'enter_build',
+      ...(await getStateAsync(session)),
+    };
+  }
   return {
     ok: true,
-    reply,
+    reply: continueReply,
     source: 'app',
     event: 'enter_build',
     ...(await getStateAsync(session)),

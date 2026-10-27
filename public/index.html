@@ -633,7 +633,12 @@
           body: JSON.stringify({ message: text }),
         }).then((r) => r.json());
         setMode(data.mode || 'BUILD');
-        addMsg('assistant', data.reply || data.error || '(no reply)', data.source || data.event);
+        const texts =
+          Array.isArray(data.replies) && data.replies.length
+            ? data.replies
+            : [data.reply || data.error || '(no reply)'];
+        const meta = data.source || data.event;
+        for (const t of texts) addMsg('assistant', t, meta);
         await refreshHealth();
       } catch (err) {
         addMsg('assistant', 'Request failed: ' + err.message, 'error');

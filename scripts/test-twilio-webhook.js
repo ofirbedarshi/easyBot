@@ -347,10 +347,24 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   assert.equal(sess.mode, 'BUILD');
   const done = dump.inbound.filter((r) => r.status === 'done');
   assert.equal(done.length, 2);
-  assert.ok(done[0].reply_body.includes('chatting with me as a customer'));
-  assert.ok(done[0].reply_body.includes('Type *stop*'));
-  assert.ok(!done[0].reply_body.includes('/end'));
-  assert.ok(done[1].reply_body.includes("I'm back! What should I learn next?"));
+  const outFor = (sid) =>
+    dump.messages
+      .filter((m) => m.direction === 'outbound' && m.in_reply_to_sid === sid)
+      .sort((a, b) => a.id - b.id);
+  const testOut = outFor('SMwf1');
+  const stopOut = outFor('SMwf2');
+  assert.equal(testOut.length, 2);
+  assert.ok(testOut[0].body.includes('*Test mode is on*'));
+  assert.ok(testOut[0].body.includes("I'm Demo Yoga's assistant."));
+  assert.ok(testOut[0].body.includes('Type *stop*'));
+  assert.ok(!testOut[0].body.includes('/end'));
+  assert.ok(testOut[1].body.includes("Hi! I'm Adam, Demo Yoga's digital assistant"));
+  assert.equal(stopOut.length, 2);
+  assert.ok(stopOut[0].body.includes('*Test mode is off*'));
+  assert.ok(stopOut[0].body.includes("I'm back to learning about your business."));
+  assert.ok(stopOut[1].body.startsWith('What should we do next?'));
+  assert.ok(done[0].reply_body.includes("Hi! I'm Adam, Demo Yoga's digital assistant"));
+  assert.ok(done[1].reply_body.startsWith('What should we do next?'));
   assert.equal(sess.buildHistory[sess.buildHistory.length - 1].nav, 'menu');
   ok('webhook workflow /test then stop (mocked store + worker)');
   worker.stop();

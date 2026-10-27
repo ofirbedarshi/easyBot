@@ -223,17 +223,20 @@ export function createSupabaseStore() {
       if (error) throw new Error(`setMessageSid: ${error.message}`);
     },
 
-    async findOutboundForInbound(inboundSid) {
+    async findOutboundsForInbound(inboundSid) {
       const { data, error } = await sb
         .from('easybot_messages')
         .select('*')
         .eq('direction', 'outbound')
         .eq('in_reply_to_sid', inboundSid)
-        .order('id', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error(`findOutboundForInbound: ${error.message}`);
-      return data || null;
+        .order('id', { ascending: true });
+      if (error) throw new Error(`findOutboundsForInbound: ${error.message}`);
+      return data || [];
+    },
+
+    async findOutboundForInbound(inboundSid) {
+      const rows = await this.findOutboundsForInbound(inboundSid);
+      return rows[0] || null;
     },
 
     async listMessages(senderId) {
