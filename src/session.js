@@ -384,7 +384,10 @@ async function enterBuild(session) {
   const leavingTest = session.mode === 'TEST';
   session.mode = 'BUILD';
   const profile = await loadAsync(session);
-  if (ownerPhase(session, profile) === 'ready') {
+  // approvedAt, not ownerPhase === 'ready': empty BUILD history is wake
+  // (first inbound still opens), but leaving TEST already treats a
+  // seeded ready profile as ready.
+  if (profile.approvedAt) {
     const menu = leavingTest
       ? renderChangeMenu(leadMenuOpts(session, profile))
       : renderReturnToEditing(leadMenuOpts(session, profile));
@@ -430,7 +433,9 @@ async function enterBuild(session) {
 }
 
 function leadMenuOpts(session, profile) {
-  return { leadOption: ownerPhase(session, profile) === 'ready' && !leadSubmitted(session.leadIntake) };
+  // Same approvedAt exception as enterBuild: lead item visibility follows
+  // the ready timestamp, not wake-when-history-is-empty.
+  return { leadOption: !!profile?.approvedAt && !leadSubmitted(session.leadIntake) };
 }
 
 /** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */

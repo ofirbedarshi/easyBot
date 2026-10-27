@@ -36,7 +36,7 @@ Enforced by `enforceConfigRequests` after each real Builder turn:
 
 ## Owner phases
 
-Enforced by `ownerPhase` in `src/ownerPhase.js`. One of `wake | setup | wrapup | ready | test | lead | lead_resume`. Routing in `handleMessage`, save-card / menu chrome, and the wrap-up gate share this function. **`ready` is `approvedAt`.** `/test` and **Chat with me like a customer** still use `hasEnoughForFirstBot` (name + offering) — that is a capability check, not a phase, so TEST can start during setup once those basics exist. Tell-me-more (`businessDetails`) and the scripted goal question stay agenda items inside `setup`; they are not phases. This-turn model flags (`readyForReview` / `wantsReview`) can start wrap-up inside `gateTurn` only — they are not persisted.
+Enforced by `ownerPhase` in `src/ownerPhase.js`. One of `wake | setup | wrapup | ready | test | lead | lead_resume`. Routing in `handleMessage`, save-card / menu chrome, and the wrap-up gate share this function. **`ready` is `approvedAt`.** `/test` and **Chat with me like a customer** still use `hasEnoughForFirstBot` (name + offering) — that is a capability check, not a phase, so TEST can start during setup once those basics exist. Tell-me-more (`businessDetails`) and the scripted goal question stay agenda items inside `setup`; they are not phases. This-turn model flags (`readyForReview` / `wantsReview`) can start wrap-up inside `gateTurn` only — they are not persisted. Leaving TEST via `stop` shows the editing menu whenever `approvedAt` is set, even if BUILD history is still empty (a seeded profile that never woke). That chrome check stays on `approvedAt`; `ownerPhase` would call the same session `wake`.
 
 ```mermaid
 stateDiagram-v2
