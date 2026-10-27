@@ -24,8 +24,9 @@ import { normalizeCommonQuestions } from './profile.js';
  *   (needed when questionFor makes the full text vary).
  * - answerHint: sent to the model on the turn right after the app asked it.
  * - isAnswered(draft): the answer is already in the draft.
- * - skippable: once asked and the owner replied, the topic is settled even
- *   with no answer stored (the owner may decline).
+ * - skippable: settled when the owner provided data for the topic this turn,
+ *   or the model returns topicResponse=skipped. A confused / unclear reply
+ *   does not settle it.
  */
 const hasText = (value) => !!String(value || '').trim();
 

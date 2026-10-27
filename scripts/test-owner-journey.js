@@ -267,7 +267,7 @@ await playJourney([
   {
     name: 'skip FAQ → intake',
     in: 'skip',
-    model: modelTurn({}, { message: 'No questions yet ✨' }),
+    model: modelTurn({}, { message: 'No questions yet ✨', topicResponse: 'skipped' }),
     expect: {
       event: 'build_turn',
       phase: 'wrapup',
@@ -646,20 +646,69 @@ await playJourney([
     informationToCollect: null,
     askedTopics: ['businessDetails', 'commonQuestions'],
   };
-  const faqQModel =
-    'I collect those details when a customer is ready to book. Want me to start now?';
+  const faqQModel = "I mean questions like 'What kinds of furniture do you make?'";
   const faqQuestionInstead = applyReviewGate(
     { ...emptyProfile(), ...faqAskedDraft, draft: faqAskedDraft },
-    { message: faqQModel, draft: faqAskedDraft, onPurpose: true },
-    'When will you collect it?'
+    { message: faqQModel, draft: faqAskedDraft, onPurpose: true, topicResponse: 'unclear' },
+    'Like what?',
+    { justAsked: FAQ }
   );
-  assert.equal(
-    faqQuestionInstead.message,
-    `I collect those details when a customer is ready to book.\n\n${INTAKE.question}`
-  );
+  assert.equal(faqQuestionInstead.message, `${faqQModel}\n\n${FAQ.question}`);
+  assert.ok(!faqQuestionInstead.message.includes(FAQ.ack));
   assert.ok(!faqQuestionInstead.message.includes(INTAKE.ack));
   assert.ok(!/noted/i.test(faqQuestionInstead.message));
-  console.log('PASS owner-journey: FAQ question instead of answer uses model lead');
+  console.log('PASS owner-journey: confused FAQ stays with model lead');
+
+  const faqSkip = applyReviewGate(
+    { ...emptyProfile(), ...faqAskedDraft, draft: faqAskedDraft },
+    { message: 'No questions yet ✨', draft: faqAskedDraft, onPurpose: true, topicResponse: 'skipped' },
+    'skip',
+    { justAsked: FAQ }
+  );
+  assert.equal(faqSkip.message, `No questions yet ✨\n\n${INTAKE.question}`);
+  console.log('PASS owner-journey: explicit FAQ skip still advances');
+
+  const detailsAskedDraft = {
+    name: NAME,
+    whatWeDo: WHAT,
+    ownerGoal: null,
+    services: [],
+    hours: null,
+    locationOrArea: null,
+    commonQuestions: [],
+    informationToCollect: null,
+    askedTopics: ['businessDetails'],
+  };
+  const detailsConfused = applyReviewGate(
+    { ...emptyProfile(), ...detailsAskedDraft, draft: detailsAskedDraft },
+    {
+      message: 'Hours, prices, or where you work — whatever you want me to know.',
+      draft: detailsAskedDraft,
+      onPurpose: true,
+      topicResponse: 'unclear',
+    },
+    'What should I write here?',
+    { justAsked: topicByKey('businessDetails') }
+  );
+  assert.ok(detailsConfused.message.includes(businessDetailsQuestion(detailsAskedDraft)));
+  assert.ok(detailsConfused.message.startsWith('Hours, prices, or where you work'));
+  assert.ok(!detailsConfused.message.includes(BUSINESS_DETAILS_ACK));
+  console.log('PASS owner-journey: confused tell-more stays with model lead');
+
+  const detailsSkip = applyReviewGate(
+    { ...emptyProfile(), ...detailsAskedDraft, draft: detailsAskedDraft },
+    {
+      message: `${NAME} is your garage ✨`,
+      draft: detailsAskedDraft,
+      onPurpose: true,
+      topicResponse: 'skipped',
+    },
+    'skip',
+    { justAsked: topicByKey('businessDetails') }
+  );
+  assert.ok(detailsSkip.message.includes('Now tell me, how can I help you the most?'));
+  assert.ok(!detailsSkip.message.includes('so I can answer your customers well'));
+  console.log('PASS owner-journey: explicit tell-more skip still advances');
 } catch (err) {
   console.error(`FAIL owner-journey: ${err.message}`);
   process.exit(1);

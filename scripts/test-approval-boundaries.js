@@ -340,6 +340,7 @@ async function testIntakeGateBlocksApprove() {
       tone: 'warm',
     },
     readyForReview: true,
+    topicResponse: 'skipped',
     source: 'stub-builder',
   });
 
@@ -516,8 +517,13 @@ function testRequiredTopicsGate() {
   );
   assert.deepEqual(specific.draft.askedTopics, ['commonQuestions']);
 
-  // Asked on a prior turn → settled even with no FAQ stored → review.
-  const b = applyReviewGate({ ...emptyProfile(), draft: a.draft }, turn, 'skip');
+  // Asked on a prior turn + skipped → settled even with no FAQ stored → review.
+  const b = applyReviewGate(
+    { ...emptyProfile(), draft: a.draft },
+    { ...turn, topicResponse: 'skipped' },
+    'skip',
+    { justAsked: topicByKey('commonQuestions') }
+  );
   assert.equal(b.presentReview, true);
 
   // FAQ with an answer → settled without asking.
@@ -565,8 +571,10 @@ function testRequiredTopicsGate() {
       readyForReview: false,
       wantsReview: false,
       asksQuestion: true,
+      topicResponse: 'skipped',
     },
-    'skip'
+    'skip',
+    { justAsked: topicByKey('commonQuestions') }
   );
   assert.equal(afterFaq.presentReview, false);
   assert.equal(afterFaq.asksQuestion, true);
@@ -640,7 +648,12 @@ function testRequiredTopicsGate() {
   assert.equal(midQ.draft.services[0].price, '$90 per hour');
 
   // Owner skips → review next, FAQ not repeated.
-  const own2 = applyReviewGate({ ...emptyProfile(), draft: own.draft }, turn, 'skip');
+  const own2 = applyReviewGate(
+    { ...emptyProfile(), draft: own.draft },
+    { ...turn, topicResponse: 'skipped' },
+    'skip',
+    { justAsked: topicByKey('commonQuestions') }
+  );
   assert.equal(own2.presentReview, true);
 
   // Goal-like wording is not treated as FAQ via mentions (before wrap-up starts).

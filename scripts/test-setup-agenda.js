@@ -58,6 +58,9 @@ function advance(row) {
     draftAfterExtract: row.draft,
     modelMessage: row.modelMessage || '',
     unresolvedConfig: row.unresolvedConfig === true,
+    topicResponse: row.topicResponse,
+    justAsked: row.justAsked,
+    priorDraft: row.priorDraft,
   });
 }
 
@@ -98,6 +101,8 @@ const rows = [
     id: 4,
     name: 'tell-more already asked, hours only → goal, do not re-ask',
     priorAsked: ['businessDetails'],
+    justAsked: DETAILS,
+    priorDraft: nameWhat(),
     draft: nameWhat({ hours: 'Mon–Fri 8–18' }),
     expect: { step: 'goal', askedTopics: ['businessDetails'], topicKey: null },
   },
@@ -105,6 +110,8 @@ const rows = [
     id: 5,
     name: 'tell-more asked, empty extract / skip-shaped → goal',
     priorAsked: ['businessDetails'],
+    justAsked: DETAILS,
+    topicResponse: 'skipped',
     draft: nameWhat(),
     expect: { step: 'goal', askedTopics: ['businessDetails'], topicKey: null },
   },
@@ -145,6 +152,8 @@ const rows = [
     id: 9,
     name: 'faq asked, no FAQ rows → intake',
     priorAsked: ['businessDetails', 'commonQuestions'],
+    justAsked: FAQ,
+    topicResponse: 'skipped',
     draft: withGoal(),
     expect: {
       step: 'intake',
@@ -230,9 +239,41 @@ const rows = [
       presentComplete: false,
     },
   },
+  {
+    id: 16,
+    name: 'tell-more asked, unclear / no data → stay, no ack',
+    priorAsked: ['businessDetails'],
+    justAsked: DETAILS,
+    topicResponse: 'unclear',
+    draft: nameWhat(),
+    modelMessage: "I mean things like hours and where you're based.",
+    expect: {
+      step: 'businessDetails',
+      askedTopics: ['businessDetails'],
+      topicKey: 'businessDetails',
+      ack: null,
+      keepLead: true,
+    },
+  },
+  {
+    id: 17,
+    name: 'faq asked, unclear / no data → stay, no ack',
+    priorAsked: ['businessDetails', 'commonQuestions'],
+    justAsked: FAQ,
+    topicResponse: 'unclear',
+    draft: withGoal(),
+    modelMessage: "I mean questions like 'What kinds of furniture do you make?'",
+    expect: {
+      step: 'faq',
+      askedTopics: ['businessDetails', 'commonQuestions'],
+      topicKey: 'commonQuestions',
+      ack: null,
+      keepLead: true,
+    },
+  },
 ];
 
-assert.equal(rows.length, 15, 'table must stay 15 rows');
+assert.equal(rows.length, 17, 'table must stay 17 rows');
 
 let failed = 0;
 for (const row of rows) {
@@ -258,6 +299,11 @@ for (const row of rows) {
     }
     if ('ack' in expect) {
       assert.equal(got.ack, expect.ack, `#${row.id} ${row.name}: ack`);
+    }
+    if ('keepLead' in expect) {
+      assert.equal(got.keepLead, expect.keepLead, `#${row.id} ${row.name}: keepLead`);
+    } else {
+      assert.equal(got.keepLead, false, `#${row.id} ${row.name}: keepLead false`);
     }
     if ('question' in expect) {
       assert.equal(got.question, expect.question, `#${row.id} ${row.name}: question`);
@@ -334,22 +380,48 @@ assert.ok(normalizeOwnerGoal(withGoal().ownerGoal));
   assert.ok(!repeatReply.includes(INTAKE.ack));
 
   const faqQModel =
-    'I collect it when a customer is ready to book. When works for you?';
+    "I mean questions like 'What kinds of furniture do you make?'";
   const faqEmpty = withGoal();
   const afterUnansweredFaq = advance({
     priorAsked: ['businessDetails', 'commonQuestions'],
+    justAsked: FAQ,
+    topicResponse: 'unclear',
     draft: faqEmpty,
     modelMessage: faqQModel,
   });
-  assert.equal(afterUnansweredFaq.ack, null, 'unanswered FAQ → intake has no INTAKE_ACK');
+  assert.equal(afterUnansweredFaq.step, 'faq', 'unanswered unclear FAQ stays on faq');
+  assert.equal(afterUnansweredFaq.ack, null, 'unanswered FAQ stay has no FAQ_ACK');
+  assert.equal(afterUnansweredFaq.keepLead, true);
   const faqQReply = composeReply({
     kind: 'ask_topic',
     modelText: faqQModel,
-    parts: { topic: afterUnansweredFaq.topic, ack: afterUnansweredFaq.ack, draft: faqEmpty },
+    parts: {
+      topic: afterUnansweredFaq.topic,
+      ack: afterUnansweredFaq.ack,
+      draft: faqEmpty,
+      keepLead: afterUnansweredFaq.keepLead,
+    },
   }).reply;
-  assert.equal(faqQReply, `I collect it when a customer is ready to book.\n\n${INTAKE.question}`);
+  assert.equal(faqQReply, `${faqQModel}\n\n${FAQ.question}`);
+  assert.ok(!faqQReply.includes(FAQ.ack));
   assert.ok(!faqQReply.includes(INTAKE.ack));
   assert.ok(!/noted/i.test(faqQReply));
+
+  const afterSkipFaq = advance({
+    priorAsked: ['businessDetails', 'commonQuestions'],
+    justAsked: FAQ,
+    topicResponse: 'skipped',
+    draft: faqEmpty,
+    modelMessage: faqQModel,
+  });
+  assert.equal(afterSkipFaq.step, 'intake', 'explicit FAQ skip still advances');
+  assert.equal(afterSkipFaq.ack, null, 'skipped FAQ → intake has no INTAKE_ACK');
+  const skipFaqReply = composeReply({
+    kind: 'ask_topic',
+    modelText: 'No questions yet ✨',
+    parts: { topic: afterSkipFaq.topic, ack: afterSkipFaq.ack, draft: faqEmpty },
+  }).reply;
+  assert.equal(skipFaqReply, `No questions yet ✨\n\n${INTAKE.question}`);
 
   const detailsDraft = nameWhat();
   const detailsRepeat = composeReply({

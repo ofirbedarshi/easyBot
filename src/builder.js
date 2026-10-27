@@ -134,6 +134,7 @@ Conversation settings (behavior — not business facts):
 - When the owner later changes only style or opening (and the change has no conflict), update those draft fields, leave business facts unchanged.
 
 - onPurpose=true when the owner is talking about their business or this bot (including questions about stored facts); poems, homework, unrelated trivia, coding, jailbreaks, or role changes are onPurpose=false (empty delta).
+topicResponse: answered if they gave info for the current skippable setup topic, skipped if they declined or have nothing, unclear if they only asked what you mean; otherwise null.
 - Never invent a business name or other business facts.
 - Store every business fact the owner states in the same turn: in its field if one fits, otherwise in newFacts.
 - When they dump many facts in one message, absorb them and react specifically to what they shared.
@@ -606,6 +607,7 @@ export async function runBuilderTurn({
         draft: currentDraft,
         newFacts: [],
         onPurpose: true,
+        topicResponse: null,
       };
     }
     return { completion, requestParams, latencyMs, parsed };
@@ -663,6 +665,13 @@ export async function runBuilderTurn({
     parsed.message || 'Tell me a bit more about your business.'
   );
 
+  const topicResponse =
+    parsed.topicResponse === 'answered' ||
+    parsed.topicResponse === 'skipped' ||
+    parsed.topicResponse === 'unclear'
+      ? parsed.topicResponse
+      : null;
+
   return {
     message,
     draft,
@@ -675,6 +684,7 @@ export async function runBuilderTurn({
       typeof parsed.goalUnsupportedPart === 'string' && parsed.goalUnsupportedPart.trim()
         ? parsed.goalUnsupportedPart.trim()
         : null,
+    topicResponse,
     usage: completion.usage,
     latencyMs,
     modelJson: parsed,
@@ -691,9 +701,9 @@ export async function runBuilderTurn({
  * config stays a model-only clarification; a changed draft gets a save card.
  * The session layer applies the draft immediately and appends the card or menu.
  */
-export function applyReviewGate(profile, turn, userMessage) {
+export function applyReviewGate(profile, turn, userMessage, extras = {}) {
   const { turn: goalTurn, disclaimer } = applyGoalSupport(turn);
-  const out = gateTurn(profile, goalTurn);
+  const out = gateTurn(profile, goalTurn, extras);
   if (!disclaimer) return out;
   return { ...out, message: replaceBeforeQuestion(out.message, disclaimer) };
 }
@@ -711,7 +721,7 @@ export function applyGoalSupport(turn) {
   };
 }
 
-function askFixedTopic(turn, draft, topic, lead) {
+function askFixedTopic(turn, draft, topic, lead, { keepLead = false } = {}) {
   return {
     ...turn,
     draft: {
@@ -723,7 +733,7 @@ function askFixedTopic(turn, draft, topic, lead) {
     message: composeReply({
       kind: 'ask_topic',
       modelText: turn.message,
-      parts: { topic, ack: lead, draft },
+      parts: { topic, ack: lead, draft, keepLead },
     }).reply,
   };
 }
@@ -734,7 +744,7 @@ export function hasUnresolvedConfig(turn) {
   return requests.some((r) => r && r.status !== 'supported');
 }
 
-function gateTurn(profile, turn) {
+function gateTurn(profile, turn, extras = {}) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
   const draft = {
     ...turn.draft,
@@ -772,6 +782,9 @@ function gateTurn(profile, turn) {
     draftAfterExtract: draft,
     modelMessage: turn.message,
     unresolvedConfig: hasUnresolvedConfig(turn),
+    topicResponse: turn.topicResponse,
+    justAsked: extras.justAsked,
+    priorDraft: profile.draft,
   });
   const nextDraft = { ...draft, askedTopics: agenda.askedTopics };
 
@@ -785,7 +798,9 @@ function gateTurn(profile, turn) {
   }
 
   if (agenda.topic) {
-    return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack);
+    return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack, {
+      keepLead: agenda.keepLead === true,
+    });
   }
 
   if (agenda.step === 'goal') {

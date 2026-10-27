@@ -16,7 +16,7 @@ import {
   openingMessage,
   runBuilderTurn,
 } from '../src/builder.js';
-import { REQUIRED_TOPICS } from '../src/builderTopics.js';
+import { REQUIRED_TOPICS, topicJustAsked } from '../src/builderTopics.js';
 import { emptyProfile } from '../src/profile.js';
 import { attachCostTracker } from './lib/modelCost.js';
 
@@ -95,7 +95,9 @@ async function runInterview() {
       userMessage,
       model: MODEL,
     });
-    const turn = applyReviewGate(profile, raw, userMessage);
+    const turn = applyReviewGate(profile, raw, userMessage, {
+      justAsked: topicJustAsked(buildHistory),
+    });
     profile.draft = turn.draft;
     buildHistory.push({ role: 'user', content: userMessage });
     buildHistory.push({ role: 'assistant', content: turn.message });

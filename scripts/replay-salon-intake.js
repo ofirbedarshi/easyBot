@@ -8,6 +8,7 @@
  */
 import 'dotenv/config';
 import { applyReviewGate, runBuilderTurn } from '../src/builder.js';
+import { topicJustAsked } from '../src/builderTopics.js';
 import { businessBotReply } from '../src/businessBot.js';
 import { customerOpeningText, emptyProfile } from '../src/profile.js';
 import { attachCostTracker } from './lib/modelCost.js';
@@ -143,24 +144,27 @@ async function replayBuilderGoal() {
   };
   const userMessage =
     'answer questions and take messages when people want to book';
+  const buildHistory = [
+    {
+      role: 'assistant',
+      content: "What's the name of your hair salon?",
+    },
+    { role: 'user', content: 'Harbor Cuts' },
+    {
+      role: 'assistant',
+      content:
+        "What's the main thing you'd like your bot to do for your business?",
+    },
+  ];
   const raw = await runBuilderTurn({
-    buildHistory: [
-      {
-        role: 'assistant',
-        content: "What's the name of your hair salon?",
-      },
-      { role: 'user', content: 'Harbor Cuts' },
-      {
-        role: 'assistant',
-        content:
-          "What's the main thing you'd like your bot to do for your business?",
-      },
-    ],
+    buildHistory,
     profile,
     userMessage,
     model: MODEL,
   });
-  const gated = applyReviewGate(profile, raw, userMessage);
+  const gated = applyReviewGate(profile, raw, userMessage, {
+    justAsked: topicJustAsked(buildHistory),
+  });
   return {
     ownerGoal: gated.draft?.ownerGoal,
     goalSupported: raw.goalSupported,

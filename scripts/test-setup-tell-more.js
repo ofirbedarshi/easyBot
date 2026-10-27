@@ -160,8 +160,13 @@ await test('skip → goal question even when model text has no question', () => 
   const draft = nameWhatDraft({ askedTopics: ['businessDetails'] });
   const gated = applyReviewGate(
     setupProfile(draft),
-    modelTurn(draft, { message: 'Ofir Garage is your garage ✨', readyForReview: true }),
-    'skip'
+    modelTurn(draft, {
+      message: 'Ofir Garage is your garage ✨',
+      readyForReview: true,
+      topicResponse: 'skipped',
+    }),
+    'skip',
+    { justAsked: DETAILS }
   );
   assertEndsWithGoal(gated.message, 'skip');
   assert.equal(
@@ -197,7 +202,7 @@ await test('handleBuild skip after tell-me-more asks the goal', async () => {
     profilePath: PROFILE,
     deps: {
       runBuilderTurn: async () =>
-        modelTurn(draft, { message: 'Ofir Garage is your garage ✨' }),
+        modelTurn(draft, { message: 'Ofir Garage is your garage ✨', topicResponse: 'skipped' }),
     },
   });
   session.mode = 'BUILD';

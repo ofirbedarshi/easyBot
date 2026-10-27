@@ -582,6 +582,7 @@ await test('skip tell-more and skip FAQ still reach the card', async () => {
       model: modelTurn(draft({ askedTopics: ['businessDetails'] }), {
         message: `${NAME} is your garage ✨`,
         readyForReview: true,
+        topicResponse: 'skipped',
       }),
       expect: {
         event: 'build_turn',
@@ -621,6 +622,7 @@ await test('skip tell-more and skip FAQ still reach the card', async () => {
           asksQuestion: true,
           readyForReview: false,
           wantsReview: false,
+          topicResponse: 'skipped',
         }
       ),
       expect: {
@@ -705,6 +707,7 @@ await test('#47 dead-end: model asks its own question, no wrap-up flags, still r
           asksQuestion: true,
           readyForReview: false,
           wantsReview: false,
+          topicResponse: 'skipped',
         }
       ),
       expect: {
@@ -858,6 +861,7 @@ await test('no "?" during setup still advances (before name, and after the goal)
           asksQuestion: false,
           readyForReview: false,
           wantsReview: false,
+          topicResponse: 'skipped',
         }
       ),
       expect: {
