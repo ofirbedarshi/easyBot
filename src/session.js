@@ -233,6 +233,12 @@ export async function handleMessage(session, text) {
     session.testHistory = [];
     session.mode = 'BUILD';
     session.testSessionId = `test-${Date.now()}`;
+    session.leadIntake = null;
+    if (session.store && session.senderId && typeof session.store.deleteLead === 'function') {
+      await session.store.deleteLead(session.senderId);
+    } else {
+      session.lead = null;
+    }
     return {
       ok: true,
       reply: "All cleared. Send any message and I'll start fresh.",
@@ -276,7 +282,8 @@ export async function handleMessage(session, text) {
  * Section items are read-only. Until a lead is submitted, item 1 is
  * "Get this bot for my business" and the rest shift down by one.
  * Completing the questionnaire does not append a menu; the next BUILD
- * message shows the current menu (without the lead item).
+ * message shows the current menu (without the lead item). `/reset` clears
+ * this sender's lead so the item can be offered again.
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
 async function handleNavigation(session, text) {
@@ -590,17 +597,18 @@ async function handleBuild(session, userMessage) {
   const editingChrome =
     lastNav === 'menu' || (typeof lastNav === 'string' && lastNav.startsWith('section:'));
   const asking = !!result.asksQuestion && (changed || !editingChrome);
+  const ready = !!profile.approvedAt;
 
   let reply;
   let nav = null;
   if (asking) {
     reply = result.message;
-  } else if (changed || result.presentReview) {
+  } else if (ready && (changed || result.presentReview)) {
     const ack = changed ? (result.message || '').trim() : '';
     const card = changed ? renderSavedChanges(prior, profile) : renderReview(profile);
     reply = [ack, card].filter(Boolean).join('\n\n');
     nav = 'review';
-  } else if (profile.approvedAt) {
+  } else if (ready) {
     reply = [result.message, renderMenu(leadMenuOpts(session, profile))]
       .filter(Boolean)
       .join('\n\n');

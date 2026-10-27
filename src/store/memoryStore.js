@@ -99,6 +99,10 @@ export function createMemoryStore() {
       if (!leads.has(senderId)) leads.set(senderId, structuredClone(lead));
     },
 
+    async deleteLead(senderId) {
+      leads.delete(senderId);
+    },
+
     async appendMessage({
       senderId,
       direction,

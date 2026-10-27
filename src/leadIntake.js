@@ -4,7 +4,8 @@
  * buildHistory, or Builder prompts.
  *
  * session.leadIntake is null, an in-progress `{ step, answers }`, or
- * `{ submittedAt, resumeMenu? }` once a lead was saved (one lead per sender).
+ * `{ submittedAt, resumeMenu? }` once a lead was saved (one lead per sender
+ * until `/reset` clears this sender's lead state).
  * resumeMenu: the next BUILD message shows the owner menu.
  */
 

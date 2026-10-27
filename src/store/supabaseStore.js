@@ -171,6 +171,11 @@ export function createSupabaseStore() {
       if (error && error.code !== '23505') throw new Error(`saveLead: ${error.message}`);
     },
 
+    async deleteLead(senderId) {
+      const { error } = await sb.from('easybot_leads').delete().eq('sender_id', senderId);
+      if (error) throw new Error(`deleteLead: ${error.message}`);
+    },
+
     async appendMessage({
       senderId,
       direction,

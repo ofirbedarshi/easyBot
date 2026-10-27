@@ -526,6 +526,7 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.equal(reviewActive(session.buildHistory), true);
   assert.ok(review.reply.startsWith('Got it!\n\n'), review.reply);
   assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
+  assert.match(review.reply, /\nName: Studio Yoga\n/);
   assert.match(review.reply, /Business info: Private yoga lessons in Tel Aviv/);
   assert.doesNotMatch(review.reply, /\*\*/, 'no markdown bold');
   assert.doesNotMatch(review.reply, /\(was:/);
@@ -618,8 +619,9 @@ async function testReviewRenderHelpers() {
   const labels = en
     .split('\n')
     .map((l) => l.split(':')[0])
-    .filter((l) => ['Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk'].includes(l));
-  assert.deepEqual(labels, ['Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk']);
+    .filter((l) => ['Name', 'Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk'].includes(l));
+  assert.deepEqual(labels, ['Name', 'Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk']);
+  assert.match(en, /\nName: Studio Yoga\n/);
 
   // Gaps are shown; review values are not clipped; legacy free-text goal reads as not set.
   const gaps = renderReview(
@@ -666,6 +668,9 @@ async function testReviewRenderHelpers() {
   assert.doesNotMatch(changed, /\(was:|\(updated\)/);
   assert.match(changed, /\nMy goal: Answer customer questions/);
   assert.doesNotMatch(changed, /\nArea:/, 'unchanged lines hidden');
+  const renamed = renderSavedChanges(live, { ...live, name: 'Ofir Baber' });
+  assert.match(renamed, /\nName: Ofir Baber\n/);
+  assert.doesNotMatch(renamed, /\nBusiness info:/, 'name-only edit hides unchanged lines');
   assert.equal(parseReviewChoice('1'), 'try');
   assert.equal(parseReviewChoice('chat with me like a customer'), 'try');
   assert.equal(parseReviewChoice('2.'), 'change');
@@ -814,6 +819,41 @@ async function testNoWantsReviewKeepsModelMessage() {
   assert.ok(r.reply.includes('A private lesson is 200 ILS.'), r.reply);
 }
 
+/** Production Ofir sequence: mid-setup name capture is not a save card. */
+async function testSetupNameCaptureDoesNotShowSaveCard() {
+  clean();
+  const { session } = makeSession([
+    {
+      message: "Nice to meet you, Ofir! ✨ What’s your business called?",
+      draft: { whatWeDo: 'Barber' },
+      readyForReview: false,
+      asksQuestion: true,
+    },
+    {
+      message: "Thanks, I've got your business name as Ofir Baber ✨",
+      draft: { name: 'Ofir Baber', whatWeDo: 'Barber' },
+      readyForReview: false,
+      asksQuestion: false,
+    },
+  ]);
+  const reset = await handleMessage(session, '/reset');
+  assert.equal(reset.event, 'reset');
+  const wake = await handleMessage(session, 'Hello! Can I get more info on this?');
+  assert.equal(wake.event, 'opening');
+  const intro = await handleMessage(session, "I'm ofir and I'm a baber");
+  assert.match(intro.reply, /business called/);
+  assert.doesNotMatch(intro.reply, /I'll remember that|Here's what changed:/);
+  const named = await handleMessage(session, 'Ofir baber');
+  assert.equal(named.reply, "Thanks, I've got your business name as Ofir Baber ✨");
+  assert.doesNotMatch(
+    named.reply,
+    /I'll remember that|Here's what changed:|What should we do next\?|Chat with me like a customer|Keep teaching me/
+  );
+  assert.equal(loadProfile(PROFILE).approvedAt, null);
+  assert.equal(loadProfile(PROFILE).name, 'Ofir Baber');
+  assert.notEqual(lastShownNav(session.buildHistory), 'review');
+}
+
 /** Off-purpose: fixed reply, nothing saved, history untouched. */
 async function testOffPurposeSavesNothing() {
   clean();
@@ -871,6 +911,7 @@ async function main() {
   await test('wants_review_uses_render_review', testWantsReviewUsesRenderReview);
   await test('no_wants_review_keeps_model_message', testNoWantsReviewKeepsModelMessage);
   await test('menu_layout_states', testMenuLayoutStates);
+  await test('setup_name_capture_does_not_show_save_card', testSetupNameCaptureDoesNotShowSaveCard);
   await test('off_purpose_saves_nothing', testOffPurposeSavesNothing);
   clean();
   const failed = results.filter((r) => !r.pass);
