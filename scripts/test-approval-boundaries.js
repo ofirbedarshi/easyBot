@@ -533,10 +533,24 @@ function testRequiredTopicsGate() {
   const c = applyReviewGate(emptyProfile(), { ...turn, draft: withFaq }, 'x');
   assert.equal(c.presentReview, true);
 
-  // Before any required topic was asked, and the model is not wrapping up,
-  // the gate stays out of the way (model-driven questions continue).
+  // Once ownerGoal is set, wrap-up starts even without model wrap-up flags
+  // (the model's own question is replaced by scripted FAQ).
   const d = applyReviewGate(emptyProfile(), { ...turn, readyForReview: false, message: 'Per hour?' }, 'hi');
-  assert.equal(d.message, 'Per hour?');
+  assert.match(d.message, /^Got it! 💛\n\nWhat do customers usually ask you/);
+  assert.deepEqual(d.draft.askedTopics, ['commonQuestions']);
+
+  // Before the goal, a model question is left alone (FAQ is not injected).
+  const beforeGoal = applyReviewGate(
+    emptyProfile(),
+    {
+      ...turn,
+      readyForReview: false,
+      message: 'Per hour?',
+      draft: { ...facts, ownerGoal: null },
+    },
+    'hi'
+  );
+  assert.equal(beforeGoal.message, 'Per hour?');
 
   // Once FAQ was asked, skip continues to intake even without wrap-up flags.
   const intake = topicByKey('informationToCollect');
@@ -568,7 +582,7 @@ function testRequiredTopicsGate() {
   );
   assert.equal(
     own.message,
-    'Great, so the goal is answering questions.\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
+    'Got it! 💛\n\nWhat do customers usually ask you, and how would you like me to answer? 🤔💬\nShare a few in your own words, or say "skip" for now.'
   );
   assert.deepEqual(own.draft.askedTopics, ['commonQuestions']);
 
@@ -688,11 +702,14 @@ async function testNullOwnerGoalDoesNotWipeLive() {
     source: 'stub-builder',
   }), liveMock);
 
-  // Null ownerGoal merges to the live config: nothing changed, current-bot card.
+  // Null ownerGoal merges to the live config: nothing changed, editing menu.
   const r = await applyChange(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /Here's your bot for Sunny Yoga:/);
+  assert.match(r.reply, /What should we do next\?/);
+  assert.match(r.reply, /Tell me more about your business/);
+  assert.doesNotMatch(r.reply, /Here's your bot for Sunny Yoga:/);
+  assert.doesNotMatch(r.reply, /How I talk: default/);
   assert.equal(loadProfile(PROFILE).ownerGoal, 'answer_and_collect');
   console.log('PASS null_owner_goal_does_not_wipe_live');
 }

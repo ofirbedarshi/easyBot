@@ -491,13 +491,22 @@ export function applyDraftToLive(profile) {
   return profile;
 }
 
-function firstSetupSettled(profile) {
-  const asked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
+/**
+ * FAQ asked or answered, and intake is an array. `draft` defaults to
+ * `profile.draft` so the gate can check this turn before live fields update.
+ */
+export function firstSetupSettled(profile, draft = profile?.draft) {
+  const asked = Array.isArray(draft?.askedTopics) ? draft.askedTopics : [];
+  const faqList = Array.isArray(draft?.commonQuestions)
+    ? draft.commonQuestions
+    : profile?.commonQuestions;
   const faqDone =
-    normalizeCommonQuestions(profile.commonQuestions).some((q) => q.answer.trim()) ||
+    normalizeCommonQuestions(faqList).some((q) => q.answer.trim()) ||
     asked.includes('commonQuestions');
-  const intakeDone = Array.isArray(profile.informationToCollect);
-  return faqDone && intakeDone;
+  const intake = Array.isArray(draft?.informationToCollect)
+    ? draft.informationToCollect
+    : profile?.informationToCollect;
+  return faqDone && Array.isArray(intake);
 }
 
 function stableJson(value) {
