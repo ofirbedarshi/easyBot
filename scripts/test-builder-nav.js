@@ -357,7 +357,8 @@ async function testUnchangedReviewOmitsAck() {
   ]);
   await handleMessage(session, 'hi');
   const first = await handleMessage(session, 'I run Studio Yoga');
-  assert.ok(first.reply.startsWith('Got it, thanks!\n\n'), first.reply);
+  assert.ok(first.reply.startsWith("🎉 I'm all set!"), first.reply);
+  assert.doesNotMatch(first.reply, /Got it, thanks!/);
   const shown = await handleMessage(session, 'please show the current bot');
   assert.equal(shown.readyForReview, true);
   assert.ok(shown.reply.startsWith("Here's your bot for Studio Yoga:"), shown.reply);
@@ -512,7 +513,7 @@ async function testMenuParseHelpers() {
   assert.ok(renderMenu().endsWith(FOOTER));
 }
 
-/** First-time save card: changed lines + two options; 1 enters TEST. */
+/** First-time setup-complete card: 🏪 lines + two options; no model text; 1 enters TEST. */
 async function testFirstReviewTryApprovesAndTests() {
   clean();
   const f = facts();
@@ -524,20 +525,29 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.equal(review.event, 'build_turn');
   assert.equal(review.readyForReview, true);
   assert.equal(reviewActive(session.buildHistory), true);
-  assert.ok(review.reply.startsWith('Got it!\n\n'), review.reply);
-  assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(review.reply, /\nName: Studio Yoga\n/);
-  assert.match(review.reply, /Business info: Private yoga lessons in Tel Aviv/);
-  assert.doesNotMatch(review.reply, /\*\*/, 'no markdown bold');
+  assert.equal(
+    review.reply,
+    [
+      "🎉 I'm all set! This is what I know about your business:",
+      '',
+      '*Name:* Studio Yoga',
+      '*What you do:* Private yoga lessons in Tel Aviv',
+      '*Services & prices:*',
+      'Private lesson — 200 ILS / 60 min',
+      '*Hours:* Sun–Thu 8–18',
+      '*Location:* Tel Aviv',
+      "*Price policy:* I share prices only when a customer asks",
+      '',
+      'What should we do next?',
+      '1. 🤖 Chat with me like a customer',
+      '2. ✏️ Keep teaching me',
+      '',
+      '(or just tell me what to learn 🙂)',
+    ].join('\n')
+  );
+  assert.doesNotMatch(review.reply, /Got it!|I'll remember that|Business Name:|Ready to approve/);
   assert.doesNotMatch(review.reply, /\(was:/);
-  assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
-  assert.match(review.reply, /\nI'll ask customers for: name, phone\n/);
-  assert.match(review.reply, /\nHow I talk: warm\n/);
-  assert.match(review.reply, /\nPrice policy: I share prices only when a customer asks\n/);
-  assert.doesNotMatch(review.reply, /What your bot will do|contact you directly/);
-  assert.match(review.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.ok(!review.reply.includes('2. Edit Q&A'), 'full menu hidden until Make changes');
-  assert.doesNotMatch(withoutOptionsPrompt(review.reply), /\?|Business Name:|Ready to approve/);
   assert.ok(loadProfile(PROFILE).approvedAt);
 
   const tryIt = await handleMessage(session, '1');
@@ -579,7 +589,21 @@ async function testTryApprovesPendingEdit() {
   ]);
   session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const review = await handleMessage(session, 'Change hours to Sun–Fri 8–14');
-  assert.match(review.reply, /Got it, I'll remember that! 🌟 Here's what changed:\n\nHours: Sun–Fri 8–14\n\n/);
+  assert.equal(
+    review.reply,
+    [
+      'Updated the hours.',
+      '',
+      "Here's what changed:",
+      '*Hours:* Sun–Fri 8–14',
+      '',
+      'What should we do next?',
+      '1. 🤖 Chat with me like a customer',
+      '2. ✏️ Keep teaching me',
+      '',
+      '(or just tell me what to learn 🙂)',
+    ].join('\n')
+  );
   assert.ok(!review.reply.includes('Studio Yoga'), 'unchanged facts not repeated');
   assert.equal(loadProfile(PROFILE).hours, 'Sun–Fri 8–14');
 
@@ -655,7 +679,7 @@ async function testReviewRenderHelpers() {
   assert.match(manyServices, /Long or thick hair extra — \$15/);
   assert.doesNotMatch(manyServices, /…/);
 
-  // Changes view: same labels; new values only (no previous-value suffix).
+  // Changes view: 🏪 labels, *Label:* value; new values only (no previous-value suffix).
   const live = { ...facts(), approvedAt: '2026-01-01T00:00:00Z', hours: null };
   const changed = renderSavedChanges(live, {
     ...live,
@@ -663,14 +687,15 @@ async function testReviewRenderHelpers() {
     services: [{ ...live.services[0], notes: 'new note' }],
     ownerGoal: 'answer_questions',
   });
-  assert.match(changed, /\nHours: Sun–Thu 9–18\n/);
-  assert.match(changed, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
+  assert.ok(changed.startsWith("Here's what changed:\n*Hours:* Sun–Thu 9–18\n"), changed);
+  assert.match(changed, /\n\*Hours:\* Sun–Thu 9–18\n/);
+  assert.match(changed, /\n\*Services & prices:\* Private lesson — 200 ILS \/ 60 min\n/);
   assert.doesNotMatch(changed, /\(was:|\(updated\)/);
-  assert.match(changed, /\nMy goal: Answer customer questions/);
-  assert.doesNotMatch(changed, /\nArea:/, 'unchanged lines hidden');
+  assert.match(changed, /\n\*My goal:\* Answer customer questions/);
+  assert.doesNotMatch(changed, /\n\*Location:\*/, 'unchanged lines hidden');
   const renamed = renderSavedChanges(live, { ...live, name: 'Ofir Baber' });
-  assert.match(renamed, /\nName: Ofir Baber\n/);
-  assert.doesNotMatch(renamed, /\nBusiness info:/, 'name-only edit hides unchanged lines');
+  assert.match(renamed, /\n\*Name:\* Ofir Baber\n/);
+  assert.doesNotMatch(renamed, /\n\*What you do:\*/, 'name-only edit hides unchanged lines');
   assert.equal(parseReviewChoice('1'), 'try');
   assert.equal(parseReviewChoice('chat with me like a customer'), 'try');
   assert.equal(parseReviewChoice('2.'), 'change');
@@ -757,9 +782,10 @@ async function testWantsReviewUsesRenderReview() {
   assert.equal(r.event, 'build_turn');
   assert.equal(reviewActive(session.buildHistory), true);
   assert.equal(lastShownNav(session.buildHistory), 'review');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.match(r.reply, /\nQ&A: 1 answer\n/);
-  assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for/);
+  assert.ok(r.reply.startsWith("🎉 I'm all set! This is what I know about your business:"), r.reply);
+  assert.match(r.reply, /\n\*Name:\* Studio Yoga\n/);
+  assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
+  assert.doesNotMatch(r.reply, /updated summary|\$99 invented|Color prices are given|What are your prices\?|Here's your bot for|I'll remember that/);
 }
 
 /** stop is an exact command (case/bold variants); /end stays a silent alias. */
@@ -799,24 +825,39 @@ async function testStopExitCommand() {
   assert.doesNotMatch(alias.replies.join('\n'), /\/end/);
 }
 
-/** Without wantsReview or readyForReview, a model-written dump is not replaced. */
+/** Later edit keeps the model ack, then the changed-fields card. */
 async function testNoWantsReviewKeepsModelMessage() {
   clean();
   const f = facts();
+  saveProfile(approvedProfile(), PROFILE);
+  const pending = { ...f, hours: 'Sun–Fri 8–14' };
   const { session } = makeSession([
     {
       message: 'A private lesson is 200 ILS.',
-      draft: f,
+      draft: pending,
       readyForReview: false,
       wantsReview: false,
     },
   ]);
-  await handleMessage(session, 'hi');
+  session.buildHistory.push({ role: 'user', content: 'I run a yoga studio' });
   const r = await handleMessage(session, 'how much is a lesson?');
   assert.equal(r.event, 'build_turn');
   assert.equal(lastShownNav(session.buildHistory), 'review');
-  assert.match(r.reply, /Got it, I'll remember that! 🌟 Here's what changed:/);
-  assert.ok(r.reply.includes('A private lesson is 200 ILS.'), r.reply);
+  assert.equal(
+    r.reply,
+    [
+      'A private lesson is 200 ILS.',
+      '',
+      "Here's what changed:",
+      '*Hours:* Sun–Fri 8–14',
+      '',
+      'What should we do next?',
+      '1. 🤖 Chat with me like a customer',
+      '2. ✏️ Keep teaching me',
+      '',
+      '(or just tell me what to learn 🙂)',
+    ].join('\n')
+  );
 }
 
 /** Production Ofir sequence: mid-setup name capture is not a save card. */

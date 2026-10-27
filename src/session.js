@@ -33,6 +33,7 @@ import {
   renderReturnToEditing,
   renderReview,
   renderSavedChanges,
+  renderSetupComplete,
   renderSection,
   reviewActive,
   renderSetupContinue,
@@ -282,7 +283,8 @@ export async function handleMessage(session, text) {
  * Section items are read-only. Until a lead is submitted, item 1 is
  * "Get this bot for my business" and the rest shift down by one.
  * Completing the questionnaire does not append a menu; the next BUILD
- * message shows the current menu (without the lead item). `/reset` clears
+ * message shows "What should we do next?" plus the current menu (without
+ * the lead item). `/reset` clears
  * this sender's lead so the item can be offered again.
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
@@ -446,7 +448,7 @@ function clearLeadResume(session) {
 async function resumeOwnerMenu(session, text) {
   session.leadIntake = { submittedAt: session.leadIntake.submittedAt };
   const profile = await loadAsync(session);
-  const reply = renderMenu(leadMenuOpts(session, profile));
+  const reply = renderChangeMenu(leadMenuOpts(session, profile));
   session.buildHistory.push({ role: 'user', content: text });
   session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
   return {
@@ -598,10 +600,14 @@ async function handleBuild(session, userMessage) {
     lastNav === 'menu' || (typeof lastNav === 'string' && lastNav.startsWith('section:'));
   const asking = !!result.asksQuestion && (changed || !editingChrome);
   const ready = !!profile.approvedAt;
+  const firstApproval = !prior.approvedAt && !!profile.approvedAt;
 
   let reply;
   let nav = null;
-  if (asking) {
+  if (firstApproval) {
+    reply = renderSetupComplete(profile);
+    nav = 'review';
+  } else if (asking) {
     reply = result.message;
   } else if (ready && (changed || result.presentReview)) {
     const ack = changed ? (result.message || '').trim() : '';

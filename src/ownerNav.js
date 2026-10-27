@@ -196,7 +196,7 @@ const REVIEW = {
   pricesOnRequest: 'prices only when asked',
   pricesRelevant: 'prices when relevant',
   customOpening: 'custom opening',
-  changesIntro: "Got it, I'll remember that! 🌟 Here's what changed:",
+  changesIntro: "Here's what changed:",
   optionsPrompt: 'What should we do next?',
   options: ['🤖 Chat with me like a customer', '✏️ Keep teaching me'],
   optionsFooter: '(or just tell me what to learn 🙂)',
@@ -282,13 +282,22 @@ export function summaryLines(p) {
   return out;
 }
 
+const CHANGE_LABELS = {
+  name: STRINGS.fields.name,
+  business: STRINGS.fields.whatYouDo,
+  services: STRINGS.fields.services,
+  hours: STRINGS.fields.hours,
+  area: STRINGS.fields.location,
+  pricePolicy: STRINGS.fields.pricePolicy,
+};
+
 function changeLines(profile, merged) {
   const prev = new Map(summaryLines(profile).map((l) => [l.id, l]));
   const lines = [];
   for (const line of summaryLines(merged)) {
     const before = prev.get(line.id);
     if (before && before.full === line.full) continue;
-    lines.push(`${line.label}: ${line.value}`);
+    lines.push(fieldLine(CHANGE_LABELS[line.id] || line.label, line.value));
   }
   return lines;
 }
@@ -310,9 +319,23 @@ export function renderReviewOptions() {
 export function renderSavedChanges(before, after) {
   const R = REVIEW;
   return [
-    [R.changesIntro, '', ...changeLines(before, after)].join('\n'),
+    [R.changesIntro, ...changeLines(before, after)].join('\n'),
     renderReviewOptions(),
   ].join('\n\n');
+}
+
+/**
+ * First-approval card: the 🏪 business lines, then the two next-step options.
+ * No model text. Later edits use renderSavedChanges (changed fields only).
+ */
+export function renderSetupComplete(profile) {
+  return [
+    "🎉 I'm all set! This is what I know about your business:",
+    '',
+    ...sectionLines(1, profile || {}),
+    '',
+    renderReviewOptions(),
+  ].join('\n');
 }
 
 /**

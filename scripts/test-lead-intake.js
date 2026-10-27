@@ -184,7 +184,19 @@ assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 // Next BUILD message shows the 4-item menu (no lead item), then 1 is Edit business info
 res = await send('hello');
 assert.equal(res.event, 'menu');
-assert.ok(res.reply.includes('Tell me more about your business') && res.reply.includes('Chat with me like a customer'));
+assert.equal(
+  res.reply,
+  [
+    'What should we do next?',
+    '',
+    '1. 🏪 Tell me more about your business',
+    '2. ❓ Teach me more questions and answers',
+    '3. 💬 Tell me how to talk to your customers',
+    '4. 🤖 Chat with me like a customer',
+    '',
+    'Pick a number, or just tell me what you want me to learn.',
+  ].join('\n')
+);
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
 res = await send('1');
@@ -267,8 +279,26 @@ assert.equal(opened.event, 'opening');
 const first = await handleMessage(setup, "I'm a barber");
 await store.saveSession(sender, setup);
 assert.ok((await store.loadProfile(sender)).approvedAt);
-assert.match(first.reply, /Got it, I'll remember that/);
-assert.match(first.reply, /Name: Ofir Baber/);
+assert.equal(
+  first.reply,
+  [
+    "🎉 I'm all set! This is what I know about your business:",
+    '',
+    '*Name:* Ofir Baber',
+    '*What you do:* Barber',
+    '*Services & prices:* not added yet',
+    '*Hours:* not added yet',
+    '*Location:* not added yet',
+    "*Price policy:* I mention prices when they're relevant",
+    '',
+    'What should we do next?',
+    '1. 🤖 Chat with me like a customer',
+    '2. ✏️ Keep teaching me',
+    '',
+    '(or just tell me what to learn 🙂)',
+  ].join('\n')
+);
+assert.doesNotMatch(first.reply, /Got it, thanks!|I'll remember that/);
 const entered = await handleMessage(setup, '1');
 assert.equal(entered.event, 'enter_test');
 const stopped = await handleMessage(setup, 'stop');
