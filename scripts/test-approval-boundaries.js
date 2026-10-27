@@ -32,6 +32,7 @@ import {
 } from '../src/builder.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import { createSession, handleMessage as runMessage } from '../src/session.js';
+import { topicByKey } from '../src/builderTopics.js';
 import { renderSection } from '../src/ownerNav.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -527,9 +528,28 @@ function testRequiredTopicsGate() {
   const c = applyReviewGate(emptyProfile(), { ...turn, draft: withFaq }, 'x');
   assert.equal(c.presentReview, true);
 
-  // Model not asking for review → gate stays out of the way.
+  // Before any required topic was asked, and the model is not wrapping up,
+  // the gate stays out of the way (model-driven questions continue).
   const d = applyReviewGate(emptyProfile(), { ...turn, readyForReview: false, message: 'Per hour?' }, 'hi');
   assert.equal(d.message, 'Per hour?');
+
+  // Once FAQ was asked, skip continues to intake even without wrap-up flags.
+  const intake = topicByKey('informationToCollect');
+  const afterFaq = applyReviewGate(
+    { ...emptyProfile(), draft: { askedTopics: ['commonQuestions'] } },
+    {
+      message: 'Ofir Garage is your garage ✨',
+      draft: { ...facts, informationToCollect: null },
+      readyForReview: false,
+      wantsReview: false,
+      asksQuestion: true,
+    },
+    'skip'
+  );
+  assert.equal(afterFaq.presentReview, false);
+  assert.equal(afterFaq.asksQuestion, true);
+  assert.equal(afterFaq.message, `${intake.ack}\n\n${intake.question}`);
+  assert.deepEqual(afterFaq.draft.askedTopics, ['commonQuestions', 'informationToCollect']);
 
   // Model asks FAQ in its own words → fixed question swapped in and recorded.
   const own = applyReviewGate(
