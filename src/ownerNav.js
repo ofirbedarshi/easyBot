@@ -432,5 +432,5 @@ function sectionLines(section, p) {
  */
 export function renderSection(section, profile) {
   const s = STRINGS;
-  return [s.sectionIntros[section - 1], ...sectionLines(section, profile), '', s.ask, s.menuHint].join('\n');
+  return [s.sectionIntros[section - 1], '', ...sectionLines(section, profile), '', s.ask, s.menuHint].join('\n');
 }

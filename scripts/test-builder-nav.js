@@ -144,7 +144,7 @@ async function testSectionRoutingReadOnly() {
   assert.ok(m.reply.includes(MENU_HEAD));
   const talks = await handleMessage(session, '4');
   assert.equal(talks.event, 'menu_section');
-  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n'), talks.reply);
+  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n\n'), talks.reply);
   assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
   assert.ok(!talks.reply.includes('Reply length'), talks.reply);
   assert.ok(!talks.reply.includes('Price policy'), talks.reply);
@@ -463,7 +463,7 @@ async function testMenuLabels() {
     end.reply
   );
   const talks = await handleMessage(session, '4');
-  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:'), talks.reply);
+  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n\n'), talks.reply);
   assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
   const biz = await handleMessage(session, 'menu');
   assert.ok(biz.reply.startsWith('What should we do next?'), biz.reply);
