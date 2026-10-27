@@ -12,6 +12,7 @@
  */
 import 'dotenv/config';
 import { applyReviewGate, runBuilderTurn } from '../src/builder.js';
+import { topicJustAsked } from '../src/builderTopics.js';
 import { emptyProfile } from '../src/profile.js';
 import { attachCostTracker } from './lib/modelCost.js';
 
@@ -77,16 +78,19 @@ async function main() {
   console.log(`Owner: ${userMessage}`);
   console.log(`Before intake: ${JSON.stringify(profile.draft.informationToCollect)}`);
 
+  const buildHistory = [
+    { role: 'user', content: 'hello' },
+    { role: 'assistant', content: "Hi, I'm Adam" },
+  ];
   const raw = await runBuilderTurn({
-    buildHistory: [
-      { role: 'user', content: 'hello' },
-      { role: 'assistant', content: "Hi, I'm Adam" },
-    ],
+    buildHistory,
     profile,
     userMessage,
     model: MODEL,
   });
-  const gated = applyReviewGate(profile, raw, userMessage);
+  const gated = applyReviewGate(profile, raw, userMessage, {
+    justAsked: topicJustAsked(buildHistory),
+  });
   const intake = gated.draft?.informationToCollect;
   const edits = raw.modelJson?.ownerEdits;
   const score = {

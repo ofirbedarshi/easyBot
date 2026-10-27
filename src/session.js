@@ -14,6 +14,7 @@ import {
   hasUnresolvedConfig,
   runBuilderTurn as defaultRunBuilderTurn,
 } from './builder.js';
+import { topicJustAsked } from './builderTopics.js';
 import { changeLines, composeReply } from './composeReply.js';
 import { EMPTY_MESSAGE_ERROR } from './copy.js';
 import {
@@ -568,7 +569,9 @@ async function handleBuild(session, userMessage) {
     };
   }
 
-  result = applyReviewGate(profile, result, userMessage);
+  result = applyReviewGate(profile, result, userMessage, {
+    justAsked: topicJustAsked(session.buildHistory),
+  });
   const prior = structuredClone(profile);
   profile.draft = result.draft;
   const nextView = mergeDraft(prior, result.draft);

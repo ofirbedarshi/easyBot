@@ -121,6 +121,7 @@ await test('FAQ asked + intake array + no-? ack → first-approval card', async 
         modelTurn(draft, {
           message: 'Pixel Fix repairs phones and laptops ✨',
           asksQuestion: false,
+          topicResponse: 'skipped',
         }),
     },
   });
@@ -144,8 +145,13 @@ await test('FAQ asked + intake still null + no-? ack → scripted intake', () =>
   });
   const gated = applyReviewGate(
     setupProfile(draft),
-    modelTurn(draft, { message: 'Pixel Fix repairs phones and laptops ✨', asksQuestion: false }),
-    'skip'
+    modelTurn(draft, {
+      message: 'Pixel Fix repairs phones and laptops ✨',
+      asksQuestion: false,
+      topicResponse: 'skipped',
+    }),
+    'skip',
+    { justAsked: FAQ }
   );
   assert.equal(
     gated.message,

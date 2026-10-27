@@ -382,6 +382,12 @@ export function composeReply(spec = {}) {
 
     case 'ask_topic': {
       const question = topicQuestion(parts.topic, parts.draft);
+      if (parts.keepLead) {
+        const lead = String(modelText || '').trim();
+        return done(lead ? `${lead}\n\n${question}` : question, {
+          asksQuestion: true,
+        });
+      }
       const lead = parts.ack || modelText;
       return done(withSingleQuestion(lead, question), {
         asksQuestion: true,

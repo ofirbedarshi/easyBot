@@ -62,6 +62,7 @@ function productionModelTurn(overrides = {}) {
     asksQuestion: true,
     askingTopic: null,
     onPurpose: true,
+    topicResponse: 'skipped',
     source: 'stub-builder',
     ...overrides,
   };
@@ -84,7 +85,9 @@ async function test(name, fn) {
 }
 
 function testGateProductionEchoAsksQuestion() {
-  const gated = applyReviewGate(preSkipProfile(), productionModelTurn(), 'Skip');
+  const gated = applyReviewGate(preSkipProfile(), productionModelTurn(), 'Skip', {
+    justAsked: FAQ,
+  });
   assertIntakeAsked(gated.message, 'applyReviewGate production flags');
   assert.equal(gated.asksQuestion, true);
   assert.equal(gated.presentReview, false);
@@ -95,7 +98,8 @@ function testGateEchoWithoutAsksQuestion() {
   const gated = applyReviewGate(
     preSkipProfile(),
     productionModelTurn({ asksQuestion: false }),
-    'Skip'
+    'Skip',
+    { justAsked: FAQ }
   );
   assertIntakeAsked(gated.message, 'applyReviewGate asksQuestion=false');
 }
@@ -104,7 +108,8 @@ function testGateEchoWithAskingTopicNoQuestionMark() {
   const gated = applyReviewGate(
     preSkipProfile(),
     productionModelTurn({ askingTopic: 'informationToCollect' }),
-    'Skip'
+    'Skip',
+    { justAsked: FAQ }
   );
   assertIntakeAsked(gated.message, 'applyReviewGate askingTopic without ?');
 }

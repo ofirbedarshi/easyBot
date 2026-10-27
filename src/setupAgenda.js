@@ -11,6 +11,7 @@ import { normalizeOwnerGoal } from './profile.js';
 import {
   businessDetailsSettled,
   hasNameAndWhat,
+  hasServices,
   topicByKey,
 } from './builderTopics.js';
 
@@ -95,6 +96,41 @@ function topicAck(topic, priorAsked, step, draft) {
   return topic.ack;
 }
 
+function hasText(value) {
+  return !!String(value || '').trim();
+}
+
+function detailsGained(before, after) {
+  return (
+    (hasServices(after) && !hasServices(before)) ||
+    (hasText(after?.hours) && !hasText(before?.hours)) ||
+    (hasText(after?.locationOrArea) && !hasText(before?.locationOrArea))
+  );
+}
+
+function faqGained(before, after) {
+  const topic = topicByKey('commonQuestions');
+  return !!(topic && topic.isAnswered(after) && !topic.isAnswered(before));
+}
+
+function justAskedKeyOf(justAsked) {
+  if (!justAsked) return null;
+  if (typeof justAsked === 'string') return justAsked;
+  return justAsked.key || null;
+}
+
+/** Stay on a skippable topic only when the owner is answering it this turn. */
+function shouldStayOnOptional(topicKey, input, draft) {
+  if (justAskedKeyOf(input.justAsked ?? input.justAskedKey) !== topicKey) return false;
+  if (input.topicResponse === 'skipped') return false;
+  const topic = topicByKey(topicKey);
+  if (topic?.isAnswered(draft)) return false;
+  const prior = input.priorDraft || {};
+  if (topicKey === 'businessDetails' && detailsGained(prior, draft)) return false;
+  if (topicKey === 'commonQuestions' && faqGained(prior, draft)) return false;
+  return true;
+}
+
 /**
  * Advance the agenda after extraction. Does not read owner text. The model
  * no longer returns flow flags; this function never did.
@@ -104,6 +140,9 @@ function topicAck(topic, priorAsked, step, draft) {
  *   draftAfterExtract?: object,
  *   modelMessage?: string,
  *   unresolvedConfig?: boolean,
+ *   topicResponse?: string|null,
+ *   justAsked?: { key?: string }|string|null,
+ *   priorDraft?: object,
  * }} [input]
  * @returns {{
  *   step: string,
@@ -113,12 +152,13 @@ function topicAck(topic, priorAsked, step, draft) {
  *   ack: string|null,
  *   presentComplete: boolean,
  *   stay: boolean,
+ *   keepLead: boolean,
  * }}
  */
 export function stepSetupAgenda(input = {}) {
   const priorAsked = Array.isArray(input.priorAsked) ? [...input.priorAsked] : [];
   const draft = input.draftAfterExtract || {};
-  const step = setupStep(draft, priorAsked);
+  let step = setupStep(draft, priorAsked);
 
   if (input.unresolvedConfig) {
     return {
@@ -129,7 +169,20 @@ export function stepSetupAgenda(input = {}) {
       ack: null,
       presentComplete: false,
       stay: true,
+      keepLead: false,
     };
+  }
+
+  if (
+    shouldStayOnOptional('businessDetails', input, draft) &&
+    priorAsked.includes('businessDetails')
+  ) {
+    step = 'businessDetails';
+  } else if (
+    shouldStayOnOptional('commonQuestions', input, draft) &&
+    priorAsked.includes('commonQuestions')
+  ) {
+    step = 'faq';
   }
 
   if (step === 'identity') {
@@ -142,6 +195,7 @@ export function stepSetupAgenda(input = {}) {
       ack: null,
       presentComplete: false,
       stay: false,
+      keepLead: false,
     };
   }
 
@@ -154,6 +208,7 @@ export function stepSetupAgenda(input = {}) {
       ack: null,
       presentComplete: false,
       stay: false,
+      keepLead: false,
     };
   }
 
@@ -166,11 +221,15 @@ export function stepSetupAgenda(input = {}) {
       ack: null,
       presentComplete: true,
       stay: false,
+      keepLead: false,
     };
   }
 
   const topic = topicForStep(step);
   const askedTopics = topic ? [...new Set([...priorAsked, topic.key])] : priorAsked;
+  const keepLead =
+    (step === 'businessDetails' && shouldStayOnOptional('businessDetails', input, draft)) ||
+    (step === 'faq' && shouldStayOnOptional('commonQuestions', input, draft));
   return {
     step,
     askedTopics,
@@ -179,5 +238,6 @@ export function stepSetupAgenda(input = {}) {
     ack: topicAck(topic, priorAsked, step, draft),
     presentComplete: false,
     stay: false,
+    keepLead,
   };
 }

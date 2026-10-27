@@ -50,6 +50,7 @@ test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('readyForReview'));
   assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('askingTopic'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('onPurpose'));
+  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('topicResponse'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('otherFacts'));
@@ -75,6 +76,7 @@ test('schema requires top-level newFacts and all draft keys', () => {
   );
   assert.equal(root.properties.onPurpose.type, 'boolean');
   assert.match(String(root.properties.onPurpose.description || ''), /poems, homework/i);
+  assert.deepEqual(root.properties.topicResponse.anyOf[0].enum, ['answered', 'skipped', 'unclear']);
 });
 
 test('formatSummary intake label is first-person Adam', () => {

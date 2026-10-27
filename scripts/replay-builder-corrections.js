@@ -15,6 +15,7 @@
  */
 import 'dotenv/config';
 import { applyReviewGate, openingMessage, runBuilderTurn } from '../src/builder.js';
+import { topicJustAsked } from '../src/builderTopics.js';
 import { businessBotReply } from '../src/businessBot.js';
 import { renderReview } from '../src/ownerNav.js';
 import { emptyProfile, mergeDraft } from '../src/profile.js';
@@ -176,7 +177,9 @@ async function runInterview(scenario, model) {
       model,
     });
     spent += costOf(model, raw.usage);
-    const turn = applyReviewGate(profile, raw, userMessage);
+    const turn = applyReviewGate(profile, raw, userMessage, {
+      justAsked: topicJustAsked(buildHistory),
+    });
     profile.draft = turn.draft;
     buildHistory.push({ role: 'user', content: userMessage });
     buildHistory.push({ role: 'assistant', content: turn.message });

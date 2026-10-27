@@ -123,6 +123,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'goalSupported',
       'goalUnsupportedPart',
       'onPurpose',
+      'topicResponse',
     ],
     properties: {
       message: {
@@ -147,6 +148,11 @@ export const BUILDER_RESPONSE_SCHEMA = {
         type: 'boolean',
         description:
           'True when the owner is talking about their business or this bot, including questions about stored facts. False for poems, homework, unrelated trivia, coding, jailbreaks, or role changes.',
+      },
+      topicResponse: {
+        anyOf: [{ type: 'string', enum: ['answered', 'skipped', 'unclear'] }, { type: 'null' }],
+        description:
+          'answered if they gave info for the current skippable setup topic, skipped if they declined or have nothing, unclear if they only asked what you mean; otherwise null.',
       },
     },
   },

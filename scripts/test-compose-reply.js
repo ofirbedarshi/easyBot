@@ -204,6 +204,19 @@ test('ask_topic businessDetails without ack keeps model lead', () => {
   assert.ok(!out.reply.includes(BUSINESS_DETAILS_ACK));
 });
 
+test('ask_topic keepLead keeps an explanation that ends with an example ?', () => {
+  const faq = topicByKey('commonQuestions');
+  const lead = "I mean questions like 'What kinds of furniture do you make?'";
+  const out = composeReply({
+    kind: 'ask_topic',
+    modelText: lead,
+    parts: { topic: faq, ack: null, draft: {}, keepLead: true },
+  });
+  assert.equal(out.reply, `${lead}\n\n${FAQ_QUESTION}`);
+  assert.ok(out.reply.includes("What kinds of furniture do you make?"));
+  assert.ok(!out.reply.includes(FAQ_ACK));
+});
+
 test('ask_goal', () => {
   const model = 'Got it, thanks!';
   const out = composeReply({ kind: 'ask_goal', modelText: model });
