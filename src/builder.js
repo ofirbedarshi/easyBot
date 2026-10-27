@@ -20,14 +20,12 @@ import {
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
 import {
-  businessDetailsSettled,
-  nextOpenTopic,
   topicJustAsked,
-  topicModelAsked,
   topicQuestion,
   WRAP_UP_TOPICS,
 } from './builderTopics.js';
 import { ownerPhase } from './ownerPhase.js';
+import { IDENTITY_FALLBACK_QUESTION, stepSetupAgenda } from './setupAgenda.js';
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
@@ -1218,8 +1216,10 @@ function askFixedTopic(turn, draft, topic, lead) {
   };
 }
 
-function replyHasQuestion(text) {
-  return /\?/.test(String(text || ''));
+function hasUnresolvedConfig(turn) {
+  const requests = turn?.configRequests;
+  if (!Array.isArray(requests) || !requests.length) return false;
+  return requests.some((r) => r && r.status !== 'supported');
 }
 
 function gateTurn(profile, turn) {
@@ -1229,23 +1229,59 @@ function gateTurn(profile, turn) {
     askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
   };
 
-  // Tell-me-more: as soon as name + whatWeDo are set and a detail is missing.
-  const openTopic = nextOpenTopic(profile, draft, priorAsked);
-  if (openTopic?.phase === 'afterName') {
-    return askFixedTopic(turn, draft, openTopic, openTopic.ack || reviewAck(turn.message));
-  }
-
-  // After tell-me-more is settled, the app asks the goal itself (do not wait
-  // for the model). One question via withSingleQuestion.
-  // Do not pass `turn`: readyForReview this turn must not skip the goal.
-  if (
-    ownerPhase(null, profile, { draft }) !== 'ready' &&
-    businessDetailsSettled(draft, draft.askedTopics) &&
-    !normalizeOwnerGoal(draft.ownerGoal)
-  ) {
+  if (ownerPhase(null, profile, { draft }) === 'ready') {
+    let readyForReview = !!turn.readyForReview;
+    const wantsReview = turn.wantsReview === true;
+    if (draftChangesOnlySettings(profile, draft)) {
+      readyForReview = true;
+    }
+    if (readyForReview || wantsReview) {
+      return {
+        ...turn,
+        draft,
+        readyForReview: true,
+        presentReview: true,
+        wantsReview,
+        asksQuestion: false,
+        message: readyForReview ? reviewAck(turn.message) : '',
+      };
+    }
     return {
       ...turn,
       draft,
+      readyForReview,
+      presentReview: false,
+      wantsReview,
+      asksQuestion: !!turn.asksQuestion,
+    };
+  }
+
+  const agenda = stepSetupAgenda({
+    priorAsked,
+    draftAfterExtract: draft,
+    modelMessage: turn.message,
+    unresolvedConfig: hasUnresolvedConfig(turn),
+  });
+  const nextDraft = { ...draft, askedTopics: agenda.askedTopics };
+
+  if (agenda.stay) {
+    return {
+      ...turn,
+      draft: nextDraft,
+      readyForReview: false,
+      presentReview: false,
+      asksQuestion: !!turn.asksQuestion,
+    };
+  }
+
+  if (agenda.topic) {
+    return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack || reviewAck(turn.message));
+  }
+
+  if (agenda.step === 'goal') {
+    return {
+      ...turn,
+      draft: nextDraft,
       readyForReview: false,
       presentReview: false,
       asksQuestion: true,
@@ -1253,33 +1289,25 @@ function gateTurn(profile, turn) {
     };
   }
 
-  // Wrap-up topics: when wrapping up, once that sequence has started, or
-  // once ownerGoal is set (do not wait for the model to flag wrap-up).
-  const continueWrap =
-    ownerPhase(null, profile, { draft, priorAsked, turn }) === 'wrapup';
-  const openWrap = continueWrap ? nextOpenTopic(profile, draft, priorAsked) : null;
-  const modelTopic = openWrap
-    ? null
-    : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
-  const askTopic = openWrap || modelTopic;
-  if (askTopic) {
-    const lead = openWrap ? (askTopic.ack || reviewAck(turn.message)) : turn.message;
-    return askFixedTopic(turn, draft, askTopic, lead);
+  if (agenda.step === 'identity' && agenda.question) {
+    return {
+      ...turn,
+      draft: nextDraft,
+      readyForReview: false,
+      presentReview: false,
+      asksQuestion: true,
+      message: withSingleQuestion(turn.message, IDENTITY_FALLBACK_QUESTION),
+    };
   }
 
-  // Before approval, a reply with no "?" and no open required topic shows
-  // the save card once FAQ + intake are settled. Do not inject wrap-up
-  // topics before the goal (nextOpenTopic would otherwise return FAQ).
   if (
-    ownerPhase(null, profile, { draft }) !== 'ready' &&
-    !replyHasQuestion(turn.message) &&
-    !nextOpenTopic(profile, draft, priorAsked) &&
-    firstSetupSettled(profile, draft) &&
-    hasEnoughForFirstBot(mergeDraft(profile, draft))
+    agenda.presentComplete &&
+    firstSetupSettled(profile, nextDraft) &&
+    hasEnoughForFirstBot(mergeDraft(profile, nextDraft))
   ) {
     return {
       ...turn,
-      draft,
+      draft: nextDraft,
       readyForReview: true,
       presentReview: true,
       wantsReview: turn.wantsReview === true,
@@ -1288,29 +1316,12 @@ function gateTurn(profile, turn) {
     };
   }
 
-  let readyForReview = !!turn.readyForReview;
-  const wantsReview = turn.wantsReview === true;
-  if (ownerPhase(null, profile, { draft }) === 'ready' && draftChangesOnlySettings(profile, draft)) {
-    readyForReview = true;
-  }
-
-  if (readyForReview || wantsReview) {
-    return {
-      ...turn,
-      draft,
-      readyForReview: true,
-      presentReview: true,
-      wantsReview,
-      asksQuestion: false,
-      message: readyForReview ? reviewAck(turn.message) : '',
-    };
-  }
   return {
     ...turn,
-    draft,
-    readyForReview,
+    draft: nextDraft,
+    readyForReview: false,
     presentReview: false,
-    wantsReview,
+    wantsReview: turn.wantsReview === true,
     asksQuestion: !!turn.asksQuestion,
   };
 }

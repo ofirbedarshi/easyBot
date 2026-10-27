@@ -94,19 +94,19 @@ const rows = [
   },
   {
     id: 10,
-    name: 'this-turn readyForReview starts wrap-up',
+    name: 'this-turn readyForReview does not start wrap-up',
     session: { mode: 'BUILD', buildHistory: history, leadIntake: null },
     profile: { approvedAt: null, draft: { ownerGoal: null, askedTopics: [] } },
     view: { turn: { readyForReview: true } },
-    expect: 'wrapup',
+    expect: 'setup',
   },
   {
     id: 11,
-    name: 'this-turn wantsReview starts wrap-up',
+    name: 'this-turn wantsReview does not start wrap-up',
     session: { mode: 'BUILD', buildHistory: history, leadIntake: null },
     profile: { approvedAt: null, draft: { ownerGoal: null, askedTopics: [] } },
     view: { turn: { wantsReview: true } },
-    expect: 'wrapup',
+    expect: 'setup',
   },
   {
     id: 12,

@@ -1,5 +1,5 @@
 import { leadInProgress, leadResumePending } from './leadIntake.js';
-import { normalizeOwnerGoal } from './profile.js';
+import { setupStep } from './setupAgenda.js';
 
 /**
  * Persisted owner conversation phase. One function so session routing,
@@ -7,10 +7,8 @@ import { normalizeOwnerGoal } from './profile.js';
  *
  * `ready` is `approvedAt`. `/test` still uses `hasEnoughForFirstBot` — that
  * is a capability check, not a phase. Tell-me-more and the goal question
- * stay agenda items inside `setup`.
- *
- * `view.turn` is gate-only: this-turn `readyForReview` / `wantsReview` can
- * start wrap-up without writing those flags onto the profile.
+ * stay agenda items inside `setup`. Wrap-up is the agenda at faq / intake /
+ * complete — not this-turn model flags.
  */
 export const OWNER_PHASES = Object.freeze([
   'wake',
@@ -22,13 +20,12 @@ export const OWNER_PHASES = Object.freeze([
   'lead_resume',
 ]);
 
-/** Same keys as WRAP_UP_TOPIC_KEYS in builderTopics.js (FAQ, intake). */
-const WRAP_UP_ASKED_KEYS = new Set(['commonQuestions', 'informationToCollect']);
+const WRAP_UP_STEPS = new Set(['faq', 'intake', 'complete']);
 
 /**
  * @param {{ mode?: string, buildHistory?: object[], leadIntake?: object }|null|undefined} session
  * @param {object|null|undefined} profile
- * @param {{ draft?: object, priorAsked?: string[], turn?: { readyForReview?: boolean, wantsReview?: boolean } }} [view]
+ * @param {{ draft?: object, priorAsked?: string[] }} [view]
  * @returns {'wake'|'setup'|'wrapup'|'ready'|'test'|'lead'|'lead_resume'}
  */
 export function ownerPhase(session, profile, view = {}) {
@@ -42,9 +39,7 @@ export function ownerPhase(session, profile, view = {}) {
 
   const draft = view.draft ?? profile?.draft;
   const asked = view.priorAsked ?? (Array.isArray(draft?.askedTopics) ? draft.askedTopics : []);
-  const wrapStarted = asked.some((k) => WRAP_UP_ASKED_KEYS.has(k));
-  const goalSet = !!normalizeOwnerGoal(draft?.ownerGoal);
-  const turnWrap = !!(view.turn?.readyForReview || view.turn?.wantsReview);
-  if (wrapStarted || goalSet || turnWrap) return 'wrapup';
+  const step = setupStep({ ...draft, askedTopics: asked }, asked);
+  if (WRAP_UP_STEPS.has(step)) return 'wrapup';
   return 'setup';
 }

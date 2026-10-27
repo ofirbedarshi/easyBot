@@ -622,7 +622,8 @@ function testRequiredTopicsGate() {
   assert.equal(wantReview.readyForReview, true);
   assert.doesNotMatch(wantReview.message, /invented|\$99|updated summary/i);
 
-  // A changed draft with asksQuestion and no review flags does not force a review.
+  // Agenda complete (FAQ + intake settled) → first save card even if the
+  // model asked a leftover question.
   const midQ = applyReviewGate(
     emptyProfile(),
     {
@@ -634,8 +635,8 @@ function testRequiredTopicsGate() {
     },
     'the lesson is 90 now'
   );
-  assert.equal(midQ.presentReview, false);
-  assert.equal(midQ.asksQuestion, true);
+  assert.equal(midQ.presentReview, true);
+  assert.equal(midQ.asksQuestion, false);
   assert.equal(midQ.draft.services[0].price, '$90 per hour');
 
   // Owner skips → review next, FAQ not repeated.
