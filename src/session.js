@@ -7,14 +7,13 @@ import {
   applyDraftToLive,
   draftDiffersFromLive,
   hasEnoughForFirstBot,
-  customerOpeningText,
 } from './profile.js';
 import {
   applyReviewGate,
-  OFF_PURPOSE_OWNER_REPLY,
   runBuilderTurn as defaultRunBuilderTurn,
-  openingMessage,
 } from './builder.js';
+import { composeReply } from './composeReply.js';
+import { EMPTY_MESSAGE_ERROR } from './copy.js';
 import {
   businessBotReply as defaultBusinessBotReply,
   BUSINESS_BOT_STORED_MESSAGES,
@@ -24,22 +23,14 @@ import {
   menuActive,
   parseMenuChoice,
   parseMenuItem,
-  renderMenu,
   interveningBuilderQuestion,
   isReviewNumberChoice,
   parseReviewChoice,
   lastShownNav,
-  renderChangeMenu,
-  renderReturnToEditing,
-  renderSavedChanges,
-  renderSetupComplete,
-  renderSection,
   reviewActive,
-  renderSetupContinue,
   unwrapWhatsAppBold,
 } from './ownerNav.js';
 import {
-  LEAD_ALREADY_SENT,
   leadSubmitted,
   startLeadIntake,
   stepLeadIntake,
@@ -163,35 +154,17 @@ function stateFrom(session, profile) {
   };
 }
 
-const BOT_ERROR_REPLY =
-  "Sorry, your bot couldn't answer right now. Please try again in a moment.";
-
-function businessDisplayName(profile) {
-  const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
-  return name || 'this business';
-}
-
 /** Scripted TEST-entry banner. Code only; `{business}` is the profile name. */
 export function enterTestBanner(business) {
-  return [
-    '🎭 ━━━━━━━━━━━━ 🎭',
-    '*Test mode is on*',
-    '',
-    `Now you're the customer, and I'm ${business}'s assistant.`,
-    'Type *stop* when you want to keep teaching me.',
-    '🎭 ━━━━━━━━━━━━ 🎭',
-  ].join('\n');
+  return composeReply({
+    kind: 'test_enter',
+    profile: { name: business },
+  }).replies[0];
 }
 
 /** Scripted TEST-exit banner. Code only. */
 export function exitTestBanner() {
-  return [
-    '🎭 ━━━━━━━━━━━━ 🎭',
-    '*Test mode is off*',
-    '',
-    "I'm back to learning about your business.",
-    '🎭 ━━━━━━━━━━━━ 🎭',
-  ].join('\n');
+  return composeReply({ kind: 'test_exit', parts: { ready: false } }).reply;
 }
 
 /**
@@ -211,7 +184,7 @@ export function isExitTestCommand(text) {
 export async function handleMessage(session, text) {
   const trimmed = (text || '').trim();
   if (!trimmed) {
-    return { ok: false, error: 'Empty message', ...(await getStateAsync(session)) };
+    return { ok: false, error: EMPTY_MESSAGE_ERROR, ...(await getStateAsync(session)) };
   }
 
   // Commands handled in app code — never by the LLM
@@ -240,7 +213,7 @@ export async function handleMessage(session, text) {
     }
     return {
       ok: true,
-      reply: "All cleared. Send any message and I'll start fresh.",
+      reply: composeReply({ kind: 'reset' }).reply,
       source: 'app',
       event: 'reset',
       ...(await getStateAsync(session)),
@@ -254,12 +227,12 @@ export async function handleMessage(session, text) {
 
   // First inbound in BUILD only wakes the bot — discard content, send opening.
   if (phase === 'wake') {
-    const open = openingMessage();
-    session.buildHistory.push({ role: 'assistant', content: open.message });
+    const open = composeReply({ kind: 'opening' });
+    session.buildHistory.push({ role: 'assistant', content: open.reply });
     return {
       ok: true,
-      reply: open.message,
-      source: open.source,
+      reply: open.reply,
+      source: 'app',
       event: 'opening',
       ...(await getStateAsync(session)),
     };
@@ -295,9 +268,13 @@ async function handleNavigation(session, text) {
     if (pick && !numberAnswersQuestion) {
       if (pick === 'try') return tryMyBot(session, text);
       if (pick === 'change') {
-        const reply = renderChangeMenu(leadMenuOpts(session, await loadAsync(session)));
+        const composed = composeReply({
+          kind: 'change_menu',
+          menuOpts: leadMenuOpts(session, await loadAsync(session)),
+        });
+        const reply = composed.reply;
         session.buildHistory.push({ role: 'user', content: text });
-        session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+        session.buildHistory.push({ role: 'assistant', content: reply, nav: composed.nav });
         return {
           ok: true,
           reply,
@@ -330,14 +307,15 @@ async function handleNavigation(session, text) {
   if (choice === 'lead') return beginLeadIntake(session);
   if (tryWords || choice === 'try') return tryMyBot(session);
 
-  const reply = wantsMenu
-    ? renderChangeMenu(leadMenuOpts(session, profile))
-    : renderSection(choice, profile);
+  const composed = wantsMenu
+    ? composeReply({ kind: 'change_menu', menuOpts: leadMenuOpts(session, profile) })
+    : composeReply({ kind: 'section', profile, parts: { section: choice } });
+  const reply = composed.reply;
   session.buildHistory.push({ role: 'user', content: text });
   session.buildHistory.push({
     role: 'assistant',
     content: reply,
-    nav: wantsMenu ? 'menu' : `section:${choice}`,
+    nav: composed.nav,
   });
   return {
     ok: true,
@@ -356,24 +334,21 @@ async function tryMyBot(session) {
 async function enterTest(session) {
   const profile = await loadAsync(session);
   if (!hasEnoughForFirstBot(profile)) {
-    const reply =
-      'Tell me your business name and what you do (or a service) before I can chat as your assistant.';
     return {
       ok: false,
-      reply,
+      reply: composeReply({ kind: 'test_refuse' }).reply,
       source: 'app',
       ...(await getStateAsync(session)),
     };
   }
   session.mode = 'TEST';
-  const opening = customerOpeningText(profile);
-  session.testHistory = [{ role: 'assistant', content: opening }];
+  const composed = composeReply({ kind: 'test_enter', profile });
+  session.testHistory = [{ role: 'assistant', content: composed.replies[1] }];
   session.testSessionId = `test-${Date.now()}`;
-  const banner = enterTestBanner(businessDisplayName(profile));
   return {
     ok: true,
-    reply: banner,
-    replies: [banner, opening],
+    reply: composed.reply,
+    replies: composed.replies,
     source: 'app',
     event: 'enter_test',
     ...(await getStateAsync(session)),
@@ -387,45 +362,32 @@ async function enterBuild(session) {
   // approvedAt, not ownerPhase === 'ready': empty BUILD history is wake
   // (first inbound still opens), but leaving TEST already treats a
   // seeded ready profile as ready.
+  const menuOpts = leadMenuOpts(session, profile);
   if (profile.approvedAt) {
-    const menu = leavingTest
-      ? renderChangeMenu(leadMenuOpts(session, profile))
-      : renderReturnToEditing(leadMenuOpts(session, profile));
-    session.buildHistory.push({ role: 'assistant', content: menu, nav: 'menu' });
-    if (leavingTest) {
-      const banner = exitTestBanner();
-      return {
-        ok: true,
-        reply: banner,
-        replies: [banner, menu],
-        source: 'app',
-        event: 'enter_build',
-        ...(await getStateAsync(session)),
-      };
-    }
+    const composed = leavingTest
+      ? composeReply({ kind: 'test_exit', menuOpts, parts: { ready: true } })
+      : composeReply({ kind: 'stop_build', menuOpts, parts: { ready: true } });
+    session.buildHistory.push({
+      role: 'assistant',
+      content: leavingTest ? composed.replies[1] : composed.reply,
+      nav: composed.nav,
+    });
     return {
       ok: true,
-      reply: menu,
+      reply: composed.reply,
+      ...(composed.replies ? { replies: composed.replies } : {}),
       source: 'app',
       event: 'enter_build',
       ...(await getStateAsync(session)),
     };
   }
-  const continueReply = renderSetupContinue();
-  if (leavingTest) {
-    const banner = exitTestBanner();
-    return {
-      ok: true,
-      reply: banner,
-      replies: [banner, continueReply],
-      source: 'app',
-      event: 'enter_build',
-      ...(await getStateAsync(session)),
-    };
-  }
+  const composed = leavingTest
+    ? composeReply({ kind: 'test_exit', parts: { ready: false } })
+    : composeReply({ kind: 'stop_build', parts: { ready: false } });
   return {
     ok: true,
-    reply: continueReply,
+    reply: composed.reply,
+    ...(composed.replies ? { replies: composed.replies } : {}),
     source: 'app',
     event: 'enter_build',
     ...(await getStateAsync(session)),
@@ -453,9 +415,13 @@ function clearLeadResume(session) {
 async function resumeOwnerMenu(session, text) {
   session.leadIntake = { submittedAt: session.leadIntake.submittedAt };
   const profile = await loadAsync(session);
-  const reply = renderChangeMenu(leadMenuOpts(session, profile));
+  const composed = composeReply({
+    kind: 'change_menu',
+    menuOpts: leadMenuOpts(session, profile),
+  });
+  const reply = composed.reply;
   session.buildHistory.push({ role: 'user', content: text });
-  session.buildHistory.push({ role: 'assistant', content: reply, nav: 'menu' });
+  session.buildHistory.push({ role: 'assistant', content: reply, nav: composed.nav });
   return {
     ok: true,
     reply,
@@ -473,8 +439,14 @@ async function leadReply(session, reply, event) {
 async function beginLeadIntake(session) {
   if (leadSubmitted(session.leadIntake)) {
     const profile = await loadAsync(session);
-    const menu = renderMenu(leadMenuOpts(session, profile));
-    return leadReply(session, `${LEAD_ALREADY_SENT}\n\n${menu}`, 'lead_already_sent');
+    return leadReply(
+      session,
+      composeReply({
+        kind: 'lead_already_sent',
+        menuOpts: leadMenuOpts(session, profile),
+      }).reply,
+      'lead_already_sent'
+    );
   }
   const { state, reply } = startLeadIntake();
   session.leadIntake = state;
@@ -485,7 +457,14 @@ async function handleLeadIntake(session, text) {
   if (isMenuRequest(text)) {
     cancelLeadIntake(session);
     const profile = await loadAsync(session);
-    return leadReply(session, renderMenu(leadMenuOpts(session, profile)), 'lead_cancelled');
+    return leadReply(
+      session,
+      composeReply({
+        kind: 'lead_cancelled',
+        menuOpts: leadMenuOpts(session, profile),
+      }).reply,
+      'lead_cancelled'
+    );
   }
   const step = stepLeadIntake(session.leadIntake, text);
   if (!step.done) {
@@ -531,7 +510,7 @@ async function handleTest(session, question) {
   } catch (err) {
     // Provider error text can echo a masked API key; keep it out of chat and logs.
     console.error('Business Bot reply failed:', err?.status || err?.code || err?.name || 'error');
-    reply = BOT_ERROR_REPLY;
+    reply = composeReply({ kind: 'error_business' }).reply;
     source = 'error';
   }
 
@@ -571,7 +550,7 @@ async function handleBuild(session, userMessage) {
     session.buildHistory.pop();
     return {
       ok: false,
-      reply: `Builder error: ${err.message}`,
+      reply: composeReply({ kind: 'error_builder', parts: { errorMessage: err.message } }).reply,
       source: 'error',
       ...(await getStateAsync(session)),
     };
@@ -581,7 +560,7 @@ async function handleBuild(session, userMessage) {
     session.buildHistory.pop();
     return {
       ok: true,
-      reply: OFF_PURPOSE_OWNER_REPLY,
+      reply: composeReply({ kind: 'off_purpose' }).reply,
       source: result.source,
       event: 'build_turn',
       readyForReview: false,
@@ -607,28 +586,40 @@ async function handleBuild(session, userMessage) {
   const ready = ownerPhase(session, profile) === 'ready';
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;
 
-  let reply;
-  let nav = null;
+  const menuOpts = leadMenuOpts(session, profile);
+  let composed;
   if (firstApproval) {
-    reply = renderSetupComplete(profile);
-    nav = 'review';
+    composed = composeReply({ kind: 'setup_complete', profile });
   } else if (asking) {
-    reply = result.message;
+    composed = composeReply({
+      kind: 'model_only',
+      modelText: result.message,
+      parts: { asksQuestion: !!result.asksQuestion },
+    });
   } else if (ready && (changed || result.presentReview)) {
-    const ack = changed ? (result.message || '').trim() : '';
-    const card = changed
-      ? renderSavedChanges(prior, profile)
-      : renderChangeMenu(leadMenuOpts(session, profile));
-    reply = [ack, card].filter(Boolean).join('\n\n');
-    nav = changed ? 'review' : 'menu';
+    composed = changed
+      ? composeReply({
+          kind: 'saved_changes',
+          modelText: result.message,
+          prior,
+          profile,
+        })
+      : composeReply({ kind: 'change_menu', menuOpts });
   } else if (ready) {
-    reply = [result.message, renderMenu(leadMenuOpts(session, profile))]
-      .filter(Boolean)
-      .join('\n\n');
-    nav = 'menu';
+    composed = composeReply({
+      kind: 'model_plus_menu',
+      modelText: result.message,
+      menuOpts,
+    });
   } else {
-    reply = result.message;
+    composed = composeReply({
+      kind: 'model_only',
+      modelText: result.message,
+      parts: { asksQuestion: !!result.asksQuestion },
+    });
   }
+  const reply = composed.reply;
+  const nav = composed.nav;
 
   session.buildHistory.push({
     role: 'assistant',

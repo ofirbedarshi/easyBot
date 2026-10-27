@@ -2,10 +2,10 @@
  * Demo usage caps (server-side). Defaults keep personal WhatsApp demos cheap.
  */
 
+import { BURST_LIMIT_REPLY, messageTooLongReason } from './copy.js';
 import { E164_RE } from './phone.js';
 
-export const BURST_LIMIT_REPLY =
-  "You're sending a bit fast. Wait a few minutes and try again.";
+export { BURST_LIMIT_REPLY };
 
 /**
  * E.164 from a sender id or env list entry.
@@ -83,7 +83,7 @@ export function checkMessageLength(body) {
   if (text.length > max) {
     return {
       ok: false,
-      reason: `Message too long (max ${max} characters).`,
+      reason: messageTooLongReason(max),
     };
   }
   return { ok: true, text };

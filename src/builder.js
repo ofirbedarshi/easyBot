@@ -21,11 +21,10 @@ import {
 } from './profile.js';
 import {
   topicJustAsked,
-  topicQuestion,
   WRAP_UP_TOPICS,
 } from './builderTopics.js';
 import { ownerPhase } from './ownerPhase.js';
-import { IDENTITY_FALLBACK_QUESTION, stepSetupAgenda } from './setupAgenda.js';
+import { stepSetupAgenda } from './setupAgenda.js';
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
 import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
@@ -34,17 +33,27 @@ import {
   lastOutgoingMessage,
   messagesWithRetryNote,
 } from './identicalReply.js';
+import {
+  GOAL_FALLBACK_DISCLAIMER,
+  OFF_PURPOSE_OWNER_REPLY,
+  OWNER_GOAL_QUESTION,
+  PARSE_FALLBACK_MESSAGE,
+} from './copy.js';
+import {
+  composeReply,
+  replaceBeforeQuestion,
+  reviewAck,
+  withSingleQuestion,
+} from './composeReply.js';
 
-export const OWNER_GOAL_QUESTION =
-  "Now tell me, how can I help you the most? 🌟\n\nFor example, I can:\n💬 Answer your customers' questions\n📝 Ask customers for their details and pass them on to you\n\nOr anything else you have in mind 😊";
-
-/** Shown when the model flags the goal unsupported; states what Adam can do. */
-export const GOAL_FALLBACK_DISCLAIMER =
-  "I'd love to! 😊 Right now I can answer your customers' questions and collect their details for you. More is coming soon ✨";
-
-/** App-enforced when the model sets onPurpose=false. */
-export const OFF_PURPOSE_OWNER_REPLY =
-  "I'm here to help small businesses chat with their customers 😊 Want to tell me about your business?";
+export {
+  GOAL_FALLBACK_DISCLAIMER,
+  OFF_PURPOSE_OWNER_REPLY,
+  OWNER_GOAL_QUESTION,
+  replaceBeforeQuestion,
+  reviewAck,
+  withSingleQuestion,
+};
 
 const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
   (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
@@ -288,23 +297,6 @@ function parseJsonResponse(content) {
   return JSON.parse(text);
 }
 
-/**
- * Replace the model's questions with `question`, keeping only the text before
- * its first question (acknowledgment, summary) so the turn asks one thing.
- * Text after that question is dropped: it is usually a follow-up to it.
- */
-export function withSingleQuestion(text, question) {
-  const lines = [];
-  for (const line of String(text || '').split(/\n/)) {
-    const sentences = line.match(/[^.!?。]+[.!?。]*\s*/g) || [];
-    const firstQ = sentences.findIndex((s) => /\?\s*$/.test(s));
-    const before = (firstQ === -1 ? sentences : sentences.slice(0, firstQ)).join('').trim();
-    lines.push(before);
-    if (firstQ !== -1) break;
-  }
-  const kept = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  return kept ? `${kept}\n\n${question}` : question;
-}
 
 /** True once the owner has answered the intake question (array, possibly empty). */
 export function hasAnsweredInformationToCollect(draftOrProfile) {
@@ -1048,7 +1040,7 @@ export async function runBuilderTurn({
       parsed = parseJsonResponse(raw);
     } catch {
       parsed = {
-        message: raw && !choice?.refusal ? raw : 'Tell me a bit more about your business.',
+        message: raw && !choice?.refusal ? raw : PARSE_FALLBACK_MESSAGE,
         draft: currentDraft,
         newFacts: [],
         readyForReview: false,
@@ -1144,24 +1136,6 @@ export async function runBuilderTurn({
   };
 }
 
-const REVIEW_FILLER =
-  /\b(review|summary|summari[sz]e|approv\w*|set up|setup|ready|prepare|here'?s what|below)\b/i;
-
-/**
- * Reduce model text on a review turn to one short acknowledgment sentence: no
- * questions, no bullet/numbered lines, no "here's the summary / ready for
- * review" filler (the app renders the summary and options).
- */
-export function reviewAck(text) {
-  const sentences = String(text || '')
-    .split(/\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !/^\s*([-*•]|#{1,6}|\d+[.)])\s+/.test(line))
-    .flatMap((line) => (line.match(/[^.!?。]+[.!?。]*\s*/g) || []).map((s) => s.trim()))
-    .filter((s) => s && !/\?\s*$/.test(s) && !/:\s*$/.test(s));
-  const kept = sentences.find((s) => !REVIEW_FILLER.test(s));
-  return kept || '';
-}
 
 /**
  * Application save-card gate (runs after every Builder turn, real or stubbed).
@@ -1189,19 +1163,6 @@ export function applyGoalSupport(turn) {
   };
 }
 
-/**
- * Replace the text before the first question sentence with `lead` (the model's
- * own acknowledgment may restate the unsupported goal). No question → `lead` only.
- */
-export function replaceBeforeQuestion(text, lead) {
-  const s = String(text || '').trim();
-  const q = s.indexOf('?');
-  if (q === -1) return lead;
-  const start =
-    Math.max(s.lastIndexOf('.', q), s.lastIndexOf('!', q), s.lastIndexOf('\n', q)) + 1;
-  return [lead, s.slice(start).trim()].filter(Boolean).join('\n\n');
-}
-
 function askFixedTopic(turn, draft, topic, lead) {
   return {
     ...turn,
@@ -1212,7 +1173,11 @@ function askFixedTopic(turn, draft, topic, lead) {
     readyForReview: false,
     presentReview: false,
     asksQuestion: true,
-    message: withSingleQuestion(lead, topicQuestion(topic, draft)),
+    message: composeReply({
+      kind: 'ask_topic',
+      modelText: turn.message,
+      parts: { topic, ack: lead, draft },
+    }).reply,
   };
 }
 
@@ -1285,7 +1250,7 @@ function gateTurn(profile, turn) {
       readyForReview: false,
       presentReview: false,
       asksQuestion: true,
-      message: withSingleQuestion(turn.message, OWNER_GOAL_QUESTION),
+      message: composeReply({ kind: 'ask_goal', modelText: turn.message }).reply,
     };
   }
 
@@ -1296,7 +1261,7 @@ function gateTurn(profile, turn) {
       readyForReview: false,
       presentReview: false,
       asksQuestion: true,
-      message: withSingleQuestion(turn.message, IDENTITY_FALLBACK_QUESTION),
+      message: composeReply({ kind: 'ask_identity', modelText: turn.message }).reply,
     };
   }
 
@@ -1328,8 +1293,7 @@ function gateTurn(profile, turn) {
 
 export function openingMessage() {
   return {
-    message:
-      "Hi, I'm Adam, nice to meet you 👋😊\n\nI'm going to be the one talking to your customers 💬\n\nYou're one of the very first businesses I'm working with, so please be patient with me while I learn 🙈💛\n\nSo let's start by getting to know each other a little, so I can learn about your business ✨\n\nFirst of all, what's your business called, and what does it do?",
+    message: composeReply({ kind: 'opening' }).reply,
     source: 'app',
   };
 }

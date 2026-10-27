@@ -19,6 +19,7 @@ const SUITES = [
   { id: 'setup-edit-flow', file: 'scripts/test-setup-edit-flow.js' },
   { id: 'owner-phase', file: 'scripts/test-owner-phase.js' },
   { id: 'setup-agenda', file: 'scripts/test-setup-agenda.js' },
+  { id: 'compose-reply', file: 'scripts/test-compose-reply.js' },
   { id: 'builder-nav', file: 'scripts/test-builder-nav.js' },
   { id: 'customer-prompt', file: 'scripts/test-customer-prompt.js' },
   { id: 'twilio-webhook', file: 'scripts/test-twilio-webhook.js' },

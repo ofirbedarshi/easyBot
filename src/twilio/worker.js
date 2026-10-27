@@ -13,9 +13,9 @@ import {
 } from '../limits.js';
 import { sendWhatsAppReply } from './send.js';
 import { modeFromHandleResult } from '../conversationLog.js';
+import { composeReply } from '../composeReply.js';
 
-const GENERIC_ERROR_REPLY =
-  'Sorry, something went wrong processing that message. Please try again.';
+const GENERIC_ERROR_REPLY = composeReply({ kind: 'error_generic' }).reply;
 
 async function deliverReply({ to, body }) {
   if (process.env.TWILIO_SKIP_OUTBOUND === '1') {

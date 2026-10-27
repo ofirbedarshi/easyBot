@@ -6,12 +6,15 @@
  * `draft.askedTopics` is the only persisted progress (app-owned, same as
  * today). `setupStep` is derived from field presence + that list.
  */
+import { IDENTITY_FALLBACK_QUESTION } from './copy.js';
 import { normalizeOwnerGoal } from './profile.js';
 import {
   businessDetailsSettled,
   hasNameAndWhat,
   topicByKey,
 } from './builderTopics.js';
+
+export { IDENTITY_FALLBACK_QUESTION };
 
 export const SETUP_STEPS = Object.freeze([
   'identity',
@@ -21,10 +24,6 @@ export const SETUP_STEPS = Object.freeze([
   'intake',
   'complete',
 ]);
-
-/** Last line of `openingMessage` — the only identity re-ask copy. */
-export const IDENTITY_FALLBACK_QUESTION =
-  "First of all, what's your business called, and what does it do?";
 
 const WRAP_UP_ASKED_KEYS = new Set(['commonQuestions', 'informationToCollect']);
 
