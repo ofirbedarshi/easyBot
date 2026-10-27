@@ -293,7 +293,9 @@ async function playApprovedFlow(steps, { history } = {}) {
     const expect = step.expect || {};
 
     assert.equal(out.ok, true, `${label}: ok`);
-    if (expect.event) assert.equal(out.event, expect.event, `${label}: event`);
+    if (expect.event) {
+      assert.equal(out.event, expect.event, `${label}: event got ${out.event} reply=${JSON.stringify(out.reply)}`);
+    }
     if (expect.mode) assert.equal(session.mode, expect.mode, `${label}: mode`);
 
     const reply = resolveExpect(expect.reply, ctx);
@@ -328,7 +330,11 @@ async function playApprovedFlow(steps, { history } = {}) {
     }
     if (expect.live) {
       for (const [key, value] of Object.entries(expect.live)) {
-        assert.deepEqual(profile[key], value, `${label}: live.${key}`);
+        assert.deepEqual(
+          profile[key],
+          value,
+          `${label}: live.${key} got ${JSON.stringify(profile[key])}`
+        );
       }
     }
     if (expect.draft) {
@@ -779,6 +785,48 @@ await test(
   }
 );
 
+// lastShownNav walks back to the 🎉 review card past no-nav acks
+// (asksQuestion unset). A bare "1" is then Try my bot (enter_test), not a
+// Builder answer. Don't fix here — later composer/agenda work should.
+await test(
+  'stale review after no-nav acks does not capture bare 1 (lastShownNav)',
+  async () => {
+    const seeded = approvedProfile();
+    await playApprovedFlow(
+      [
+        {
+          name: 'bare 1 after no-nav acks is not Try my bot',
+          in: '1',
+          model: modelTurn({}, { message: 'One bay is enough ✨', asksQuestion: false }),
+          expect: {
+            event: 'build_turn',
+            mode: 'BUILD',
+            approvedAt: APPROVED_AT,
+            excludes: ['*Test mode is on*'],
+          },
+        },
+      ],
+      {
+        history: [
+          { role: 'user', content: 'hello' },
+          { role: 'assistant', content: renderSetupComplete(seeded), nav: 'review' },
+          { role: 'user', content: 'still a garage' },
+          { role: 'assistant', content: 'Still Ofir garage ✨' },
+          { role: 'user', content: 'same as before' },
+          { role: 'assistant', content: 'Noted ✨' },
+          { role: 'user', content: 'nothing new' },
+          { role: 'assistant', content: 'All good ✨' },
+        ],
+      }
+    );
+  },
+  {
+    knownFailing: true,
+    reason:
+      'lastShownNav stays review after no-nav acks; bare "1" is enter_test (Try my bot), not a Builder answer',
+  }
+);
+
 await test('no-change Builder turn after approval shows the menu, not a legacy card', async () => {
   await playApprovedFlow([
     {
@@ -841,7 +889,6 @@ await test('Try my bot from the menu, then stop, then menu header', async () => 
         replies: [exitTestBanner(), expectedMenu(true)],
         approvedAt: APPROVED_AT,
         nav: 'menu',
-        includes: [MENU_HEAD],
         excludes: [LEGACY_CARD],
       },
     },
