@@ -171,6 +171,7 @@ const REVIEW = {
   intro: (name) => `Here's your bot for ${name}:`,
   introNoName: "Here's your bot:",
   labels: {
+    name: 'Name',
     business: 'Business info',
     services: 'Services',
     area: 'Area',
@@ -211,9 +212,9 @@ function brief(text) {
 }
 
 /**
- * Review summary: one `Label: value` line per item (business fields, bot goal
- * and intake, Q&A, then how the bot talks). `full` holds the underlying data so
- * the changes view can detect edits that the trimmed `value` hides.
+ * Review summary: one `Label: value` line per item (name, business fields, bot
+ * goal and intake, Q&A, then how the bot talks). `full` holds the underlying
+ * data so the changes view can detect edits that the trimmed `value` hides.
  */
 export function summaryLines(p) {
   const R = REVIEW;
@@ -222,6 +223,8 @@ export function summaryLines(p) {
   const add = (id, label, value, full) =>
     out.push({ id, label, value, full: JSON.stringify(full ?? null) });
 
+  const name = textOrNull(p.name);
+  add('name', L.name, name ? brief(name) : R.notSet, name);
   const what = textOrNull(p.whatWeDo);
   add('business', L.business, what ? brief(what) : R.notSet, what);
   const services = Array.isArray(p.services) ? p.services : [];

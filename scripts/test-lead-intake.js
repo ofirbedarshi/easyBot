@@ -213,4 +213,104 @@ res = await handleMessage(s2, '7');
 assert.equal(builderCalled, true);
 assert.equal(s2.leadIntake, null);
 
+// /reset clears this sender's lead so 🚀 can show after a new first setup
+const otherSender = 'whatsapp:+15550000003';
+await store.saveProfile(otherSender, {
+  ...emptyProfile(),
+  name: 'Other Studio',
+  approvedAt: new Date().toISOString(),
+});
+await store.saveLead(otherSender, {
+  senderId: otherSender,
+  businessName: 'Other Studio',
+  answers: { contactConsent: 'Yes, sure' },
+  createdAt: '2026-01-01T00:00:00.000Z',
+});
+await store.saveSession(otherSender, {
+  mode: 'BUILD',
+  buildHistory: [],
+  testHistory: [],
+  testSessionId: 't',
+  leadIntake: { submittedAt: '2026-01-01T00:00:00.000Z' },
+});
+
+res = await send('/reset');
+assert.equal(res.event, 'reset');
+assert.equal((await store.loadSession(sender)).leadIntake, null);
+assert.equal(store._dump().leads[sender], undefined);
+assert.ok(store._dump().leads[otherSender], 'other sender lead stays');
+assert.equal(
+  (await store.loadSession(otherSender)).leadIntake.submittedAt,
+  '2026-01-01T00:00:00.000Z'
+);
+
+const setupDraft = {
+  name: 'Ofir Baber',
+  whatWeDo: 'Barber',
+  services: [],
+  commonQuestions: [{ question: 'Price?', answer: 'Ask in the shop.' }],
+  informationToCollect: [],
+  unknowns: [],
+};
+const setup = await createSenderSession(store, sender, {
+  deps: {
+    runBuilderTurn: async () => ({
+      message: 'Got it, thanks!',
+      draft: setupDraft,
+      readyForReview: true,
+      source: 'stub-builder',
+    }),
+  },
+});
+const opened = await handleMessage(setup, 'hello');
+assert.equal(opened.event, 'opening');
+const first = await handleMessage(setup, "I'm a barber");
+await store.saveSession(sender, setup);
+assert.ok((await store.loadProfile(sender)).approvedAt);
+assert.match(first.reply, /Got it, I'll remember that/);
+assert.match(first.reply, /Name: Ofir Baber/);
+const entered = await handleMessage(setup, '1');
+assert.equal(entered.event, 'enter_test');
+const stopped = await handleMessage(setup, 'stop');
+await store.saveSession(sender, setup);
+assert.equal(stopped.event, 'enter_build');
+assert.ok(
+  (stopped.replies || [stopped.reply]).join('\n').includes(`1. 🚀 ${LEAD_MENU_LABEL}`),
+  stopped.replies ? stopped.replies.join('\n') : stopped.reply
+);
+
+// Control: submit without reset → Stop still hides 🚀
+const sender4 = 'whatsapp:+15550000004';
+await store.saveProfile(sender4, {
+  ...emptyProfile(),
+  name: 'Control Studio',
+  whatWeDo: 'Cuts',
+  approvedAt: new Date().toISOString(),
+});
+await store.saveSession(sender4, {
+  mode: 'BUILD',
+  buildHistory: [{ role: 'assistant', content: renderMenu({ leadOption: true }), nav: 'menu' }],
+  testHistory: [],
+  testSessionId: 't',
+});
+async function send4(text) {
+  const s = await createSenderSession(store, sender4);
+  const out = await handleMessage(s, text);
+  await store.saveSession(sender4, s);
+  return out;
+}
+let r4 = await send4('1');
+assert.equal(r4.event, 'lead_question');
+r4 = await send4('1');
+r4 = await send4('1');
+r4 = await send4('2');
+r4 = await send4('5');
+r4 = await send4('1');
+assert.equal(r4.event, 'lead_saved');
+r4 = await send4('/test');
+assert.equal(r4.event, 'enter_test');
+r4 = await send4('stop');
+assert.equal(r4.event, 'enter_build');
+assert.ok(!(r4.replies || [r4.reply]).join('\n').includes(LEAD_MENU_LABEL));
+
 console.log('test-lead-intake: all passed');
