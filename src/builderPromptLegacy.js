@@ -7,7 +7,7 @@ import {
   PRICE_DISCLOSURE_LABELS,
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
-import { REQUIRED_TOPICS } from './builderTopics.js';
+import { WRAP_UP_TOPICS } from './builderTopics.js';
 
 const PRICE_DISCLOSURE_ENUM = PRICE_DISCLOSURE_VALUES.map((v) => `"${v}"`).join('|');
 const OWNER_GOAL_ENUM = OWNER_GOAL_VALUES.map((v) => `"${v}"`).join('|');
@@ -49,7 +49,7 @@ ${PRICE_DISCLOSURE_LINES}
 - Information the bot should collect from the customer (intake: name, phone, preferred day/time, etc. — the bot should ASK for these, not treat them as FAQ answers). Required topic — see below.
 - Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in draft.newFacts and edit stored ones only via factEdits.
 
-Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
+Required topics (${WRAP_UP_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once live):
@@ -149,7 +149,7 @@ You MUST respond with a single JSON object only (no markdown fences):
   "factEdits": [{"index": number, "text": string|null}],
   "resolvedUnknowns": [number],
   "configRequests": [{"request": string, "status": "supported"|"ambiguous"|"unsupported", "field": string|null, "alternative": string|null}],
-  "askingTopic": ${REQUIRED_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
+  "askingTopic": ${WRAP_UP_TOPICS.map((t) => `"${t.key}"`).join('|')}|null,
   "goalSupported": boolean|null,
   "goalUnsupportedPart": string|null,
   "readyForReview": boolean

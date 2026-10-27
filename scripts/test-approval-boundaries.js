@@ -393,6 +393,8 @@ function testGoalSupport() {
     name: 'Waser',
     whatWeDo: 'Math tutoring',
     services: [{ name: 'Lesson', price: '$80 per hour', notes: null }],
+    hours: 'Mon–Fri 9–17',
+    locationOrArea: 'Tel Aviv',
     commonQuestions: [],
     informationToCollect: null,
   };
@@ -489,7 +491,10 @@ function testRequiredTopicsGate() {
   const facts = {
     name: 'Waser',
     whatWeDo: 'Math tutoring',
+    ownerGoal: 'answer_questions',
     services: [{ name: 'Lesson', price: '$80 per hour', notes: null }],
+    hours: 'Mon–Fri 9–17',
+    locationOrArea: 'Tel Aviv',
     commonQuestions: [],
     informationToCollect: [],
   };

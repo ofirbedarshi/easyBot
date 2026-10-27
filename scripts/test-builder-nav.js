@@ -13,6 +13,7 @@ import {
   testProfilePath,
 } from '../src/profile.js';
 import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
+import { BUSINESS_DETAILS_ACK, businessDetailsQuestion } from '../src/builderTopics.js';
 import {
   createSession,
   handleMessage,
@@ -895,7 +896,14 @@ async function testSetupNameCaptureDoesNotShowSaveCard() {
   assert.match(intro.reply, /business called/);
   assert.doesNotMatch(intro.reply, /I'll remember that|Here's what changed:/);
   const named = await handleMessage(session, 'Ofir baber');
-  assert.equal(named.reply, "Thanks, I've got your business name as Ofir Baber ✨");
+  const tellMore = businessDetailsQuestion({
+    name: 'Ofir Baber',
+    whatWeDo: 'Barber',
+    services: [],
+    hours: null,
+    locationOrArea: null,
+  });
+  assert.equal(named.reply, `${BUSINESS_DETAILS_ACK}\n\n${tellMore}`);
   assert.doesNotMatch(
     named.reply,
     /I'll remember that|Here's what changed:|What should we do next\?|Chat with me like a customer|Keep teaching me/
