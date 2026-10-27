@@ -785,7 +785,7 @@ function gateTurn(profile, turn) {
   }
 
   if (agenda.topic) {
-    return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack || reviewAck(turn.message));
+    return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack);
   }
 
   if (agenda.step === 'goal') {

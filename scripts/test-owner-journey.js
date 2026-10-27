@@ -12,7 +12,7 @@ import {
   loadProfile,
   testProfilePath,
 } from '../src/profile.js';
-import { applyBuilderModelOutput, openingMessage } from '../src/builder.js';
+import { applyBuilderModelOutput, applyReviewGate, openingMessage } from '../src/builder.js';
 import {
   BUSINESS_DETAILS_ACK,
   businessDetailsQuestion,
@@ -271,7 +271,7 @@ await playJourney([
     expect: {
       event: 'build_turn',
       phase: 'wrapup',
-      reply: `${INTAKE.ack}\n\n${INTAKE.question}`,
+      reply: `No questions yet ✨\n\n${INTAKE.question}`,
       approvedAt: null,
       nav: null,
       draft: {
@@ -286,7 +286,7 @@ await playJourney([
     expect: {
       event: 'build_turn',
       phase: 'wrapup',
-      reply: `${INTAKE.ack}\n\n${INTAKE.question}`,
+      reply: `I can wait ✨\n\n${INTAKE.question}`,
       approvedAt: null,
       nav: null,
       live: { informationToCollect: null },
@@ -637,6 +637,29 @@ await playJourney([
   },
 ]);
   console.log('PASS owner-journey: wake → setup → wrapup → ready → test → lead → restart');
+
+  const faqAskedDraft = {
+    name: NAME,
+    whatWeDo: WHAT,
+    ownerGoal: 'answer_questions',
+    commonQuestions: [],
+    informationToCollect: null,
+    askedTopics: ['businessDetails', 'commonQuestions'],
+  };
+  const faqQModel =
+    'I collect those details when a customer is ready to book. Want me to start now?';
+  const faqQuestionInstead = applyReviewGate(
+    { ...emptyProfile(), ...faqAskedDraft, draft: faqAskedDraft },
+    { message: faqQModel, draft: faqAskedDraft, onPurpose: true },
+    'When will you collect it?'
+  );
+  assert.equal(
+    faqQuestionInstead.message,
+    `I collect those details when a customer is ready to book.\n\n${INTAKE.question}`
+  );
+  assert.ok(!faqQuestionInstead.message.includes(INTAKE.ack));
+  assert.ok(!/noted/i.test(faqQuestionInstead.message));
+  console.log('PASS owner-journey: FAQ question instead of answer uses model lead');
 } catch (err) {
   console.error(`FAIL owner-journey: ${err.message}`);
   process.exit(1);

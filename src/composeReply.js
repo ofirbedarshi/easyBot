@@ -381,8 +381,9 @@ export function composeReply(spec = {}) {
       });
 
     case 'ask_topic': {
-      const lead = parts.ack || reviewAck(modelText);
-      return done(withSingleQuestion(lead, topicQuestion(parts.topic, parts.draft)), {
+      const question = topicQuestion(parts.topic, parts.draft);
+      const lead = parts.ack || modelText;
+      return done(withSingleQuestion(lead, question), {
         asksQuestion: true,
       });
     }

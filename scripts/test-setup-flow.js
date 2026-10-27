@@ -18,6 +18,7 @@ import {
   testProfilePath,
 } from '../src/profile.js';
 import { openingMessage, OWNER_GOAL_QUESTION } from '../src/builder.js';
+import { withSingleQuestion } from '../src/composeReply.js';
 import { IDENTITY_FALLBACK_QUESTION } from '../src/setupAgenda.js';
 import {
   BUSINESS_DETAILS_ACK,
@@ -624,7 +625,7 @@ await test('skip tell-more and skip FAQ still reach the card', async () => {
       ),
       expect: {
         event: 'build_turn',
-        reply: expectedIntake(),
+        reply: withSingleQuestion(`${NAME} is your garage ✨`, INTAKE.question),
         askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
         approvedAt: null,
         excludes: [FAQ.question],
@@ -708,7 +709,7 @@ await test('#47 dead-end: model asks its own question, no wrap-up flags, still r
       ),
       expect: {
         event: 'build_turn',
-        reply: expectedIntake(),
+        reply: withSingleQuestion(MODEL_INTAKE_Q, INTAKE.question),
         askedTopics: ['commonQuestions', 'informationToCollect'],
         approvedAt: null,
         excludes: [MODEL_INTAKE_Q, FAQ.question],
@@ -860,7 +861,7 @@ await test('no "?" during setup still advances (before name, and after the goal)
         }
       ),
       expect: {
-        reply: expectedIntake(),
+        reply: withSingleQuestion(`${NAME} repairs cars ✨`, INTAKE.question),
         askedTopics: ['commonQuestions', 'informationToCollect'],
         approvedAt: null,
       },

@@ -17,7 +17,7 @@ const PROFILE = testProfilePath('setup-skip-stall');
 const INTAKE = topicByKey('informationToCollect');
 const FAQ = topicByKey('commonQuestions');
 const ECHO = 'Ofir Garage is your garage ✨';
-const EXPECTED_SKIP_REPLY = `${INTAKE.ack}\n\n${INTAKE.question}`;
+const EXPECTED_SKIP_REPLY = `${ECHO}\n\n${INTAKE.question}`;
 const PREVIOUS =
   "I've got it—Ofir Garage is your garage ✨\n\nWhat would you most like me to help with? 🌟";
 
