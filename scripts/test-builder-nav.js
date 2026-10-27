@@ -208,7 +208,6 @@ async function testFreeTextAfterSection() {
   const r = await handleMessage(session, 'Change the hours to Sun–Fri 8–14');
   assert.equal(calls.builder, 1);
   assert.equal(r.event, 'build_turn');
-  assert.equal(r.readyForReview, true);
   assert.equal(reviewActive(session.buildHistory), true, 'review offers two options');
   assert.equal(menuActive(session.buildHistory), false, 'full menu only after Make changes');
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
@@ -312,27 +311,24 @@ async function testCourtesyCloserDoesNotBlockReviewNumber() {
   assert.equal(calls.builder, 2);
 }
 
-/** Intervening Builder question: bare 1/2 answer it; option wording still selects. */
+/** After ready, a clarifying question attaches the menu; bare 1 is a chrome pick. */
 async function testNumberAfterInterveningQuestionGoesToBuilder() {
   clean();
   const f = facts();
   const { session, calls } = makeSession([
-    { message: 'Got it, thanks!', draft: f, readyForReview: true },
-    { message: 'How many instructors work there?', draft: f, readyForReview: false, asksQuestion: true },
-    { message: 'Noted one instructor.', draft: f, readyForReview: true },
+    { message: 'Got it, thanks!', draft: f },
+    { message: 'How many instructors work there?', draft: f },
+    { message: 'Noted one instructor.', draft: f },
   ]);
   await handleMessage(session, 'hi');
   await handleMessage(session, 'I run Studio Yoga');
   await handleMessage(session, 'staff size');
-  assert.equal(interveningBuilderQuestion(session.buildHistory), true);
+  assert.equal(interveningBuilderQuestion(session.buildHistory), false);
+  assert.equal(menuActive(session.buildHistory), true);
   const ans = await handleMessage(session, '1');
-  assert.equal(ans.event, 'build_turn');
+  assert.equal(ans.event, 'lead_question');
   assert.equal(session.mode, 'BUILD');
-  assert.equal(calls.builder, 3);
-  assert.ok(ans.reply.startsWith('What should we do next?'), ans.reply);
-  assert.match(ans.reply, /🏪 Tell me more about your business/);
-  assert.doesNotMatch(ans.reply, /Here's your bot/);
-  assert.doesNotMatch(ans.reply, /How I talk: default/);
+  assert.equal(calls.builder, 2);
 }
 
 async function testTryMyBotWordsAfterInterveningQuestion() {
@@ -364,25 +360,25 @@ async function testUnchangedReviewOmitsAck() {
   assert.ok(first.reply.startsWith("🎉 I'm all set!"), first.reply);
   assert.doesNotMatch(first.reply, /Got it, thanks!/);
   const shown = await handleMessage(session, 'please show the current bot');
-  assert.equal(shown.readyForReview, true);
-  assert.ok(shown.reply.startsWith('What should we do next?'), shown.reply);
+  assert.ok(shown.reply.startsWith('**Studio Yoga** is a yoga studio in Tel Aviv.'), shown.reply);
   assert.match(shown.reply, /🏪 Tell me more about your business/);
   assert.doesNotMatch(shown.reply, /Here's your bot for/);
   assert.doesNotMatch(shown.reply, /How I talk: default/);
-  assert.ok(!shown.reply.includes('**Studio Yoga**'), shown.reply);
 }
 
-/** Numbers without menu context go to the Builder (e.g. a price answer). */
+/** After ready, a no-change turn attaches the menu; a number is a chrome pick. */
 async function testNumberWithoutMenuContext() {
   clean();
   saveProfile(approvedProfile(), PROFILE);
   const { session, calls } = makeSession([
-    { message: 'What is the new price?', draft: facts(), readyForReview: false, asksQuestion: true },
+    { message: 'What is the new price?', draft: facts() },
   ]);
   session.buildHistory.push({ role: 'user', content: 'Hi' });
   await handleMessage(session, 'I want to change a price');
-  await handleMessage(session, '3');
-  assert.equal(calls.builder, 2);
+  assert.equal(menuActive(session.buildHistory), true);
+  const section = await handleMessage(session, '3');
+  assert.equal(section.event, 'menu_section');
+  assert.equal(calls.builder, 1);
   assert.equal(session.mode, 'BUILD');
 }
 
@@ -529,7 +525,6 @@ async function testFirstReviewTryApprovesAndTests() {
   await handleMessage(session, 'hi');
   const review = await handleMessage(session, 'I run Studio Yoga in Tel Aviv');
   assert.equal(review.event, 'build_turn');
-  assert.equal(review.readyForReview, true);
   assert.equal(reviewActive(session.buildHistory), true);
   assert.equal(
     review.reply,

@@ -1,7 +1,7 @@
 /**
  * Setup interview: wrap-up starts once the goal is set, a no-question
  * reply cannot dead-end, and "ok" after the first card is the editing
- * menu — not the leftover Here's-your-bot card.
+ * menu (model text kept) — not the leftover Here's-your-bot card.
  *
  * No network. Stubbed Builder turns.
  */
@@ -13,7 +13,7 @@ import { applyReviewGate } from '../src/builder.js';
 import { IDENTITY_FALLBACK_QUESTION } from '../src/setupAgenda.js';
 import { topicByKey } from '../src/builderTopics.js';
 import { createSession, handleMessage } from '../src/session.js';
-import { lastShownNav, renderChangeMenu } from '../src/ownerNav.js';
+import { lastShownNav } from '../src/ownerNav.js';
 
 const PROFILE = testProfilePath('setup-deadend');
 const FAQ = topicByKey('commonQuestions');
@@ -211,9 +211,6 @@ await test('ok after first card is the editing menu, not the old card', async ()
       runBuilderTurn: async () =>
         modelTurn(draft, {
           message: 'Here is your bot again.',
-          readyForReview: true,
-          wantsReview: true,
-          asksQuestion: false,
         }),
     },
   });
@@ -224,11 +221,9 @@ await test('ok after first card is the editing menu, not the old card', async ()
 
   const ok = await handleMessage(session2, 'ok');
   assert.equal(ok.ok, true);
-  const expectedMenu = renderChangeMenu({ leadOption: true });
-  assert.equal(ok.reply, expectedMenu);
-  assert.ok(ok.reply.startsWith('What should we do next?'), ok.reply);
+  assert.ok(ok.reply.startsWith('Here is your bot again.'), ok.reply);
   assert.match(ok.reply, /🏪 Tell me more about your business/);
-  assert.doesNotMatch(ok.reply, /Here's your bot/);
+  assert.doesNotMatch(ok.reply, /Here's your bot for/);
   assert.doesNotMatch(ok.reply, /Business info:/);
   assert.doesNotMatch(ok.reply, /How I talk: default/);
   assert.equal(lastShownNav(session2.buildHistory), 'menu');

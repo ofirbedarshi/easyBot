@@ -129,12 +129,8 @@ function builderPayload(message) {
     factEdits: [],
     resolvedUnknowns: [],
     configRequests: [],
-    askingTopic: null,
     goalSupported: null,
     goalUnsupportedPart: null,
-    readyForReview: false,
-    asksQuestion: true,
-    wantsReview: false,
     onPurpose: true,
   });
 }

@@ -2,7 +2,6 @@ import {
   OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
-import { WRAP_UP_TOPICS } from './builderTopics.js';
 
 const nullableString = { type: ['string', 'null'] };
 const nullableBoolean = { type: ['boolean', 'null'] };
@@ -121,12 +120,8 @@ export const BUILDER_RESPONSE_SCHEMA = {
       'factEdits',
       'resolvedUnknowns',
       'configRequests',
-      'askingTopic',
       'goalSupported',
       'goalUnsupportedPart',
-      'readyForReview',
-      'asksQuestion',
-      'wantsReview',
       'onPurpose',
     ],
     properties: {
@@ -146,20 +141,8 @@ export const BUILDER_RESPONSE_SCHEMA = {
       factEdits: { type: 'array', items: factEditItem },
       resolvedUnknowns: { type: 'array', items: { type: 'integer' } },
       configRequests: { type: 'array', items: configRequestItem },
-      askingTopic: nullableEnum(WRAP_UP_TOPICS.map((t) => t.key)),
       goalSupported: nullableBoolean,
       goalUnsupportedPart: nullableString,
-      readyForReview: { type: 'boolean' },
-      asksQuestion: {
-        type: 'boolean',
-        description:
-          'True only when this reply asks the owner a question they are expected to answer.',
-      },
-      wantsReview: {
-        type: 'boolean',
-        description:
-          'True only when the owner asked to see the current bot, summary, or review.',
-      },
       onPurpose: {
         type: 'boolean',
         description:

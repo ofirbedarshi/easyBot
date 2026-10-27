@@ -45,8 +45,10 @@ test('builder system prompt includes the one-line paragraph instruction once', (
 
 test('schema requires top-level newFacts and all draft keys', () => {
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('newFacts'));
-  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('asksQuestion'));
-  assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('wantsReview'));
+  assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('asksQuestion'));
+  assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('wantsReview'));
+  assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('readyForReview'));
+  assert.ok(!BUILDER_TOP_LEVEL_KEYS.includes('askingTopic'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('onPurpose'));
   assert.ok(BUILDER_TOP_LEVEL_KEYS.includes('draft'));
   assert.ok(!BUILDER_DRAFT_KEYS.includes('newFacts'));

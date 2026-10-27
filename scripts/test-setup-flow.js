@@ -764,21 +764,18 @@ await test('"ok" after the setup-complete card is the menu, not the leftover car
       'informationToCollect',
     ]),
     {
-      name: 'ok after card → editing menu',
+      name: 'ok after card → model text plus editing menu',
       in: 'ok',
       model: modelTurn(readyFacts({ ownerGoalRequested: 'answer questions and take details' }), {
         message: 'Here is your bot again.',
-        readyForReview: true,
-        wantsReview: true,
-        asksQuestion: false,
       }),
       expect: {
         event: 'build_turn',
         mode: 'BUILD',
-        reply: expectedMenu(),
         approvedAt: true,
         nav: 'menu',
-        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', 'Here is your bot again.'],
+        includes: ['Here is your bot again.', '1. 🚀 Get me working for your business'],
+        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default'],
       },
     },
   ]);
