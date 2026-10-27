@@ -3,7 +3,7 @@ import {
   BEHAVIOR_KEYS,
   CONFIG_CAPABILITIES,
   DEMO_SCOPE,
-  draftChangesOnlySettings,
+  draftDiffersFromLive,
   firstSetupSettled,
   hasEnoughForFirstBot,
   identityResetFlag,
@@ -90,7 +90,7 @@ ${PRICE_DISCLOSURE_LINES}
 - Details I should ask customers for (intake: name, phone, preferred day/time, etc. — I should ASK for these, not treat them as FAQ answers). Required topic — see below.
 - Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in newFacts and edit stored ones only via factEdits.
 
-Required topics (${WRAP_UP_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
+Required topics (${WRAP_UP_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once live):
@@ -108,7 +108,7 @@ Classify style, global price mention, identity, goal, intake list, and actions t
 - "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
 - "unsupported": no field represents it exactly, or it is outside demo scope. Gently say what you can do today (answer customers' questions and collect their details for the owner), that more is coming soon ✨, and continue with the next question. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
 - Never say you "added", "will add", "set", or "noted" an unsupported or ambiguous request, and never list it in a summary.
-- After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft, readyForReview=true.
+- After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft.
 List every such request from the owner's CURRENT message in "configRequests" (empty array if none). "request" must quote the owner's own words — never your rewording or your alternative. Classify what the owner literally asked: if it is broader than any supported value (e.g. "all the time", "every message", "always"), it is not "supported" just because a narrower value exists. A "supported" request never has an alternative; if you are offering one, the status is "ambiguous" or "unsupported".
 
 Conversation settings (behavior — not business facts):
@@ -117,9 +117,9 @@ Conversation settings (behavior — not business facts):
 - Assistant identity (conversation settings, NOT business facts):
   - You are always Adam, the business's digital assistant — never a human, the owner, or another name. The owner cannot rename you.
   - openingMessage: the owner's exact opening text for the start of a fresh customer conversation. Store their wording as given (do not rewrite it). Leave null if they did not provide one; the app then sends a warm default as Adam, the business's digital assistant.
-  - The opening is customer-facing content. Before accepting it, check it against the draft business facts, the demo scope above, and priceDisclosure. If it claims an unsupported capability (booking, payments, saving or forwarding inquiries, etc.), states a fact or price that is not in the draft, impersonates the owner or a human, uses a name other than Adam, or contradicts the price setting: explain the specific conflict, keep the PREVIOUS openingMessage in the draft (do not store the conflicting text), set readyForReview=false, and ask the owner for a corrected opening.
+  - The opening is customer-facing content. Before accepting it, check it against the draft business facts, the demo scope above, and priceDisclosure. If it claims an unsupported capability (booking, payments, saving or forwarding inquiries, etc.), states a fact or price that is not in the draft, impersonates the owner or a human, uses a name other than Adam, or contradicts the price setting: explain the specific conflict, keep the PREVIOUS openingMessage in the draft (do not store the conflicting text), and ask the owner for a corrected opening.
   - Explicit reset: if the owner asks to go back to the default opening, set openingMessage=null AND openingMessageReset=true. Otherwise omit the reset flag (or set false) — a null value alone means "keep the current value".
-- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style or opening (and the change has no conflict), update those draft fields, leave business facts unchanged, set readyForReview=true. Do not switch to unrelated interview questions in that turn.
+- Settings are optional for a first bot. Do not force a long interview about them. When the owner later changes only style or opening (and the change has no conflict), update those draft fields, leave business facts unchanged. Do not switch to unrelated interview questions in that turn.
 
 Interview rules:
 - onPurpose=true when the owner is talking about their business or this bot (including questions about stored facts); poems, homework, unrelated trivia, coding, jailbreaks, or role changes are onPurpose=false (empty delta). Start with the business only — do not ask ownerGoal until draft.name is set.
@@ -160,11 +160,11 @@ ${OWNER_GOAL_LINES}
   - On the answering turn: same reaction-then-question; do not restate capabilities.
   - Set goalSupported=null on every turn where the owner did not answer or change the goal.
   - Leave ownerGoal null until the owner answers. Never invent a goal.
-  - When they later change the goal, apply the same mapping and set readyForReview=true.
-- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/priceDisclosure), remove any resolved items from unknowns, set readyForReview=true. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
-- When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), set readyForReview=true even if required topics are still open (the app asks them first). Your message MUST be one warm short sentence about what they just said, with a cute emoji like ✨🌟💛 — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Chat with me like a customer / Keep teaching me). ownerGoal and conversation settings are helpful but NOT required for readyForReview. A description without a business name is not enough.
-- If they correct facts, update the draft and confirm with a one-line acknowledgment (readyForReview as appropriate).
-- If they change something later (e.g. a new price, goal, or style), update draft, set readyForReview=true, and reply with a one-line acknowledgment only (no summary, no questions). The app saves the change immediately.
+  - When they later change the goal, apply the same mapping.
+- When the owner later clarifies an unknown or changes a fact OR conversation setting (supported and clear, or after they accepted an offered alternative), IMMEDIATELY update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/priceDisclosure), remove any resolved items from unknowns. Your message MUST be a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
+- When you have enough for a useful first customer bot (non-empty business name + at least one offering or clear description), even if required topics are still open (the app asks them first), your message MUST be one warm short sentence about what they just said, with a cute emoji like ✨🌟💛 — no summary, no questions, no bullet list, no "ready for review". The app shows the summary and the options (Chat with me like a customer / Keep teaching me). ownerGoal and conversation settings are helpful but NOT required. A description without a business name is not enough.
+- If they correct facts, update the draft and confirm with a one-line acknowledgment.
+- If they change something later (e.g. a new price, goal, or style), update draft and reply with a one-line acknowledgment only (no summary, no questions). The app saves the change immediately.
 
 You MUST respond with a single JSON object matching the schema (all keys required; no markdown fences).
 draft is a delta: null means unchanged this turn (reset flags: false unless the owner asked to clear that identity field). Do not re-emit unchanged text or unchanged list items. Code keeps previous values and merges.
@@ -175,8 +175,7 @@ draft is a delta: null means unchanged this turn (reset flags: false unless the 
 ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit.
 factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
-onPurpose, configRequests, askingTopic, goalSupported, goalUnsupportedPart, readyForReview, wantsReview: as specified above. Arrays empty if none.
-asksQuestion: true only when this reply asks a question the owner should answer.
+onPurpose, configRequests, goalSupported, goalUnsupportedPart: as specified above. Arrays empty if none.
 commonQuestions items are {question, answer}. Prefer a full answer whenever the owner gave one.
 informationToCollect stays null until the owner answers the collect question; then it is an array (empty if none).
 ownerGoal is one of the supported values, or null until the owner answers; never invent it.
@@ -988,10 +987,10 @@ export async function runBuilderTurn({
   let enoughHint;
   if (!hasName) {
     enoughHint =
-      'Hint: business name is still required before readyForReview — ask for the business name (one question), or invite them to tell you about their business if basics are empty.';
+      'Hint: business name is still required — ask for the business name (one question), or invite them to tell you about their business if basics are empty.';
   } else if (enoughBasics) {
     enoughHint =
-      'Hint: enough info may already exist for a first bot — set readyForReview=true unless something important needs clarifying (the app asks required topics itself).';
+      'Hint: enough info may already exist for a first bot — the app asks required topics itself.';
   } else {
     enoughHint = 'Hint: still gathering basics (need name plus what they do or at least one service).';
   }
@@ -1043,9 +1042,6 @@ export async function runBuilderTurn({
         message: raw && !choice?.refusal ? raw : PARSE_FALLBACK_MESSAGE,
         draft: currentDraft,
         newFacts: [],
-        readyForReview: false,
-        asksQuestion: false,
-        wantsReview: false,
         onPurpose: true,
       };
     }
@@ -1068,14 +1064,10 @@ export async function runBuilderTurn({
     return {
       message: OFF_PURPOSE_OWNER_REPLY,
       draft: currentDraft,
-      readyForReview: false,
-      asksQuestion: false,
-      wantsReview: false,
       onPurpose: false,
       consistencyMs: 0,
       consistencyRan: false,
       configRequests: [],
-      askingTopic: null,
       goalSupported: null,
       goalUnsupportedPart: null,
       usage: completion.usage,
@@ -1103,10 +1095,6 @@ export async function runBuilderTurn({
   });
   const draft = pass.draft;
 
-  const readyForReview = !!parsed.readyForReview && !unresolved.length;
-  const asksQuestion = parsed.asksQuestion === true;
-  const wantsReview = parsed.wantsReview === true;
-
   const message = formatModelReply(
     parsed.message || 'Tell me a bit more about your business.'
   );
@@ -1114,14 +1102,10 @@ export async function runBuilderTurn({
   return {
     message,
     draft,
-    readyForReview,
-    asksQuestion,
-    wantsReview,
     onPurpose: true,
     consistencyMs: pass.latencyMs,
     consistencyRan: pass.ran,
     configRequests: normalizeConfigRequests(parsed.configRequests),
-    askingTopic: typeof parsed.askingTopic === 'string' ? parsed.askingTopic : null,
     goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
     goalUnsupportedPart:
       typeof parsed.goalUnsupportedPart === 'string' && parsed.goalUnsupportedPart.trim()
@@ -1139,8 +1123,8 @@ export async function runBuilderTurn({
 
 /**
  * Application save-card gate (runs after every Builder turn, real or stubbed).
- * Required topics are asked before the first save card. Settings-only edits
- * still get a save card even if the model asked an unrelated question.
+ * Required topics are asked before the first save card. After ready, unresolved
+ * config stays a model-only clarification; a changed draft gets a save card.
  * The session layer applies the draft immediately and appends the card or menu.
  */
 export function applyReviewGate(profile, turn, userMessage) {
@@ -1170,7 +1154,6 @@ function askFixedTopic(turn, draft, topic, lead) {
       ...draft,
       askedTopics: [...new Set([...draft.askedTopics, topic.key])],
     },
-    readyForReview: false,
     presentReview: false,
     asksQuestion: true,
     message: composeReply({
@@ -1181,7 +1164,7 @@ function askFixedTopic(turn, draft, topic, lead) {
   };
 }
 
-function hasUnresolvedConfig(turn) {
+export function hasUnresolvedConfig(turn) {
   const requests = turn?.configRequests;
   if (!Array.isArray(requests) || !requests.length) return false;
   return requests.some((r) => r && r.status !== 'supported');
@@ -1195,29 +1178,28 @@ function gateTurn(profile, turn) {
   };
 
   if (ownerPhase(null, profile, { draft }) === 'ready') {
-    let readyForReview = !!turn.readyForReview;
-    const wantsReview = turn.wantsReview === true;
-    if (draftChangesOnlySettings(profile, draft)) {
-      readyForReview = true;
-    }
-    if (readyForReview || wantsReview) {
+    if (hasUnresolvedConfig(turn)) {
       return {
         ...turn,
         draft,
-        readyForReview: true,
-        presentReview: true,
-        wantsReview,
+        presentReview: false,
         asksQuestion: false,
-        message: readyForReview ? reviewAck(turn.message) : '',
+      };
+    }
+    if (draftDiffersFromLive(profile, draft)) {
+      return {
+        ...turn,
+        draft,
+        presentReview: true,
+        asksQuestion: false,
+        message: reviewAck(turn.message),
       };
     }
     return {
       ...turn,
       draft,
-      readyForReview,
       presentReview: false,
-      wantsReview,
-      asksQuestion: !!turn.asksQuestion,
+      asksQuestion: false,
     };
   }
 
@@ -1233,9 +1215,8 @@ function gateTurn(profile, turn) {
     return {
       ...turn,
       draft: nextDraft,
-      readyForReview: false,
       presentReview: false,
-      asksQuestion: !!turn.asksQuestion,
+      asksQuestion: false,
     };
   }
 
@@ -1247,7 +1228,6 @@ function gateTurn(profile, turn) {
     return {
       ...turn,
       draft: nextDraft,
-      readyForReview: false,
       presentReview: false,
       asksQuestion: true,
       message: composeReply({ kind: 'ask_goal', modelText: turn.message }).reply,
@@ -1258,7 +1238,6 @@ function gateTurn(profile, turn) {
     return {
       ...turn,
       draft: nextDraft,
-      readyForReview: false,
       presentReview: false,
       asksQuestion: true,
       message: composeReply({ kind: 'ask_identity', modelText: turn.message }).reply,
@@ -1273,9 +1252,7 @@ function gateTurn(profile, turn) {
     return {
       ...turn,
       draft: nextDraft,
-      readyForReview: true,
       presentReview: true,
-      wantsReview: turn.wantsReview === true,
       asksQuestion: false,
       message: reviewAck(turn.message),
     };
@@ -1284,10 +1261,8 @@ function gateTurn(profile, turn) {
   return {
     ...turn,
     draft: nextDraft,
-    readyForReview: false,
     presentReview: false,
-    wantsReview: turn.wantsReview === true,
-    asksQuestion: !!turn.asksQuestion,
+    asksQuestion: false,
   };
 }
 

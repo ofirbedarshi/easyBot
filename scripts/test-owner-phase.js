@@ -94,7 +94,7 @@ const rows = [
   },
   {
     id: 10,
-    name: 'this-turn readyForReview does not start wrap-up',
+    name: 'leftover readyForReview on a view does not start wrap-up',
     session: { mode: 'BUILD', buildHistory: history, leadIntake: null },
     profile: { approvedAt: null, draft: { ownerGoal: null, askedTopics: [] } },
     view: { turn: { readyForReview: true } },
@@ -102,7 +102,7 @@ const rows = [
   },
   {
     id: 11,
-    name: 'this-turn wantsReview does not start wrap-up',
+    name: 'leftover wantsReview on a view does not start wrap-up',
     session: { mode: 'BUILD', buildHistory: history, leadIntake: null },
     profile: { approvedAt: null, draft: { ownerGoal: null, askedTopics: [] } },
     view: { turn: { wantsReview: true } },

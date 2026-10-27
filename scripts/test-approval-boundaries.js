@@ -619,7 +619,7 @@ function testRequiredTopicsGate() {
     'show me the summary'
   );
   assert.equal(wantReview.presentReview, true);
-  assert.equal(wantReview.readyForReview, true);
+  assert.equal(wantReview.asksQuestion, false);
   assert.doesNotMatch(wantReview.message, /invented|\$99|updated summary/i);
 
   // Agenda complete (FAQ + intake settled) → first save card even if the
@@ -715,11 +715,11 @@ async function testNullOwnerGoalDoesNotWipeLive() {
     source: 'stub-builder',
   }), liveMock);
 
-  // Null ownerGoal merges to the live config: nothing changed, editing menu.
+  // Null ownerGoal merges to the live config: nothing changed, model text plus menu.
   const r = await applyChange(session);
   assert.equal(r.ok, true);
   assert.equal(r.event, 'build_turn');
-  assert.match(r.reply, /What should we do next\?/);
+  assert.match(r.reply, /Approved\./);
   assert.match(r.reply, /Tell me more about your business/);
   assert.doesNotMatch(r.reply, /Here's your bot for Sunny Yoga:/);
   assert.doesNotMatch(r.reply, /How I talk: default/);
@@ -1012,7 +1012,7 @@ async function testIdentityDraftIsolatesLive() {
 
   const r = await handleMessage(session, 'Use this opening…');
   assert.equal(r.event, 'build_turn');
-  assert.equal(r.readyForReview, true, 'settings-only edit is presented as a save card');
+  assert.match(r.reply, /Here's what changed:/, 'settings-only edit is presented as a save card');
   assert.match(r.reply, /Here's what changed:\n\*How I talk:\* friendly, custom opening/);
   assert.doesNotMatch(r.reply, /\(was:/);
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
@@ -1264,8 +1264,14 @@ async function testTypedApproveIsBuilderTurn() {
       {
         message: 'That every-reply policy is not supported. Closest is relevant — want that?',
         draft: liveDraftWith(live2, { priceDisclosure: 'on_request' }),
-        readyForReview: false,
-        asksQuestion: true,
+        configRequests: [
+          {
+            request: 'Put the price in every reply.',
+            status: 'unsupported',
+            field: 'priceDisclosure',
+            alternative: 'relevant',
+          },
+        ],
       },
       {
         message: 'Using relevant.',

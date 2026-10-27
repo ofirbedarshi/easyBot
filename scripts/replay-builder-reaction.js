@@ -103,7 +103,6 @@ async function runInterview() {
       ownerMessage: userMessage,
       builderReply: turn.message,
       presentReview: !!turn.presentReview,
-      readyForReview: !!turn.readyForReview,
       interview: isInterviewTurn(turn),
     };
     turns.push(row);

@@ -733,49 +733,35 @@ await test('a number with no active card is not a menu pick', async () => {
   );
 });
 
-// lastShownNav walks back past Builder turns with no nav, so the 🎉 review
-// card stays the active nav. A bare 1/2 must not be Try my bot / Keep
-// teaching after those turns (audit lastShownNav risk).
+// After ready, no-change turns attach the menu. A bare 1 is a chrome pick
+// (lead), not Try my bot from a stale review card.
 await test(
   'stale review card after several Builder turns does not capture bare 1',
   async () => {
     await playApprovedFlow([
       {
-        name: 'builder question 1 (no nav — lastShownNav stays review)',
+        name: 'builder question 1 attaches menu',
         in: 'how many bays do we list?',
-        model: modelTurn(
-          {},
-          { message: 'How many bays should I mention?', asksQuestion: true }
-        ),
-        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'review' },
+        model: modelTurn({}, { message: 'How many bays should I mention?' }),
+        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'menu' },
       },
       {
-        name: 'builder question 2 (no nav)',
+        name: 'builder question 2 keeps menu',
         in: 'two',
-        model: modelTurn(
-          {},
-          { message: 'And which one is the main bay?', asksQuestion: true }
-        ),
-        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'review' },
+        model: modelTurn({}, { message: 'And which one is the main bay?' }),
+        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'menu' },
       },
       {
-        name: 'builder question 3 (no nav)',
+        name: 'builder question 3 keeps menu',
         in: 'the front one',
-        model: modelTurn(
-          {},
-          { message: 'Anything else about the bays?', asksQuestion: true }
-        ),
-        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'review' },
+        model: modelTurn({}, { message: 'Anything else about the bays?' }),
+        expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'menu' },
       },
       {
-        name: 'bare 1 after those turns is not Try my bot',
+        name: 'bare 1 after those turns is the lead item, not Try my bot',
         in: '1',
-        model: modelTurn(
-          {},
-          { message: 'One bay is enough ✨', asksQuestion: false }
-        ),
         expect: {
-          event: 'build_turn',
+          event: 'lead_question',
           mode: 'BUILD',
           approvedAt: APPROVED_AT,
           excludes: ['*Test mode is on*'],
@@ -830,25 +816,16 @@ await test(
 await test('no-change Builder turn after approval shows the menu, not a legacy card', async () => {
   await playApprovedFlow([
     {
-      name: 'ok after 🎉 card, model restates, no draft change → menu',
+      name: 'ok after 🎉 card, model restates, no draft change → model text plus menu',
       in: 'ok',
-      model: modelTurn(
-        {},
-        {
-          message: 'Here is your bot again.',
-          readyForReview: true,
-          wantsReview: true,
-          asksQuestion: false,
-        }
-      ),
+      model: modelTurn({}, { message: 'Here is your bot again.' }),
       expect: {
         event: 'build_turn',
         mode: 'BUILD',
-        reply: expectedMenu(true),
         approvedAt: APPROVED_AT,
         nav: 'menu',
-        includes: [MENU_HEAD],
-        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', 'Here is your bot again.'],
+        includes: ['Here is your bot again.', '1. 🚀 Get me working for your business'],
+        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default'],
       },
     },
   ]);

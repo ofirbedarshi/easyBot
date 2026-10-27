@@ -10,6 +10,7 @@ import {
 } from './profile.js';
 import {
   applyReviewGate,
+  hasUnresolvedConfig,
   runBuilderTurn as defaultRunBuilderTurn,
 } from './builder.js';
 import { composeReply } from './composeReply.js';
@@ -26,7 +27,6 @@ import {
   interveningBuilderQuestion,
   isReviewNumberChoice,
   parseReviewChoice,
-  lastShownNav,
   reviewActive,
   unwrapWhatsAppBold,
 } from './ownerNav.js';
@@ -563,8 +563,6 @@ async function handleBuild(session, userMessage) {
       reply: composeReply({ kind: 'off_purpose' }).reply,
       source: result.source,
       event: 'build_turn',
-      readyForReview: false,
-      wantsReview: false,
       onPurpose: false,
       consistencyMs: 0,
       consistencyRan: false,
@@ -574,37 +572,31 @@ async function handleBuild(session, userMessage) {
 
   result = applyReviewGate(profile, result, userMessage);
   const prior = structuredClone(profile);
-  const lastNav = lastShownNav(session.buildHistory);
   profile.draft = result.draft;
   const changed = draftDiffersFromLive(prior, result.draft);
   if (changed || result.presentReview) applyDraftToLive(profile);
   await saveAsync(session, profile);
 
-  const editingChrome =
-    lastNav === 'menu' || (typeof lastNav === 'string' && lastNav.startsWith('section:'));
-  const asking = !!result.asksQuestion && (changed || !editingChrome);
   const ready = ownerPhase(session, profile) === 'ready';
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;
+  const unresolved = hasUnresolvedConfig(result);
 
   const menuOpts = leadMenuOpts(session, profile);
   let composed;
   if (firstApproval) {
     composed = composeReply({ kind: 'setup_complete', profile });
-  } else if (asking) {
+  } else if (ready && unresolved) {
     composed = composeReply({
       kind: 'model_only',
       modelText: result.message,
-      parts: { asksQuestion: !!result.asksQuestion },
     });
-  } else if (ready && (changed || result.presentReview)) {
-    composed = changed
-      ? composeReply({
-          kind: 'saved_changes',
-          modelText: result.message,
-          prior,
-          profile,
-        })
-      : composeReply({ kind: 'change_menu', menuOpts });
+  } else if (ready && changed) {
+    composed = composeReply({
+      kind: 'saved_changes',
+      modelText: result.message,
+      prior,
+      profile,
+    });
   } else if (ready) {
     composed = composeReply({
       kind: 'model_plus_menu',
@@ -625,7 +617,7 @@ async function handleBuild(session, userMessage) {
     role: 'assistant',
     content: reply,
     ...(nav ? { nav } : {}),
-    asksQuestion: !nav && !!result.asksQuestion,
+    asksQuestion: !nav && !!composed.asksQuestion,
   });
 
   return {
@@ -633,8 +625,6 @@ async function handleBuild(session, userMessage) {
     reply,
     source: result.source,
     event: 'build_turn',
-    readyForReview: result.readyForReview,
-    wantsReview: !!result.wantsReview,
     consistencyMs: result.consistencyMs ?? 0,
     consistencyRan: !!result.consistencyRan,
     ...(await getStateAsync(session)),

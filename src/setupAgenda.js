@@ -78,8 +78,8 @@ function topicForStep(step) {
 }
 
 /**
- * Advance the agenda after extraction. Does not read owner text or model
- * flow flags (`readyForReview`, `wantsReview`, `askingTopic`, `asksQuestion`).
+ * Advance the agenda after extraction. Does not read owner text. The model
+ * no longer returns flow flags; this function never did.
  *
  * @param {{
  *   priorAsked?: string[],
