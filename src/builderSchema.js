@@ -2,7 +2,7 @@ import {
   OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
-import { REQUIRED_TOPICS } from './builderTopics.js';
+import { WRAP_UP_TOPICS } from './builderTopics.js';
 
 const nullableString = { type: ['string', 'null'] };
 const nullableBoolean = { type: ['boolean', 'null'] };
@@ -146,7 +146,7 @@ export const BUILDER_RESPONSE_SCHEMA = {
       factEdits: { type: 'array', items: factEditItem },
       resolvedUnknowns: { type: 'array', items: { type: 'integer' } },
       configRequests: { type: 'array', items: configRequestItem },
-      askingTopic: nullableEnum(REQUIRED_TOPICS.map((t) => t.key)),
+      askingTopic: nullableEnum(WRAP_UP_TOPICS.map((t) => t.key)),
       goalSupported: nullableBoolean,
       goalUnsupportedPart: nullableString,
       readyForReview: { type: 'boolean' },

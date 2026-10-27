@@ -19,10 +19,13 @@ import {
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
 import {
+  businessDetailsSettled,
   nextOpenTopic,
-  REQUIRED_TOPICS,
   topicJustAsked,
   topicModelAsked,
+  topicQuestion,
+  WRAP_UP_TOPICS,
+  WRAP_UP_TOPIC_KEYS,
 } from './builderTopics.js';
 import { builderResponseFormat, consistencyResponseFormat } from './builderSchema.js';
 import { legacyBuilderSystem } from './builderPromptLegacy.js';
@@ -79,7 +82,7 @@ ${PRICE_DISCLOSURE_LINES}
 - Details I should ask customers for (intake: name, phone, preferred day/time, etc. — I should ASK for these, not treat them as FAQ answers). Required topic — see below.
 - Other business facts (otherFacts): any customer-relevant fact, policy, condition, or caveat that does not fit the fields above, whenever the owner states it. Each is one standalone statement close to the owner's wording, with all conditions, numbers, and qualifiers. Stored facts are listed separately in the context; put new ones in newFacts and edit stored ones only via factEdits.
 
-Required topics (${REQUIRED_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
+Required topics (${WRAP_UP_TOPICS.map((t) => t.key).join(', ')}): the app asks these with fixed questions when wrapping up first-time setup. When you have nothing important left to clarify, set readyForReview=true and the app will ask any open required topic. If your message asks about one of them anyway, set "askingTopic" to its key (the app replaces your wording with its fixed question); otherwise askingTopic=null. If the owner volunteers FAQ or intake details at any time, store them.
 - Conversation settings when the owner mentions them (tone) — these are NOT business facts and are optional; defaults apply if the owner says nothing
 
 Demo scope (what the customer bot CAN do once live):
@@ -1006,7 +1009,7 @@ export async function runBuilderTurn({
       '\nHint: ownerGoal is not set — unless the owner is correcting something or changing a setting, your next question should be the ownerGoal question. If the owner just answered it, map it to a supported goal as instructed, react specifically, then continue.';
   }
   const justAsked = topicJustAsked(buildHistory);
-  if (justAsked) enoughHint += `\nHint: ${justAsked.answerHint}`;
+  if (justAsked?.answerHint) enoughHint += `\nHint: ${justAsked.answerHint}`;
   const { otherFacts: storedFacts = [], ...draftForModel } = currentDraft;
   const contextNote = [
     'Current draft profile JSON:',
@@ -1200,6 +1203,20 @@ export function replaceBeforeQuestion(text, lead) {
   return [lead, s.slice(start).trim()].filter(Boolean).join('\n\n');
 }
 
+function askFixedTopic(turn, draft, topic, lead) {
+  return {
+    ...turn,
+    draft: {
+      ...draft,
+      askedTopics: [...new Set([...draft.askedTopics, topic.key])],
+    },
+    readyForReview: false,
+    presentReview: false,
+    asksQuestion: true,
+    message: withSingleQuestion(lead, topicQuestion(topic, draft)),
+  };
+}
+
 function gateTurn(profile, turn) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
   const draft = {
@@ -1207,31 +1224,42 @@ function gateTurn(profile, turn) {
     askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
   };
 
-  // Required topics: before first approval, the app asks each open topic itself
-  // when wrapping up, or once that sequence has already started.
-  const wrappingUp = !!(turn.readyForReview || turn.wantsReview);
-  const continueRequired = !profile.approvedAt && priorAsked.length > 0;
-  const openTopic =
-    wrappingUp || continueRequired
-      ? nextOpenTopic(profile, draft, priorAsked)
-      : null;
-  const modelTopic = openTopic
-    ? null
-    : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
-  const askTopic = openTopic || modelTopic;
-  if (askTopic) {
-    const lead = openTopic ? (askTopic.ack || reviewAck(turn.message)) : turn.message;
+  // Tell-me-more: as soon as name + whatWeDo are set and a detail is missing.
+  const openTopic = nextOpenTopic(profile, draft, priorAsked);
+  if (openTopic?.phase === 'afterName') {
+    return askFixedTopic(turn, draft, openTopic, openTopic.ack || reviewAck(turn.message));
+  }
+
+  // After tell-me-more is settled, the app asks the goal itself (do not wait
+  // for the model). One question via withSingleQuestion.
+  if (
+    !profile.approvedAt &&
+    businessDetailsSettled(draft, draft.askedTopics) &&
+    !normalizeOwnerGoal(draft.ownerGoal)
+  ) {
     return {
       ...turn,
-      draft: {
-        ...draft,
-        askedTopics: [...new Set([...draft.askedTopics, askTopic.key])],
-      },
+      draft,
       readyForReview: false,
       presentReview: false,
       asksQuestion: true,
-      message: withSingleQuestion(lead, askTopic.question),
+      message: withSingleQuestion(turn.message, OWNER_GOAL_QUESTION),
     };
+  }
+
+  // Wrap-up topics: when wrapping up, or once that sequence has already started.
+  const wrappingUp = !!(turn.readyForReview || turn.wantsReview);
+  const continueRequired =
+    !profile.approvedAt && priorAsked.some((k) => WRAP_UP_TOPIC_KEYS.has(k));
+  const openWrap =
+    wrappingUp || continueRequired ? nextOpenTopic(profile, draft, priorAsked) : null;
+  const modelTopic = openWrap
+    ? null
+    : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
+  const askTopic = openWrap || modelTopic;
+  if (askTopic) {
+    const lead = openWrap ? (askTopic.ack || reviewAck(turn.message)) : turn.message;
+    return askFixedTopic(turn, draft, askTopic, lead);
   }
 
   let readyForReview = !!turn.readyForReview;

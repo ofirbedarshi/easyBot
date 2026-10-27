@@ -63,7 +63,16 @@ test('scripted / fixed copy is unchanged', () => {
     defaultCustomerOpening({}),
     LEAD_INTRO,
     LEAD_THANKS_YES,
-    ...REQUIRED_TOPICS.map((t) => t.question),
+    ...REQUIRED_TOPICS.map((t) =>
+      typeof t.questionFor === 'function'
+        ? t.questionFor({
+            name: 'Studio Yoga',
+            services: [],
+            hours: null,
+            locationOrArea: null,
+          })
+        : t.question
+    ),
     ...REQUIRED_TOPICS.map((t) => t.ack),
   ];
   for (const sample of samples) {
