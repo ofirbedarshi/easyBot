@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { emptyProfile, loadProfile, saveProfile, testProfilePath } from '../src/profile.js';
 import { applyReviewGate } from '../src/builder.js';
+import { IDENTITY_FALLBACK_QUESTION } from '../src/setupAgenda.js';
 import { topicByKey } from '../src/builderTopics.js';
 import { createSession, handleMessage } from '../src/session.js';
 import { lastShownNav, renderChangeMenu } from '../src/ownerNav.js';
@@ -156,7 +157,7 @@ await test('FAQ asked + intake still null + no-? ack → scripted intake', () =>
   ]);
 });
 
-await test('no-? ack before name/goal does not inject FAQ', () => {
+await test('no-? ack before name/goal attaches identity fallback, not FAQ', () => {
   const draft = {
     name: null,
     whatWeDo: 'A small coffee shop with pastries',
@@ -173,7 +174,10 @@ await test('no-? ack before name/goal does not inject FAQ', () => {
     modelTurn(draft, { message: 'A cozy coffee shop with pastries sounds lovely ✨', asksQuestion: false }),
     'Cafe Noam, a small coffee shop with pastries'
   );
-  assert.equal(gated.message, 'A cozy coffee shop with pastries sounds lovely ✨');
+  assert.equal(
+    gated.message,
+    `A cozy coffee shop with pastries sounds lovely ✨\n\n${IDENTITY_FALLBACK_QUESTION}`
+  );
   assert.equal(gated.presentReview, false);
   assert.ok(!gated.draft.askedTopics.includes('commonQuestions'));
   assert.ok(!String(gated.message).includes(FAQ.question));

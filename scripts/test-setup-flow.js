@@ -18,6 +18,7 @@ import {
   testProfilePath,
 } from '../src/profile.js';
 import { openingMessage, OWNER_GOAL_QUESTION } from '../src/builder.js';
+import { IDENTITY_FALLBACK_QUESTION } from '../src/setupAgenda.js';
 import {
   BUSINESS_DETAILS_ACK,
   BUSINESS_DETAILS_MARKER,
@@ -787,7 +788,7 @@ await test('no "?" during setup still advances (before name, and after the goal)
   await playFlow([
     wake(),
     {
-      name: 'no-? ack before name does not inject FAQ',
+      name: 'no-? ack before name attaches identity fallback, not FAQ',
       in: 'a small coffee shop with pastries',
       model: modelTurn(
         {
@@ -807,7 +808,7 @@ await test('no "?" during setup still advances (before name, and after the goal)
       ),
       expect: {
         event: 'build_turn',
-        reply: 'A cozy coffee shop with pastries sounds lovely ✨',
+        reply: `A cozy coffee shop with pastries sounds lovely ✨\n\n${IDENTITY_FALLBACK_QUESTION}`,
         askedTopics: [],
         approvedAt: null,
         excludes: [FAQ.question, INTAKE.question, OWNER_GOAL_QUESTION, BUSINESS_DETAILS_MARKER],

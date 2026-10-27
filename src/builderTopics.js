@@ -1,9 +1,9 @@
 import { normalizeCommonQuestions } from './profile.js';
-import { ownerPhase } from './ownerPhase.js';
 
 /**
  * Topics the Builder must raise before the first review, in asking order.
  * Add a topic here to make the app ask it; the model still extracts the answer.
+ * `src/setupAgenda.js` owns when each topic is asked.
  *
  * - question: fixed text the app asks when the topic is still open.
  * - questionFor(draft): builds the question when it depends on the draft.
@@ -13,10 +13,6 @@ import { ownerPhase } from './ownerPhase.js';
  * - isAnswered(draft): the answer is already in the draft.
  * - skippable: once asked and the owner replied, the topic is settled even
  *   with no answer stored (the owner may decline).
- * - mentions: detects the model asking this topic in its own words, so the app
- *   can swap in the fixed question and record it as asked (null = rely on askingTopic).
- * - phase: 'afterName' is asked as soon as name + whatWeDo are set; wrap-up
- *   topics stay on the wrap-up / continue-required path.
  */
 const hasText = (value) => !!String(value || '').trim();
 
@@ -62,14 +58,12 @@ export function businessDetailsQuestion(draft) {
 
 const BUSINESS_DETAILS_TOPIC = {
   key: 'businessDetails',
-  phase: 'afterName',
   ack: BUSINESS_DETAILS_ACK,
   questionFor: businessDetailsQuestion,
   askedMarker: BUSINESS_DETAILS_MARKER,
   answerHint: null,
   isAnswered: (draft) => missingBusinessDetails(draft).length === 0,
   skippable: true,
-  mentions: null,
 };
 
 export const WRAP_UP_TOPICS = [
@@ -83,8 +77,6 @@ export const WRAP_UP_TOPICS = [
     isAnswered: (draft) =>
       normalizeCommonQuestions(draft?.commonQuestions).some((q) => q.answer.trim()),
     skippable: true,
-    mentions:
-      /\b(common|frequent|usual(ly)?|typical(ly)?|often)\b.{0,40}\b(questions?|ask)|\bquestions?\b.{0,30}\bcustomers?\b.{0,20}\bask/i,
   },
   {
     key: 'informationToCollect',
@@ -95,7 +87,6 @@ export const WRAP_UP_TOPICS = [
       'The owner was just asked whether you should collect details from customers. Set draft.informationToCollect to the listed items, or [] if they said none / no.',
     isAnswered: (draft) => Array.isArray(draft?.informationToCollect),
     skippable: false,
-    mentions: null,
   },
 ];
 
@@ -119,52 +110,6 @@ export function businessDetailsSettled(draft, askedTopics = []) {
   if (!topic) return false;
   if (topic.isAnswered(draft)) return true;
   return (askedTopics || []).includes(topic.key);
-}
-
-/**
- * First required topic still open for this draft, or null.
- * `priorAskedTopics` are topics the app asked before the current owner message.
- */
-export function nextOpenTopic(profile, draft, priorAskedTopics = []) {
-  if (ownerPhase(null, profile) === 'ready') return null;
-  const asked = new Set(priorAskedTopics || []);
-  const wrapUpStarted = [...asked].some((k) => WRAP_UP_TOPIC_KEYS.has(k));
-  for (const topic of REQUIRED_TOPICS) {
-    if (topic.phase === 'afterName') {
-      if (wrapUpStarted) continue;
-      if (!hasNameAndWhat(draft)) continue;
-    }
-    if (topic.isAnswered(draft)) continue;
-    if (topic.skippable && asked.has(topic.key)) continue;
-    return topic;
-  }
-  return null;
-}
-
-/**
- * Open required topic the model's own question is about, or null.
- * Uses the model's askingTopic when it names an open topic, else the text.
- */
-export function topicModelAsked(profile, draft, priorAskedTopics, message, askingTopic) {
-  const text = String(message || '');
-  if (!/\?/.test(text)) return null;
-  const open = REQUIRED_TOPICS.filter(
-    (t) =>
-      ownerPhase(null, profile) !== 'ready' &&
-      !t.isAnswered(draft) &&
-      !(t.skippable && (priorAskedTopics || []).includes(t.key)) &&
-      (t.phase !== 'afterName' || (hasNameAndWhat(draft) && !wrapUpStarted(priorAskedTopics)))
-  );
-  const questions = (text.match(/[^.!?。\n]+\?/g) || []).join(' ');
-  return (
-    open.find((t) => t.key === askingTopic) ||
-    open.find((t) => t.mentions?.test(questions)) ||
-    null
-  );
-}
-
-function wrapUpStarted(priorAskedTopics) {
-  return (priorAskedTopics || []).some((k) => WRAP_UP_TOPIC_KEYS.has(k));
 }
 
 /** Topic whose fixed question the latest assistant message asked, or null. */
