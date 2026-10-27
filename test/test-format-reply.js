@@ -1,8 +1,6 @@
 import { strict as assert } from 'assert';
 import {
-  GOAL_FALLBACK_DISCLAIMER,
   OFF_PURPOSE_OWNER_REPLY,
-  OWNER_GOAL_QUESTION,
   openingMessage,
 } from '../src/builder.js';
 import { REQUIRED_TOPICS } from '../src/builderTopics.js';
@@ -56,8 +54,6 @@ test('single newlines stay single (lists are not forced into paragraphs)', () =>
 test('scripted / fixed copy is unchanged', () => {
   const samples = [
     openingMessage().message,
-    OWNER_GOAL_QUESTION,
-    GOAL_FALLBACK_DISCLAIMER,
     OFF_PURPOSE_OWNER_REPLY,
     defaultCustomerOpening({ name: 'Studio Yoga' }),
     defaultCustomerOpening({}),

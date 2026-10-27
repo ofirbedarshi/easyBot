@@ -1,7 +1,7 @@
 /**
  * Post-approval edit + menu safety net (architecture audit §5 missing cases).
  *
- * Starts after the 🎉 setup-complete card. Drives the real handleMessage
+ * Starts after the ready_first menu. Drives the real handleMessage
  * entry point with a stubbed Builder/Business Bot (no network). The stub
  * runs applyBuilderModelOutput so list merge / ownerEdits
  * are the production path — later composer or agenda
@@ -19,15 +19,10 @@ import {
   saveProfile,
   testProfilePath,
 } from '../src/profile.js';
-import {
-  applyBuilderModelOutput,
-  OWNER_GOAL_QUESTION,
-} from '../src/builder.js';
-import {
-  BUSINESS_DETAILS_ACK,
-  BUSINESS_DETAILS_MARKER,
-  topicByKey,
-} from '../src/builderTopics.js';
+import { applyBuilderModelOutput } from '../src/builder.js';
+import { BUSINESS_DETAILS_ACK, BUSINESS_DETAILS_MARKER } from '../src/builderTopics.js';
+import { composeReply } from '../src/composeReply.js';
+import { READY_OPENER } from '../src/copy.js';
 import {
   createSession,
   enterTestBanner,
@@ -37,19 +32,16 @@ import {
 import {
   lastShownNav,
   renderChangeMenu,
+  renderReadyFirst,
   renderSavedChanges,
   renderSection,
-  renderSetupComplete,
 } from '../src/ownerNav.js';
 import {
   LEAD_BRIDGE,
-  LEAD_INTRO,
   LEAD_THANKS_YES,
 } from '../src/leadIntake.js';
 
 const PROFILE = testProfilePath('setup-edit-flow');
-const FAQ = topicByKey('commonQuestions');
-const INTAKE = topicByKey('informationToCollect');
 
 const NAME = 'Ofir garage';
 const WHAT = 'Garage';
@@ -77,9 +69,9 @@ const CUSTOMER_A = 'An oil change is 200 ILS.';
 const STYLE = 'professional';
 const OPENING = 'Welcome to Ofir garage — how can I help?';
 const APPROVED_AT = '2026-01-01T00:00:00.000Z';
-const ASKED = ['businessDetails', 'commonQuestions', 'informationToCollect'];
+const FIRST_TESTED_AT = '2026-01-02T00:00:00.000Z';
+const ASKED = ['businessDetails'];
 
-const SETUP_COMPLETE_HEAD = "🎉 I'm all set! This is what I know about your business:";
 const CHANGED_ACK = "Here's what changed:";
 const MENU_HEAD = 'What should we do next?';
 const SECTION_ASK = 'What do you want to change?';
@@ -90,22 +82,12 @@ const SECTION_INTROS = {
   1: '🏪 This is what I know about your business:',
   2: '❓ These are the questions I know how to answer:',
   3: '💬 This is how I talk to your customers right now:',
+  intake: "📝 These are the details I'll ask customers for:",
 };
 
-const ACKS = [
-  BUSINESS_DETAILS_ACK,
-  FAQ.ack,
-  INTAKE.ack,
-  CHANGED_ACK,
-  SETUP_COMPLETE_HEAD,
-];
+const ACKS = [BUSINESS_DETAILS_ACK, CHANGED_ACK, READY_OPENER];
 
-const SCRIPT_QUESTIONS = [
-  { id: 'tell-more', needle: BUSINESS_DETAILS_MARKER },
-  { id: 'goal', needle: OWNER_GOAL_QUESTION },
-  { id: 'faq', needle: FAQ.question },
-  { id: 'intake', needle: INTAKE.question },
-];
+const SCRIPT_QUESTIONS = [{ id: 'tell-more', needle: BUSINESS_DETAILS_MARKER }];
 
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
@@ -116,8 +98,6 @@ function draft(overrides = {}) {
   return {
     name: NAME,
     whatWeDo: WHAT,
-    ownerGoal: 'answer_and_collect',
-    ownerGoalRequested: 'answer questions and take customer details',
     services: [SERVICE],
     hours: HOURS,
     locationOrArea: AREA,
@@ -134,12 +114,14 @@ function draft(overrides = {}) {
 }
 
 function approvedProfile(overrides = {}) {
-  const f = draft(overrides);
+  const { firstTestedAt, ...draftOverrides } = overrides;
+  const f = draft(draftOverrides);
   const { askedTopics, ...live } = f;
   return {
     ...emptyProfile(),
     ...live,
     approvedAt: APPROVED_AT,
+    ...(firstTestedAt ? { firstTestedAt } : {}),
     draft: { ...f },
   };
 }
@@ -182,7 +164,7 @@ function looksLikeJson(text) {
   return null;
 }
 
-/** One required-topic / goal question per reply; the same ack only once; no || / JSON. */
+/** One tell-me-more question per reply; the same ack only once; no || / JSON. */
 function assertReplyShape(reply, label) {
   const text = String(reply || '');
   const present = SCRIPT_QUESTIONS.filter((q) => text.includes(q.needle)).map((q) => q.id);
@@ -201,7 +183,7 @@ function assertReplyShape(reply, label) {
   assert.equal(jsonKind, null, `${label}: raw ${jsonKind} leaked:\n${text}`);
 }
 
-function expectedMenu(leadOption = true) {
+function expectedMenu(leadOption = false) {
   return renderChangeMenu({ leadOption });
 }
 
@@ -239,7 +221,7 @@ async function test(name, fn, { knownFailing = false, reason = '' } = {}) {
 
 /**
  * Drive one table through handleMessage from an already-approved profile
- * (history seeded with the 🎉 card, lastShownNav = review).
+ * (history seeded with ready_first, lastShownNav = menu).
  *
  * `model` is a Builder JSON object. The stub runs applyBuilderModelOutput
  * (delta merge) so omitted list items and ownerEdits use the production path.
@@ -277,11 +259,12 @@ async function playApprovedFlow(steps, { history, profile: seed } = {}) {
     session.buildHistory.push(...history);
   } else {
     const profile = loadProfile(PROFILE);
+    const leadOption = !!profile.firstTestedAt;
     session.buildHistory.push(
       { role: 'user', content: 'hello' },
       { role: 'assistant', content: "Hi, I'm Adam" },
       { role: 'user', content: 'setup dump' },
-      { role: 'assistant', content: renderSetupComplete(profile), nav: 'review' }
+      { role: 'assistant', content: renderReadyFirst({ leadOption }), nav: 'menu' }
     );
   }
 
@@ -366,14 +349,14 @@ function resolveExpect(value, ctx) {
   return value;
 }
 
-function keepTeaching() {
+function keepTeaching(leadOption = false) {
   return {
-    name: 'keep teaching → editing menu',
-    in: 'keep teaching me',
+    name: '*menu* → editing menu',
+    in: '*menu*',
     expect: {
       event: 'menu',
       mode: 'BUILD',
-      reply: expectedMenu(true),
+      reply: expectedMenu(leadOption),
       approvedAt: APPROVED_AT,
       nav: 'menu',
       includes: [MENU_HEAD],
@@ -386,10 +369,11 @@ function saveCardExpect(extra = {}) {
   return {
     event: 'build_turn',
     mode: 'BUILD',
-    reply: ({ before, profile }) => renderSavedChanges(before, profile),
+    reply: ({ before, profile }) =>
+      renderSavedChanges(before, profile, { leadOption: !!profile.firstTestedAt }),
     startsWith: CHANGED_ACK,
     approvedAt: APPROVED_AT,
-    nav: 'review',
+    nav: 'menu',
     uniqueServices: true,
     excludes: [LEGACY_CARD, 'Ready for review.'],
     ...extra,
@@ -407,7 +391,7 @@ await test('add / change / remove a service: one save card, live updated, no dup
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, '*Services & prices:*', MENU_HEAD, 'Brake pads — 350 ILS', 'Oil change — 200 ILS'],
+          includes: [CHANGED_ACK, '*Services & prices:*', 'Brake pads — 350 ILS', 'Oil change — 200 ILS'],
         }),
         live: { services: [SERVICE, NEW_SERVICE] },
         draft: { services: [SERVICE, NEW_SERVICE] },
@@ -426,7 +410,7 @@ await test('add / change / remove a service: one save card, live updated, no dup
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, '*Services & prices:*', MENU_HEAD, 'Oil change — 250 ILS'],
+          includes: [CHANGED_ACK, '*Services & prices:*', 'Oil change — 250 ILS'],
         }),
         live: { services: [SERVICE_PRICE_EDIT, NEW_SERVICE] },
         draft: { services: [SERVICE_PRICE_EDIT, NEW_SERVICE] },
@@ -445,7 +429,7 @@ await test('add / change / remove a service: one save card, live updated, no dup
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, '*Services & prices:*', MENU_HEAD, 'Oil change — 250 ILS'],
+          includes: [CHANGED_ACK, '*Services & prices:*', 'Oil change — 250 ILS'],
           excludes: [LEGACY_CARD, 'Ready for review.', 'Brake pads'],
         }),
         live: { services: [SERVICE_PRICE_EDIT] },
@@ -467,7 +451,7 @@ await test('add a Q&A, then edit it', async () => {
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, MENU_HEAD, '*Q&A:* 2 answers'],
+          includes: [CHANGED_ACK, '*Q&A:* 2 answers'],
         }),
         live: { commonQuestions: [FAQ_ITEM, NEW_FAQ] },
         draft: { commonQuestions: [FAQ_ITEM, NEW_FAQ] },
@@ -486,7 +470,7 @@ await test('add a Q&A, then edit it', async () => {
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, MENU_HEAD, '*Q&A:* 2 answers'],
+          includes: [CHANGED_ACK, '*Q&A:* 2 answers'],
         }),
         live: { commonQuestions: [FAQ_EDIT, NEW_FAQ] },
         draft: { commonQuestions: [FAQ_EDIT, NEW_FAQ] },
@@ -510,7 +494,7 @@ await test('change How I talk (Style, Opening message) and Price policy', async 
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, MENU_HEAD, `*How I talk:* ${STYLE}`],
+          includes: [CHANGED_ACK, `*How I talk:* ${STYLE}`],
         }),
         live: { tone: STYLE },
         draft: { tone: STYLE },
@@ -525,7 +509,7 @@ await test('change How I talk (Style, Opening message) and Price policy', async 
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, MENU_HEAD, '*How I talk:*'],
+          includes: [CHANGED_ACK, '*How I talk:*'],
         }),
         live: { openingMessage: OPENING, tone: STYLE },
         draft: { openingMessage: OPENING, tone: STYLE },
@@ -542,7 +526,6 @@ await test('change How I talk (Style, Opening message) and Price policy', async 
         ...saveCardExpect({
           includes: [
             CHANGED_ACK,
-            MENU_HEAD,
             '*Price policy:* I share prices only when a customer asks',
           ],
         }),
@@ -554,7 +537,7 @@ await test('change How I talk (Style, Opening message) and Price policy', async 
   ]);
 });
 
-await test('add an informationToCollect item', async () => {
+await test('add an informationToCollect item via free text after ready', async () => {
   await playApprovedFlow([
     {
       name: 'add car model to intake → live list grows',
@@ -565,7 +548,7 @@ await test('add an informationToCollect item', async () => {
       ),
       expect: {
         ...saveCardExpect({
-          includes: [CHANGED_ACK, MENU_HEAD, "*I'll ask customers for:* name, phone, car model"],
+          includes: [CHANGED_ACK, "*I'll ask customers for:* name, phone, car model"],
         }),
         live: { informationToCollect: INTAKE_ADDED },
         draft: { informationToCollect: INTAKE_ADDED },
@@ -589,7 +572,7 @@ await test('remove one informationToCollect item (ownerEdits remove)', async () 
       expect: {
         ...saveCardExpect({
           reply: undefined,
-          includes: [CHANGED_ACK, MENU_HEAD, "*I'll ask customers for:* name"],
+          includes: [CHANGED_ACK, "*I'll ask customers for:* name"],
           excludes: [LEGACY_CARD],
         }),
         live: { informationToCollect: ['name'] },
@@ -611,8 +594,8 @@ await test('no-change summary turn keeps otherFacts and shows the menu', async (
           event: 'build_turn',
           approvedAt: APPROVED_AT,
           nav: 'menu',
-          includes: ['Here is the latest.', '1. 🚀 Get me working for your business'],
-          excludes: [CHANGED_ACK],
+          includes: ['Here is the latest.', '1. 🏪 Tell me more about your business'],
+          excludes: [CHANGED_ACK, '🚀 Get me working for your business'],
           live: { otherFacts: [fact] },
           draft: { otherFacts: [fact] },
         },
@@ -653,13 +636,6 @@ await test('each owner-editable field change produces a save card', async () => 
       in: 'we are in Tel Aviv',
       model: modelTurn({ locationOrArea: 'Tel Aviv' }),
       includes: ['*Location:*'],
-    },
-    {
-      name: 'ownerGoal',
-      seed: {},
-      in: 'just answer questions',
-      model: modelTurn({ ownerGoal: 'answer_questions' }),
-      includes: ['*My goal:*'],
     },
     {
       name: 'tone',
@@ -764,28 +740,28 @@ await test('*menu* word and each section card, then back to the menu', async () 
   const profile = approvedProfile();
   await playApprovedFlow([
     {
-      name: '*menu* after the 🎉 card → editing menu',
+      name: '*menu* after ready_first → editing menu without lead',
       in: '*menu*',
       expect: {
         event: 'menu',
         mode: 'BUILD',
-        reply: expectedMenu(true),
+        reply: expectedMenu(false),
         approvedAt: APPROVED_AT,
         nav: 'menu',
         includes: [
           MENU_HEAD,
-          '1. 🚀 Get me working for your business',
-          '2. 🏪 Tell me more about your business',
-          '3. ❓ Teach me more questions and answers',
+          '1. 🏪 Tell me more about your business',
+          '2. ❓ Teach me more questions and answers',
+          '3. 📝 Choose details to collect from customers',
           '4. 💬 Tell me how to talk to your customers',
           '5. 🤖 Chat with me like a customer',
         ],
-        excludes: [LEGACY_CARD],
+        excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
       },
     },
     {
-      name: '2 → Business info section card',
-      in: '2',
+      name: '1 → Business info section card',
+      in: '1',
       expect: {
         event: 'menu_section',
         reply: renderSection(1, profile),
@@ -809,14 +785,14 @@ await test('*menu* word and each section card, then back to the menu', async () 
       in: '*menu*',
       expect: {
         event: 'menu',
-        reply: expectedMenu(true),
+        reply: expectedMenu(false),
         nav: 'menu',
         includes: [MENU_HEAD],
       },
     },
     {
-      name: '3 → Q&A section card',
-      in: '3',
+      name: '2 → Q&A section card',
+      in: '2',
       expect: {
         event: 'menu_section',
         reply: renderSection(2, profile),
@@ -831,7 +807,29 @@ await test('*menu* word and each section card, then back to the menu', async () 
       in: 'menu',
       expect: {
         event: 'menu',
-        reply: expectedMenu(true),
+        reply: expectedMenu(false),
+        nav: 'menu',
+        includes: [MENU_HEAD],
+      },
+    },
+    {
+      name: '3 → intake section card',
+      in: '3',
+      expect: {
+        event: 'menu_section',
+        reply: renderSection('intake', profile),
+        nav: 'section:intake',
+        startsWith: SECTION_INTROS.intake,
+        includes: ['• name', '• phone', SECTION_ASK, MENU_HINT],
+        excludes: [LEGACY_CARD],
+      },
+    },
+    {
+      name: '*menu* from intake → menu',
+      in: '*menu*',
+      expect: {
+        event: 'menu',
+        reply: expectedMenu(false),
         nav: 'menu',
         includes: [MENU_HEAD],
       },
@@ -853,7 +851,7 @@ await test('*menu* word and each section card, then back to the menu', async () 
       in: '*menu*',
       expect: {
         event: 'menu',
-        reply: expectedMenu(true),
+        reply: expectedMenu(false),
         nav: 'menu',
         includes: [MENU_HEAD],
       },
@@ -865,7 +863,7 @@ await test('a number with no active card is not a menu pick', async () => {
   await playApprovedFlow(
     [
       {
-        name: 'bare 2 with no menu/review nav → Builder, not Business info',
+        name: 'bare 2 with no menu/review nav → Builder, not Q&A',
         in: '2',
         model: modelTurn(
           {},
@@ -879,7 +877,7 @@ await test('a number with no active card is not a menu pick', async () => {
           event: 'build_turn',
           mode: 'BUILD',
           approvedAt: APPROVED_AT,
-          excludes: [SECTION_INTROS[1], SECTION_ASK, LEGACY_CARD],
+          excludes: [SECTION_INTROS[2], SECTION_ASK, LEGACY_CARD],
         },
       },
     ],
@@ -892,8 +890,8 @@ await test('a number with no active card is not a menu pick', async () => {
   );
 });
 
-// After ready, no-change turns attach the menu. A bare 1 is a chrome pick
-// (lead), not Try my bot from a stale review card.
+// After ready, no-change turns attach the menu. A bare 1 is Tell me more
+// (section), not Try my bot from a stale review card.
 await test(
   'stale review card after several Builder turns does not capture bare 1',
   async () => {
@@ -917,25 +915,26 @@ await test(
         expect: { event: 'build_turn', approvedAt: APPROVED_AT, nav: 'menu' },
       },
       {
-        name: 'bare 1 after those turns is the lead item, not Try my bot',
+        name: 'bare 1 after those turns is Tell me more, not Try my bot',
         in: '1',
         expect: {
-          event: 'lead_question',
+          event: 'menu_section',
           mode: 'BUILD',
           approvedAt: APPROVED_AT,
-          excludes: ['*Test mode is on*'],
+          nav: 'section:1',
+          startsWith: SECTION_INTROS[1],
+          excludes: ['*Test mode is on*', '🚀 Get me working for your business'],
         },
       },
     ]);
   }
 );
 
-// A later reply without nav clears the 🎉 card. A bare "1" is Builder text,
+// A later reply without nav clears the ready menu. A bare "1" is Builder text,
 // not Try my bot.
 await test(
-  'stale review after no-nav acks does not capture bare 1 (lastShownNav)',
+  'stale ready after no-nav acks does not capture bare 1 (lastShownNav)',
   async () => {
-    const seeded = approvedProfile();
     await playApprovedFlow(
       [
         {
@@ -954,7 +953,7 @@ await test(
       {
         history: [
           { role: 'user', content: 'hello' },
-          { role: 'assistant', content: renderSetupComplete(seeded), nav: 'review' },
+          { role: 'assistant', content: renderReadyFirst({ leadOption: false }), nav: 'menu' },
           { role: 'user', content: 'still a garage' },
           { role: 'assistant', content: 'Still Ofir garage ✨' },
           { role: 'user', content: 'same as before' },
@@ -970,7 +969,7 @@ await test(
 await test('no-change Builder turn after approval shows the menu, not a legacy card', async () => {
   await playApprovedFlow([
     {
-      name: 'ok after 🎉 card, model restates, no draft change → model text plus menu',
+      name: 'ok after ready_first, model restates, no draft change → model text plus menu',
       in: 'ok',
       model: modelTurn({}, { message: 'Here is your bot again.' }),
       expect: {
@@ -978,8 +977,8 @@ await test('no-change Builder turn after approval shows the menu, not a legacy c
         mode: 'BUILD',
         approvedAt: APPROVED_AT,
         nav: 'menu',
-        includes: ['Here is your bot again.', '1. 🚀 Get me working for your business'],
-        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default'],
+        includes: ['Here is your bot again.', '1. 🏪 Tell me more about your business'],
+        excludes: [LEGACY_CARD, 'Business info:', 'How I talk: default', '🚀 Get me working for your business'],
       },
     },
   ]);
@@ -1011,7 +1010,7 @@ await test('Try my bot from the menu, then stop, then menu header', async () => 
       },
     },
     {
-      name: 'stop → exit banner + menu header',
+      name: 'stop → exit banner + menu header with lead',
       in: 'stop',
       expect: {
         event: 'enter_build',
@@ -1026,87 +1025,106 @@ await test('Try my bot from the menu, then stop, then menu header', async () => 
   ]);
 });
 
-await test('lead form from the menu, then menu header', async () => {
-  await playApprovedFlow([
-    keepTeaching(),
-    {
-      name: '1 from menu → lead intro + consent',
-      in: '1',
-      expect: {
-        event: 'lead_question',
-        mode: 'BUILD',
-        reply: [
-          LEAD_INTRO,
-          '',
-          'Can we contact you on this number to follow up and help you get started? 📞',
-          '1. ✅ Yes, sure',
-          '2. ❌ No, thanks',
-        ].join('\n'),
-        approvedAt: APPROVED_AT,
-        includes: [LEAD_INTRO],
+await test('lead form from the menu after first TEST, then menu header', async () => {
+  await playApprovedFlow(
+    [
+      keepTeaching(true),
+      {
+        name: '1 from menu → lead intro + consent',
+        in: '1',
+        expect: {
+          event: 'lead_question',
+          mode: 'BUILD',
+          reply: composeReply({ kind: 'lead_start' }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'consent yes → channels',
-      in: '1',
-      expect: {
-        event: 'lead_question',
-        startsWith: LEAD_BRIDGE,
-        includes: ['Where would you like me to work?'],
-        approvedAt: APPROVED_AT,
+      {
+        name: 'consent yes → whatToDo',
+        in: '1',
+        expect: {
+          event: 'lead_question',
+          reply: composeReply({
+            kind: 'lead_question',
+            parts: { step: 'whatToDo', businessName: NAME },
+          }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'channels WhatsApp → actions',
-      in: '1',
-      expect: {
-        event: 'lead_question',
-        includes: ['What would you like me to do beyond answering questions?'],
-        approvedAt: APPROVED_AT,
+      {
+        name: 'whatToDo free text → channels',
+        in: 'Answer questions and collect details',
+        expect: {
+          event: 'lead_question',
+          reply: composeReply({
+            kind: 'lead_question',
+            parts: { step: 'channels', intro: LEAD_BRIDGE, businessName: NAME },
+          }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'actions book → daily inquiries',
-      in: '1',
-      expect: {
-        event: 'lead_question',
-        includes: ['About how many customer inquiries do you get per day?'],
-        approvedAt: APPROVED_AT,
+      {
+        name: 'channels WhatsApp → actions',
+        in: '1',
+        expect: {
+          event: 'lead_question',
+          reply: composeReply({
+            kind: 'lead_question',
+            parts: { step: 'actions', businessName: NAME },
+          }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'daily → chat tools',
-      in: '1',
-      expect: {
-        event: 'lead_question',
-        includes: ['Do you already use a tool to manage your customer chats?'],
-        approvedAt: APPROVED_AT,
+      {
+        name: 'actions book → daily inquiries',
+        in: '1',
+        expect: {
+          event: 'lead_question',
+          reply: composeReply({
+            kind: 'lead_question',
+            parts: { step: 'dailyInquiries', businessName: NAME },
+          }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'chat tools no → thanks (no menu yet)',
-      in: '1',
-      expect: {
-        event: 'lead_saved',
-        reply: LEAD_THANKS_YES,
-        approvedAt: APPROVED_AT,
-        excludes: [MENU_HEAD, LEGACY_CARD],
+      {
+        name: 'daily → chat tools',
+        in: '1',
+        expect: {
+          event: 'lead_question',
+          reply: composeReply({
+            kind: 'lead_question',
+            parts: { step: 'chatTools', businessName: NAME },
+          }).reply,
+          approvedAt: APPROVED_AT,
+        },
       },
-    },
-    {
-      name: 'next BUILD turn after lead → menu header, no lead item',
-      in: 'ok',
-      expect: {
-        event: 'menu',
-        mode: 'BUILD',
-        reply: expectedMenu(false),
-        approvedAt: APPROVED_AT,
-        nav: 'menu',
-        includes: [MENU_HEAD, '1. 🏪 Tell me more about your business'],
-        excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
+      {
+        name: 'chat tools no → thanks (no menu yet)',
+        in: '1',
+        expect: {
+          event: 'lead_saved',
+          reply: LEAD_THANKS_YES,
+          approvedAt: APPROVED_AT,
+          excludes: [MENU_HEAD, LEGACY_CARD],
+        },
       },
-    },
-  ]);
+      {
+        name: 'next BUILD turn after lead → menu header, no lead item',
+        in: 'ok',
+        expect: {
+          event: 'menu',
+          mode: 'BUILD',
+          reply: expectedMenu(false),
+          approvedAt: APPROVED_AT,
+          nav: 'menu',
+          includes: [MENU_HEAD, '1. 🏪 Tell me more about your business'],
+          excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
+        },
+      },
+    ],
+    { profile: approvedProfile({ firstTestedAt: FIRST_TESTED_AT }) }
+  );
 });
 
 const failed = results.filter((r) => !r.pass);

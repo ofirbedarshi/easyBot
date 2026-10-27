@@ -9,8 +9,8 @@ import {
   DEFAULT_CUSTOMER_HELP_LINE,
   FALLBACK_BUSINESS_NAME,
   GENERIC_ERROR_REPLY,
-  GOAL_FALLBACK_DISCLAIMER,
   IDENTITY_FALLBACK_QUESTION,
+  INTAKE_MENU_LABEL,
   LEAD_ALREADY_SENT,
   LEAD_INTRO,
   LEAD_INVALID,
@@ -23,12 +23,10 @@ import {
   OFF_PURPOSE_OWNER_REPLY,
   OPENING_MESSAGE,
   OTHER_FACTS_LABEL,
-  OWNER_GOAL_LABELS,
-  OWNER_GOAL_QUESTION,
   PARSE_FALLBACK_MESSAGE,
+  READY_OPENER,
   RESET_REPLY,
   REVIEW,
-  SETUP_COMPLETE_INTRO,
   TEST_REFUSE,
   defaultCustomerOpeningText,
   enterTestBannerText,
@@ -42,7 +40,6 @@ import {
   mergeDraft,
   normalizeCommonQuestions,
   normalizeFaqItem,
-  normalizeOwnerGoal,
   normalizePriceDisclosure,
   pricePolicyOwnerLabel,
 } from './profile.js';
@@ -51,8 +48,7 @@ export const COMPOSE_KINDS = Object.freeze([
   'opening',
   'ask_identity',
   'ask_topic',
-  'ask_goal',
-  'setup_complete',
+  'ready_first',
   'saved_changes',
   'change_menu',
   'menu',
@@ -80,7 +76,6 @@ export const COMPOSE_KINDS = Object.freeze([
   'review',
   'setup_continue',
   'return_to_editing',
-  'review_options',
 ]);
 
 const REVIEW_FILLER =
@@ -201,8 +196,6 @@ export function summaryLines(p) {
     add('otherFacts', OTHER_FACTS_LABEL, brief(otherFacts.join('; ')), otherFacts);
   }
 
-  const goal = normalizeOwnerGoal(p.ownerGoal);
-  add('goal', L.goal, goal ? OWNER_GOAL_LABELS[goal] : R.notSet, goal);
   const intake = p.informationToCollect;
   add(
     'intake',
@@ -293,38 +286,53 @@ export function sectionLines(section, p) {
     lines.push(fieldLine(f.tone, eff.tone));
     lines.push(`*${f.openingMessage}:*`);
     lines.push(quoteOpeningLines(customerOpeningText(p)));
+  } else if (section === 'intake') {
+    const intake = Array.isArray(p.informationToCollect) ? p.informationToCollect : [];
+    if (!intake.length) {
+      lines.push(s.noIntake);
+    } else {
+      for (const item of intake) lines.push(`• ${item}`);
+    }
   }
   return lines;
 }
 
-function menuItemKeys({ leadOption = false } = {}) {
-  return [...(leadOption ? ['lead'] : []), 1, 2, 3, 'try'];
+/**
+ * Ordered editing-menu items: 'lead', sections 1–3 (numbers), 'intake', 'try'.
+ * Rendering and number parsing both use this list, so a picked number always
+ * maps to the item shown at that position. Lead is included only when
+ * `leadOption` is true (approved + firstTestedAt + no lead submitted).
+ */
+export function menuItems({ leadOption = false } = {}) {
+  return [...(leadOption ? ['lead'] : []), 1, 2, 'intake', 3, 'try'];
 }
 
 function menuLabel(item) {
-  return item === 'lead' ? `🚀 ${LEAD_MENU_LABEL}` : item === 'try' ? NAV.menu[3] : NAV.menu[item - 1];
+  if (item === 'lead') return `🚀 ${LEAD_MENU_LABEL}`;
+  if (item === 'try') return NAV.menu[3];
+  if (item === 'intake') return INTAKE_MENU_LABEL;
+  return NAV.menu[item - 1];
 }
 
 function renderMenuText(menuOpts) {
   return [
-    ...menuItemKeys(menuOpts).map((item, i) => `${i + 1}. ${menuLabel(item)}`),
+    ...menuItems(menuOpts).map((item, i) => `${i + 1}. ${menuLabel(item)}`),
     '',
     NAV.menuFooter,
   ].join('\n');
 }
 
-function renderReviewOptionsText() {
-  return [
-    REVIEW.optionsPrompt,
-    ...REVIEW.options.map((label, i) => `${i + 1}. ${label}`),
-    '',
-    REVIEW.optionsFooter,
-  ].join('\n');
+function leadQuestionText(id, businessName) {
+  const q = LEAD_STEPS[id];
+  if (!q) return '';
+  return typeof q.text === 'function' ? q.text(businessName) : q.text;
 }
 
-function renderLeadQuestion(id) {
+function renderLeadQuestion(id, businessName) {
   const q = LEAD_STEPS[id];
-  return [q.text, ...q.options.map((label, i) => `${i + 1}. ${label}`)].join('\n');
+  const text = leadQuestionText(id, businessName);
+  if (!q?.options) return text;
+  return [text, ...q.options.map((label, i) => `${i + 1}. ${label}`)].join('\n');
 }
 
 function optionStoreLabel(label) {
@@ -394,28 +402,14 @@ export function composeReply(spec = {}) {
       });
     }
 
-    case 'ask_goal':
-      return done(withSingleQuestion(modelText, OWNER_GOAL_QUESTION), { asksQuestion: true });
-
-    case 'setup_complete':
-      return done(
-        [
-          SETUP_COMPLETE_INTRO,
-          '',
-          ...sectionLines(1, profile || {}),
-          '',
-          renderReviewOptionsText(),
-        ].join('\n'),
-        { nav: 'review' }
-      );
+    case 'ready_first':
+      return done(`${READY_OPENER}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
 
     case 'saved_changes': {
       const ack = (modelText || '').trim();
-      const card = [
-        [REVIEW.changesIntro, ...changeLines(prior, profile)].join('\n'),
-        renderReviewOptionsText(),
-      ].join('\n\n');
-      return done([ack, card].filter(Boolean).join('\n\n'), { nav: 'review' });
+      const card = [REVIEW.changesIntro, ...changeLines(prior, profile)].join('\n');
+      const menu = renderMenuText(menuOpts);
+      return done([ack, card, menu].filter(Boolean).join('\n\n'), { nav: 'menu' });
     }
 
     case 'change_menu':
@@ -462,10 +456,12 @@ export function composeReply(spec = {}) {
       }
       return done(NAV.setupContinue);
 
-    case 'section':
+    case 'section': {
+      const intro =
+        parts.section === 'intake' ? NAV.intakeIntro : NAV.sectionIntros[parts.section - 1];
       return done(
         [
-          NAV.sectionIntros[parts.section - 1],
+          intro,
           '',
           ...sectionLines(parts.section, profile),
           '',
@@ -474,18 +470,19 @@ export function composeReply(spec = {}) {
         ].join('\n'),
         { nav: `section:${parts.section}` }
       );
+    }
 
     case 'lead_start':
       return done(`${LEAD_INTRO}\n\n${renderLeadQuestion('contactConsent')}`);
 
     case 'lead_question': {
-      const question = renderLeadQuestion(parts.step);
+      const question = renderLeadQuestion(parts.step, parts.businessName);
       return done(parts.intro ? `${parts.intro}\n\n${question}` : question);
     }
 
     case 'lead_invalid': {
       const prefix = parts.multi ? LEAD_INVALID_MULTI : LEAD_INVALID;
-      return done(`${prefix}\n\n${renderLeadQuestion(parts.step)}`);
+      return done(`${prefix}\n\n${renderLeadQuestion(parts.step, parts.businessName)}`);
     }
 
     case 'lead_followup':
@@ -529,7 +526,6 @@ export function composeReply(spec = {}) {
           summaryLines(view)
             .map((l) => `${l.label}: ${l.value}`)
             .join('\n'),
-          renderReviewOptionsText(),
         ].join('\n\n')
       );
     }
@@ -540,9 +536,6 @@ export function composeReply(spec = {}) {
     case 'return_to_editing':
       return done(`${NAV.returned}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
 
-    case 'review_options':
-      return done(renderReviewOptionsText());
-
     default:
       throw new Error(`unknown compose kind: ${kind}`);
   }
@@ -550,9 +543,7 @@ export function composeReply(spec = {}) {
 
 export {
   DEFAULT_CUSTOMER_HELP_LINE,
-  GOAL_FALLBACK_DISCLAIMER,
   IDENTITY_FALLBACK_QUESTION,
-  OWNER_GOAL_QUESTION,
   PARSE_FALLBACK_MESSAGE,
   defaultCustomerOpeningText,
 };

@@ -12,7 +12,6 @@ import {
   adjustChatParamsOnError,
   applyReviewGate,
   getClient,
-  GOAL_FALLBACK_DISCLAIMER,
   openingMessage,
   runBuilderTurn,
 } from '../src/builder.js';
@@ -34,8 +33,11 @@ const OWNER_TURNS = [
 function isInterviewTurn(turn) {
   if (turn.presentReview) return false;
   const msg = String(turn.message || '');
-  if (msg.includes(GOAL_FALLBACK_DISCLAIMER)) return false;
-  return !REQUIRED_TOPICS.some((topic) => msg.includes(topic.question));
+  return !REQUIRED_TOPICS.some((topic) => {
+    if (topic.askedMarker && msg.includes(topic.askedMarker)) return true;
+    if (topic.question && msg.includes(topic.question)) return true;
+    return false;
+  });
 }
 
 /** True when a completed non-question sentence appears before the first '?'. */

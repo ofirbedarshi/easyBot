@@ -1,7 +1,6 @@
 /**
  * Closed-world Business Bot contract:
  * - APPROVED BUSINESS FACTS: only source for customer-facing business claims.
- * - BOT OBJECTIVE (ownerGoal): conversational direction within approved facts/capabilities.
  * - CONVERSATION SETTINGS: tone, price disclosure, assistant identity / opening.
  * - BEHAVIOR RULES: how to answer, handle gaps, collect listed intake.
  */
@@ -11,29 +10,14 @@ import {
   ASSISTANT_NAME,
   effectiveBehavior,
   normalizeCommonQuestions,
-  normalizeOwnerGoal,
 } from './profile.js';
 
-/** BOT OBJECTIVE text per stored goal. Collecting is limited to the listed intake. */
-const OBJECTIVE_SENTENCES = {
-  answer_questions:
-    'Answer from the approved facts, then ask if there is anything else they would like to know.',
-  collect_details:
-    'When a customer shows interest, go straight to missing INFORMATION TO COLLECT items.',
-  answer_and_collect:
-    'Answer from the approved facts, then invite them to leave the listed details; on interest or a booking request go straight to missing INFORMATION TO COLLECT items.',
-};
-
-/** Collect-details goal with a non-empty intake whitelist. */
+/** Collect listed intake whenever the whitelist is non-empty. */
 export function intakeGoalEnabled(profile) {
   const collect = Array.isArray(profile?.informationToCollect)
     ? profile.informationToCollect
     : [];
-  const goal = normalizeOwnerGoal(profile?.ownerGoal);
-  return (
-    collect.length > 0 &&
-    (goal === 'collect_details' || goal === 'answer_and_collect')
-  );
+  return collect.length > 0;
 }
 
 /**
@@ -90,13 +74,6 @@ export function buildCustomerSystemPrompt(profile) {
     : '(none listed — any detail not in APPROVED BUSINESS FACTS is still unknown)';
 
   const behavior = effectiveBehavior(profile);
-  const ownerGoal = normalizeOwnerGoal(profile.ownerGoal);
-  const objectiveBlock = ownerGoal
-    ? `Use this only to guide conversational direction within approved facts, listed intake, and the behavior rules below:
-${OBJECTIVE_SENTENCES[ownerGoal]}
-
-It must NOT establish facts, policies, capabilities, promises, booking power, or permission to collect additional information.`
-    : '(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)';
 
   const priceLine =
     behavior.priceDisclosure === 'on_request'
@@ -136,15 +113,12 @@ ${unknownsBlock}
 INFORMATION TO COLLECT (whitelist — ask only these; never invent extra items):
 ${collectBlock}
 
-=== BOT OBJECTIVE ===
-${objectiveBlock}
-
 === CONVERSATION SETTINGS ===
 ${settingsBlock}
 
 === BEHAVIOR RULES ===
 CLOSED-WORLD CONTRACT (highest priority):
-- Answer only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). If not listed, say it is not available here; do not say it is or is not offered. BOT OBJECTIVE and CONVERSATION SETTINGS are not sources of facts.
+- Answer only from APPROVED BUSINESS FACTS (and EXPLICIT UNKNOWNS as gaps). If not listed, say it is not available here; do not say it is or is not offered. CONVERSATION SETTINGS are not sources of facts.
 - Keep each fact's scope, qualifiers, units, and conditions. Do not stretch a fact to answer a different topic, service, channel, variant, population, or coverage area.
 - Do not invent prices, price bases, rules, policies, hours, coverage, discounts, channels, variants, or intake questions.
 - A stated rate does not establish an unstated pricing basis. If approved facts do not explicitly say how the rate applies across quantity, party size, units, duration beyond what is listed, or booking type (e.g. per item vs flat / per session), do not invent that basis — including "same price regardless of quantity/party size", "still X for both", or any other total. Restate the listed rate, say that how it applies for the customer's case is unknown, and suggest messaging the owner when useful.

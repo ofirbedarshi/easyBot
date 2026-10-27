@@ -28,7 +28,6 @@ import {
   parseMenuItem,
   isReviewNumberChoice,
   parseReviewChoice,
-  reviewActive,
   unwrapWhatsAppBold,
 } from './ownerNav.js';
 import {
@@ -249,56 +248,29 @@ export async function handleMessage(session, text) {
 
 /**
  * Editing-menu navigation (BUILD only). Menu words require `approvedAt`.
- * A save card offers 1 "Chat with me like a customer" (TEST) and 2
- * "Keep teaching me" (full editing menu). Those bind only to the assistant
- * reply that showed the card. A later reply without `nav` clears them; a
- * bare digit then goes to the Builder as normal text.
- * Section items are read-only. Until a lead is submitted, item 1 is
- * "Get this bot for my business" and the rest shift down by one.
- * Completing the questionnaire does not append a menu; the next BUILD
- * message shows "What should we do next?" plus the current menu (without
- * the lead item). `/reset` clears
- * this sender's lead so the item can be offered again.
+ * Numbers bind only to the latest assistant reply with `nav: 'menu'`.
+ * A later reply without `nav` clears them; a bare digit then goes to the
+ * Builder as normal text. Section items are read-only.
+ * The lead item is listed only after the owner has entered TEST at least
+ * once (`firstTestedAt`) and has not submitted a lead. Completing the
+ * questionnaire does not append a menu; the next BUILD message shows
+ * "What should we do next?" plus the current menu (without the lead
+ * item). `/reset` clears this sender's lead so the item can be offered
+ * again after the next TEST.
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
 async function handleNavigation(session, text) {
-  if (reviewActive(session.buildHistory)) {
-    const pick = parseReviewChoice(text);
-    if (pick) {
-      if (pick === 'try') return tryMyBot(session, text);
-      if (pick === 'change') {
-        const composed = composeReply({
-          kind: 'change_menu',
-          menuOpts: leadMenuOpts(session, await loadAsync(session)),
-        });
-        const reply = composed.reply;
-        session.buildHistory.push({ role: 'user', content: text });
-        session.buildHistory.push({ role: 'assistant', content: reply, nav: composed.nav });
-        return {
-          ok: true,
-          reply,
-          source: 'app',
-          event: 'menu',
-          ...(await getStateAsync(session)),
-        };
-      }
-    }
-  }
-
   const wantsMenu = isMenuRequest(text);
   const numbered = menuActive(session.buildHistory) && parseMenuChoice(text, 9) != null;
-  // Label on the last menu item — not a bare 1/2, which still means those menu numbers.
   const tryWords =
     menuActive(session.buildHistory) &&
     parseReviewChoice(text) === 'try' &&
     !isReviewNumberChoice(text);
   if (!wantsMenu && !numbered && !tryWords) return null;
   const profile = await loadAsync(session);
-  // Same visibility rule as every rendered menu, so numbers match what was shown.
   const choice = numbered ? parseMenuItem(text, leadMenuOpts(session, profile)) : null;
   if (!wantsMenu && choice == null && !tryWords) return null;
 
-  // Menu words only after the bot is ready; numbers work from a save card too.
   const ready = ownerPhase(session, profile) === 'ready';
   if (wantsMenu && !ready) return null;
   if (!ready && choice == null && !tryWords) return null;
@@ -339,6 +311,10 @@ async function enterTest(session) {
       source: 'app',
       ...(await getStateAsync(session)),
     };
+  }
+  if (!profile.firstTestedAt) {
+    profile.firstTestedAt = new Date().toISOString();
+    await saveAsync(session, profile);
   }
   session.mode = 'TEST';
   const composed = composeReply({ kind: 'test_enter', profile });
@@ -394,9 +370,12 @@ async function enterBuild(session) {
 }
 
 function leadMenuOpts(session, profile) {
-  // Same approvedAt exception as enterBuild: lead item visibility follows
-  // the ready timestamp, not wake-when-history-is-empty.
-  return { leadOption: !!profile?.approvedAt && !leadSubmitted(session.leadIntake) };
+  return {
+    leadOption:
+      !!profile?.approvedAt &&
+      !!profile?.firstTestedAt &&
+      !leadSubmitted(session.leadIntake),
+  };
 }
 
 /** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */
@@ -436,8 +415,8 @@ async function leadReply(session, reply, event) {
 }
 
 async function beginLeadIntake(session) {
+  const profile = await loadAsync(session);
   if (leadSubmitted(session.leadIntake)) {
-    const profile = await loadAsync(session);
     return leadReply(
       session,
       composeReply({
@@ -447,7 +426,7 @@ async function beginLeadIntake(session) {
       'lead_already_sent'
     );
   }
-  const { state, reply } = startLeadIntake();
+  const { state, reply } = startLeadIntake(profile.name || profile.draft?.name);
   session.leadIntake = state;
   return leadReply(session, reply, 'lead_question');
 }
@@ -585,6 +564,13 @@ async function handleBuild(session, userMessage) {
     };
   }
   if (changed || result.presentReview) applyDraftToLive(profile);
+  if (
+    result.presentReview &&
+    hasEnoughForFirstBot(profile) &&
+    !prior.approvedAt
+  ) {
+    profile.approvedAt = new Date().toISOString();
+  }
   await saveAsync(session, profile);
 
   const ready = ownerPhase(session, profile) === 'ready';
@@ -594,7 +580,7 @@ async function handleBuild(session, userMessage) {
   const menuOpts = leadMenuOpts(session, profile);
   let composed;
   if (firstApproval) {
-    composed = composeReply({ kind: 'setup_complete', profile });
+    composed = composeReply({ kind: 'ready_first', menuOpts });
   } else if (ready && unresolved) {
     composed = composeReply({
       kind: 'model_only',
@@ -606,6 +592,7 @@ async function handleBuild(session, userMessage) {
       modelText: result.message,
       prior,
       profile,
+      menuOpts,
     });
   } else if (ready) {
     composed = composeReply({

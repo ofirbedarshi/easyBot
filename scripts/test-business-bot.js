@@ -446,7 +446,7 @@ function testMigrationKeysMatchProfile() {
       '..',
       'supabase',
       'migrations',
-      '20261027030000_drop_response_length.sql'
+      '20261027150000_drop_owner_goal_add_first_tested.sql'
     ),
     'utf8'
   );

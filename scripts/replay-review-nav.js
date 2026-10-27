@@ -21,7 +21,7 @@ import {
   lastAssistant,
   lastShownNav,
   menuActive,
-  renderReview,
+  renderReadyFirst,
   reviewActive,
 } from '../src/ownerNav.js';
 
@@ -34,8 +34,6 @@ function draft() {
   return {
     name: 'Scissors and Sage Salon',
     whatWeDo: 'Hair salon in Columbus, Ohio',
-    ownerGoal: 'answer_and_collect',
-    ownerGoalRequested: 'answer questions and collect details',
     services: [
       { name: "Women's cut", price: '$45', notes: null },
       { name: "Men's cut", price: '$30', notes: null },
@@ -86,8 +84,8 @@ function seedSession() {
   });
   session.buildHistory.push({
     role: 'assistant',
-    content: renderReview(profile),
-    nav: 'review',
+    content: renderReadyFirst({ leadOption: false }),
+    nav: 'menu',
   });
   return { session, profile };
 }

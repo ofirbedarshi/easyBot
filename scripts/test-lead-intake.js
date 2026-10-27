@@ -14,6 +14,7 @@ import {
   startLeadIntake,
   stepLeadIntake,
 } from '../src/leadIntake.js';
+import { leadWhatToDoQuestion } from '../src/copy.js';
 import { renderMenu } from '../src/ownerNav.js';
 import { createSenderSession, handleMessage } from '../src/session.js';
 import { createMemoryStore } from '../src/store/memoryStore.js';
@@ -42,8 +43,17 @@ assert.ok(r.reply.includes('1. ✅ Yes, sure'));
 assert.ok(!r.reply.includes(LEAD_INTRO));
 r = stepLeadIntake(r.state, '1');
 assert.equal(r.done, false);
-assert.equal(r.state.step, 'channels');
+assert.equal(r.state.step, 'whatToDo');
 assert.equal(r.state.answers.contactConsent, 'Yes, sure');
+assert.equal(r.reply, leadWhatToDoQuestion(''));
+r = stepLeadIntake(r.state, '');
+assert.equal(r.done, false);
+assert.equal(r.state.step, 'whatToDo');
+assert.equal(r.reply, leadWhatToDoQuestion(''));
+r = stepLeadIntake(r.state, 'Answer questions and pass on bookings');
+assert.equal(r.done, false);
+assert.equal(r.state.step, 'channels');
+assert.equal(r.state.answers.whatToDo, 'Answer questions and pass on bookings');
 assert.ok(r.reply.startsWith(LEAD_BRIDGE));
 assert.ok(r.reply.includes('Where would you like me to work?'));
 assert.ok(r.reply.includes('1. 💬 WhatsApp'));
@@ -72,6 +82,7 @@ assert.equal(r.done, true);
 assert.equal(r.reply, LEAD_THANKS_YES);
 assert.deepEqual(r.state.answers, {
   contactConsent: 'Yes, sure',
+  whatToDo: 'Answer questions and pass on bookings',
   channels: ['WhatsApp', 'Other (tell us where)'],
   channelsOther: 'Telegram',
   actions: ['Collect details from interested customers', 'Hand conversations over to a human agent'],
@@ -83,9 +94,13 @@ assert.deepEqual(r.state.answers, {
 // Consent no still continues; closing uses the stored consent answer
 r = stepLeadIntake({ step: 'contactConsent', answers: {} }, '2');
 assert.equal(r.done, false);
+assert.equal(r.state.step, 'whatToDo');
+assert.equal(r.reply, leadWhatToDoQuestion(''));
+assert.equal(r.state.answers.contactConsent, 'No, thanks');
+r = stepLeadIntake(r.state, 'Just answer questions');
 assert.equal(r.state.step, 'channels');
 assert.ok(r.reply.startsWith(LEAD_BRIDGE));
-assert.equal(r.state.answers.contactConsent, 'No, thanks');
+assert.equal(r.state.answers.whatToDo, 'Just answer questions');
 r = stepLeadIntake({ step: 'chatTools', answers: { contactConsent: 'No, thanks' } }, '1');
 assert.equal(r.done, true);
 assert.equal(r.reply, LEAD_THANKS_NO);
@@ -100,7 +115,12 @@ assert.ok(
 // Session flow (memory store)
 const store = createMemoryStore();
 const sender = 'whatsapp:+15550000001';
-const profile = { ...emptyProfile(), name: 'Test Studio', approvedAt: new Date().toISOString() };
+const profile = {
+  ...emptyProfile(),
+  name: 'Test Studio',
+  approvedAt: new Date().toISOString(),
+  firstTestedAt: new Date().toISOString(),
+};
 await store.saveProfile(sender, profile);
 const menuEntry = { role: 'assistant', content: renderMenu({ leadOption: true }), nav: 'menu' };
 await store.saveSession(sender, {
@@ -143,6 +163,9 @@ assert.equal(Object.keys(store._dump().leads).length, 0);
 await send('1');
 res = await send('1');
 assert.equal(res.event, 'lead_question');
+assert.equal(res.reply, leadWhatToDoQuestion('Test Studio'));
+res = await send('Answer questions and pass on bookings');
+assert.equal(res.event, 'lead_question');
 assert.ok(res.reply.startsWith(LEAD_BRIDGE));
 assert.ok(res.reply.includes('Where would you like me to work?'));
 await send('1 4');
@@ -169,6 +192,7 @@ assert.equal(lead.businessName, 'Test Studio');
 assert.ok(lead.createdAt);
 assert.deepEqual(lead.answers, {
   contactConsent: 'Yes, sure',
+  whatToDo: 'Answer questions and pass on bookings',
   channels: ['WhatsApp', 'My business website'],
   actions: ['Other (tell us more)'],
   actionsOther: 'Track orders',
@@ -181,7 +205,7 @@ const sess = await store.loadSession(sender);
 assert.equal(sess.buildHistory.filter((m) => m.role === 'user').length, 0);
 assert.equal(JSON.stringify(await store.loadProfile(sender)), profileBefore);
 
-// Next BUILD message shows the 4-item menu (no lead item), then 1 is Edit business info
+// Next BUILD message shows the editing menu (no lead item), then 1 is business info
 res = await send('hello');
 assert.equal(res.event, 'menu');
 assert.equal(
@@ -191,8 +215,9 @@ assert.equal(
     '',
     '1. 🏪 Tell me more about your business',
     '2. ❓ Teach me more questions and answers',
-    '3. 💬 Tell me how to talk to your customers',
-    '4. 🤖 Chat with me like a customer',
+    '3. 📝 Choose details to collect from customers',
+    '4. 💬 Tell me how to talk to your customers',
+    '5. 🤖 Chat with me like a customer',
     '',
     'Pick a number, or just tell me what you want me to learn.',
   ].join('\n')
@@ -259,9 +284,11 @@ assert.equal(
 const setupDraft = {
   name: 'Ofir Baber',
   whatWeDo: 'Barber',
-  services: [],
+  services: [{ name: 'Haircut', price: '50', notes: null }],
+  hours: 'Mon–Fri 9–5',
+  locationOrArea: 'Tel Aviv',
   commonQuestions: [{ question: 'Price?', answer: 'Ask in the shop.' }],
-  informationToCollect: [],
+  informationToCollect: null,
   unknowns: [],
 };
 const setup = await createSenderSession(store, sender, {
@@ -279,27 +306,10 @@ assert.equal(opened.event, 'opening');
 const first = await handleMessage(setup, "I'm a barber");
 await store.saveSession(sender, setup);
 assert.ok((await store.loadProfile(sender)).approvedAt);
-assert.equal(
-  first.reply,
-  [
-    "🎉 I'm all set! This is what I know about your business:",
-    '',
-    '*Name:* Ofir Baber',
-    '*What you do:* Barber',
-    '*Services & prices:* not added yet',
-    '*Hours:* not added yet',
-    '*Location:* not added yet',
-    "*Price policy:* I mention prices when they're relevant",
-    '',
-    'What should we do next?',
-    '1. 🤖 Chat with me like a customer',
-    '2. ✏️ Keep teaching me',
-    '',
-    '(or just tell me what to learn 🙂)',
-  ].join('\n')
-);
+assert.match(first.reply, /I'm ready for a first try!/);
+assert.ok(!first.reply.includes(LEAD_MENU_LABEL));
 assert.doesNotMatch(first.reply, /Got it, thanks!|I'll remember that/);
-const entered = await handleMessage(setup, '1');
+const entered = await handleMessage(setup, 'chat with me like a customer');
 assert.equal(entered.event, 'enter_test');
 const stopped = await handleMessage(setup, 'stop');
 await store.saveSession(sender, setup);
@@ -316,6 +326,7 @@ await store.saveProfile(sender4, {
   name: 'Control Studio',
   whatWeDo: 'Cuts',
   approvedAt: new Date().toISOString(),
+  firstTestedAt: new Date().toISOString(),
 });
 await store.saveSession(sender4, {
   mode: 'BUILD',
@@ -332,6 +343,8 @@ async function send4(text) {
 let r4 = await send4('1');
 assert.equal(r4.event, 'lead_question');
 r4 = await send4('1');
+assert.equal(r4.reply, leadWhatToDoQuestion('Control Studio'));
+r4 = await send4('Answer questions');
 r4 = await send4('1');
 r4 = await send4('2');
 r4 = await send4('5');
@@ -342,5 +355,23 @@ assert.equal(r4.event, 'enter_test');
 r4 = await send4('stop');
 assert.equal(r4.event, 'enter_build');
 assert.ok(!(r4.replies || [r4.reply]).join('\n').includes(LEAD_MENU_LABEL));
+
+// Menu without firstTestedAt must not start lead on 1 (even if last menu listed it).
+const senderNoTest = 'whatsapp:+15550000005';
+await store.saveProfile(senderNoTest, {
+  ...emptyProfile(),
+  name: 'No Test Studio',
+  approvedAt: new Date().toISOString(),
+});
+await store.saveSession(senderNoTest, {
+  mode: 'BUILD',
+  buildHistory: [menuEntry],
+  testHistory: [],
+  testSessionId: 't',
+});
+const sNoTest = await createSenderSession(store, senderNoTest);
+const noLead = await handleMessage(sNoTest, '1');
+assert.notEqual(noLead.event, 'lead_question');
+assert.equal(sNoTest.leadIntake, null);
 
 console.log('test-lead-intake: all passed');

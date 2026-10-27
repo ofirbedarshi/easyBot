@@ -9,10 +9,6 @@ import {
   identityResetFlag,
   IDENTITY_KEYS,
   mergeDraft,
-  FALLBACK_OWNER_GOAL,
-  normalizeOwnerGoal,
-  OWNER_GOAL_LABELS,
-  OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_LABELS,
   PRICE_DISCLOSURE_VALUES,
 } from './profile.js';
@@ -27,16 +23,12 @@ import {
   messagesWithRetryNote,
 } from './identicalReply.js';
 import {
-  GOAL_FALLBACK_DISCLAIMER,
   OFF_PURPOSE_OWNER_REPLY,
-  OWNER_GOAL_QUESTION,
   PARSE_FALLBACK_MESSAGE,
 } from './copy.js';
 import {
   composeReply,
-  replaceBeforeQuestion,
   reviewAck,
-  withSingleQuestion,
 } from './composeReply.js';
 import {
   applyBuilderModelOutput,
@@ -63,17 +55,9 @@ export {
 };
 
 export {
-  GOAL_FALLBACK_DISCLAIMER,
   OFF_PURPOSE_OWNER_REPLY,
-  OWNER_GOAL_QUESTION,
-  replaceBeforeQuestion,
   reviewAck,
-  withSingleQuestion,
 };
-
-const OWNER_GOAL_LINES = OWNER_GOAL_VALUES.map(
-  (v) => `    - "${v}" — ${OWNER_GOAL_LABELS[v]}`
-).join('\n');
 
 const PRICE_DISCLOSURE_LINES = PRICE_DISCLOSURE_VALUES.map(
   (v) => `  - "${v}" — ${PRICE_DISCLOSURE_LABELS[v]}`
@@ -90,7 +74,6 @@ const SYSTEM = `You are Adam, this business's digital assistant. The owner is te
 Discover when relevant (partial info is OK — do not force every category):
 - Business name (required for a first bot — never invent it)
 - What the business does
-- ownerGoal — the bot goal, mapped to a supported value (see ownerGoal below)
 - Services and offerings
 - Prices (if available) AND how the price applies when relevant (e.g. per unit vs flat / per booking). Store each services[].price with its currency and unit exactly as the owner stated them (e.g. "200 ILS per 60-minute lesson", "$50 per person"). Never invent a currency or unit. If the owner gives a bare number and the currency or unit is unclear, ask once; if they don't know, keep the number and add the missing part to unknowns.
 - priceDisclosure: only these supported values (or null):
@@ -115,10 +98,10 @@ WHAT THE PRODUCT CAN CONFIGURE (the only things you can promise):
 ${CAPABILITY_LINES}
 
 CONFIGURATION REQUESTS — product settings and actions only:
-Classify style, global price mention, identity, goal, intake list, and actions the bot should perform. What customers should be told — including what to say or not quote about an offering — is a business fact (store it; do not classify it here):
+Classify style, global price mention, identity, intake list, and actions the bot should perform. What customers should be told — including what to say or not quote about an offering — is a business fact (store it; do not classify it here):
 - "supported": one field above represents it exactly as asked. Update that field. The app saves it.
 - "ambiguous": it could mean a supported value or something unsupported. Ask one short clarification. Do NOT change that field.
-- "unsupported": no field represents it exactly, or it is outside demo scope. Gently say what you can do today (answer customers' questions and collect their details for the owner), that more is coming soon ✨. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, ownerGoal, or any other free-text field — a free-text field accepting the words does NOT make it supported.
+- "unsupported": no field represents it exactly, or it is outside demo scope. Gently say what you can do today (answer customers' questions and collect their details for the owner), that more is coming soon ✨. Do NOT change any field for it. Do NOT write it into tone, openingMessage, FAQ answers, service notes, or any other free-text field — a free-text field accepting the words does NOT make it supported.
 - Never say you "added", "will add", "set", or "noted" an unsupported or ambiguous request, and never list it in a summary.
 - After the owner accepts an offered alternative, the alternative is a new "supported" request: update the draft.
 List every such request from the owner's CURRENT message in "configRequests" (empty array if none). "request" must quote the owner's own words — never your rewording or your alternative. Classify what the owner literally asked: if it is broader than any supported value (e.g. "all the time", "every message", "always"), it is not "supported" just because a narrower value exists. A "supported" request never has an alternative; if you are offering one, the status is "ambiguous" or "unsupported".
@@ -141,10 +124,7 @@ topicResponse: answered if they gave info for the current skippable setup topic,
 - After they share a real business detail, react in one warm short sentence (name what they said) with a cute emoji like ✨🌟💛 — never a tool-ish one such as 💈. End that sentence with . or ! (the emoji may sit just before or right after that mark).
 - If they interrupt, add requirements, or change direction mid-setup, update the draft to match the new direction and drop stale offerings that no longer apply.
 - Identify missing, contradictory, or ambiguous info gently. Ambiguities that change customer answers (especially pricing basis/units, discounts, what a service area covers, hours edge cases, cancellation/refund policy, availability/booking rules) must NOT be filled in by assumption. Prefer one concise clarification question when the ambiguity is important for a useful bot. If the owner says it is undecided, unknown, or "not sure yet", record it in draft.unknowns as a clear statement of what is unknown. Keep known parts in the normal fields (e.g. rate known, application unknown). Capacity limits, max group size, or similar are NOT pricing rules — do not treat them as settling how price scales.
-- commonQuestions = FAQ { question, answer }. question = what customers ask; answer = the owner's COMPLETE explanation (not a one-line paraphrase or topic title). If they already gave the answer in chat, copy it into answer. informationToCollect = details the bot should ASK the customer for. Never mix FAQ and intake. Keep informationToCollect null until the owner answers whether to collect anything; [] if none / no; otherwise the listed strings.
-- ownerGoal: when the owner answers, copy their words into ownerGoalRequested and set ownerGoal to the matching value:
-${OWNER_GOAL_LINES}
-    Answering questions and/or collecting details (including taking a message when someone wants to book): matching value, goalSupported=true. Only calendar booking, payments, CRM, or outbound follow-ups: ownerGoal="${FALLBACK_OWNER_GOAL}", goalSupported=false. Do not explain the limitation — the app states the mapped goal. Set goalSupported=null when they did not answer or change the goal. Leave ownerGoal null until they answer. Never invent a goal. Later goal changes use the same mapping.
+- commonQuestions = FAQ { question, answer }. question = what customers ask; answer = the owner's COMPLETE explanation (not a one-line paraphrase or topic title). If they already gave the answer in chat, copy it into answer. informationToCollect = details the bot should ASK the customer for. Never mix FAQ and intake. Keep informationToCollect null until the owner lists details to collect; [] if they say collect nothing; otherwise the listed strings.
 - When the owner later clarifies an unknown or changes a fact or conversation setting (supported and clear, or after they accepted an offered alternative), immediately update the relevant draft fields (e.g. put the full pricing rule into services[].price; put the full FAQ answer into commonQuestions[].answer; update tone/priceDisclosure), remove resolved unknowns, and reply with a one-line acknowledgment only — no summary, no questions, no bullet list (the app shows the summary and options). Do not ignore a clear clarification to ask about a different topic first. Preserve unrelated settings and business facts.
 
 You MUST respond with a single JSON object matching the schema (all keys required; no markdown fences).
@@ -156,7 +136,7 @@ draft is a delta: null means unchanged this turn (reset flags: false unless the 
 ownerEdits: stored services, FAQ, intake, name, whatWeDo, hours, or locationOrArea the owner's CURRENT message changes or removes. field = draft key; item = the stored key (null for text fields). Adding a new item is not an edit.
 factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
-onPurpose, configRequests, goalSupported, goalUnsupportedPart: as specified above. Arrays empty if none.
+onPurpose, configRequests: as specified above. Arrays empty if none.
 ${PARAGRAPH_PROMPT_LINE}`;
 
 export { SYSTEM as BUILDER_SYSTEM };
@@ -544,8 +524,6 @@ export async function runBuilderTurn({
     profile.draft || {
       name: profile.name,
       whatWeDo: profile.whatWeDo,
-      ownerGoal: normalizeOwnerGoal(profile.ownerGoal),
-      ownerGoalRequested: profile.ownerGoalRequested ?? null,
       services: profile.services,
       hours: profile.hours,
       locationOrArea: profile.locationOrArea,
@@ -633,8 +611,6 @@ export async function runBuilderTurn({
       consistencyMs: 0,
       consistencyRan: false,
       configRequests: [],
-      goalSupported: null,
-      goalUnsupportedPart: null,
       usage: completion.usage,
       latencyMs,
       modelJson: parsed,
@@ -679,11 +655,6 @@ export async function runBuilderTurn({
     consistencyMs: pass.latencyMs,
     consistencyRan: pass.ran,
     configRequests: normalizeConfigRequests(parsed.configRequests),
-    goalSupported: typeof parsed.goalSupported === 'boolean' ? parsed.goalSupported : null,
-    goalUnsupportedPart:
-      typeof parsed.goalUnsupportedPart === 'string' && parsed.goalUnsupportedPart.trim()
-        ? parsed.goalUnsupportedPart.trim()
-        : null,
     topicResponse,
     usage: completion.usage,
     latencyMs,
@@ -702,23 +673,7 @@ export async function runBuilderTurn({
  * The session layer applies the draft immediately and appends the card or menu.
  */
 export function applyReviewGate(profile, turn, userMessage, extras = {}) {
-  const { turn: goalTurn, disclaimer } = applyGoalSupport(turn);
-  const out = gateTurn(profile, goalTurn, extras);
-  if (!disclaimer) return out;
-  return { ...out, message: replaceBeforeQuestion(out.message, disclaimer) };
-}
-
-/**
- * When the model flags the goal unsupported, store the fallback goal and
- * replace the model's ack with the mapped-goal line (that turn only).
- * The owner's wording is not inspected.
- */
-export function applyGoalSupport(turn) {
-  if (turn?.goalSupported !== false) return { turn, disclaimer: null };
-  return {
-    turn: { ...turn, draft: { ...(turn.draft || {}), ownerGoal: FALLBACK_OWNER_GOAL } },
-    disclaimer: GOAL_FALLBACK_DISCLAIMER,
-  };
+  return gateTurn(profile, turn, extras);
 }
 
 function askFixedTopic(turn, draft, topic, lead, { keepLead = false } = {}) {
@@ -751,7 +706,7 @@ function gateTurn(profile, turn, extras = {}) {
     askedTopics: [...new Set([...priorAsked, ...(turn.draft?.askedTopics || [])])],
   };
 
-  if (ownerPhase(null, profile, { draft }) === 'ready') {
+  if (ownerPhase(null, profile) === 'ready') {
     if (hasUnresolvedConfig(turn)) {
       return {
         ...turn,
@@ -801,16 +756,6 @@ function gateTurn(profile, turn, extras = {}) {
     return askFixedTopic(turn, nextDraft, agenda.topic, agenda.ack, {
       keepLead: agenda.keepLead === true,
     });
-  }
-
-  if (agenda.step === 'goal') {
-    return {
-      ...turn,
-      draft: nextDraft,
-      presentReview: false,
-      asksQuestion: true,
-      message: composeReply({ kind: 'ask_goal', modelText: turn.message }).reply,
-    };
   }
 
   if (agenda.step === 'identity' && agenda.question) {

@@ -18,7 +18,6 @@ const MODEL = process.env.OPENAI_MODEL || process.env.OPENAI_BUILDER_MODEL || 'g
 const SALON = {
   name: 'Scissors and Sage Salon',
   whatWeDo: 'Hair salon in Columbus, Ohio',
-  ownerGoal: 'answer_and_collect',
   services: [
     { name: "Women's cut", price: '$45', notes: null },
     { name: "Men's cut", price: '$30', notes: null },
@@ -150,11 +149,6 @@ async function replayBuilderGoal() {
       content: "What's the name of your hair salon?",
     },
     { role: 'user', content: 'Harbor Cuts' },
-    {
-      role: 'assistant',
-      content:
-        "What's the main thing you'd like your bot to do for your business?",
-    },
   ];
   const raw = await runBuilderTurn({
     buildHistory,
@@ -165,9 +159,13 @@ async function replayBuilderGoal() {
   const gated = applyReviewGate(profile, raw, userMessage, {
     justAsked: topicJustAsked(buildHistory),
   });
+  const unresolved =
+    Array.isArray(raw.configRequests) &&
+    raw.configRequests.some((r) => r && r.status !== 'supported');
   return {
-    ownerGoal: gated.draft?.ownerGoal,
-    goalSupported: raw.goalSupported,
+    asksTellMore: /Or say "skip" for now/.test(gated.message),
+    presentReview: gated.presentReview === true,
+    unresolved,
     message: gated.message,
     hasUnavailableLine: /isn't available yet/i.test(gated.message),
   };
@@ -189,7 +187,10 @@ async function main() {
   const builder = await replayBuilderGoal();
   console.log(JSON.stringify(builder, null, 2));
 
-  const ok = bot.score.pass && !builder.hasUnavailableLine;
+  const ok =
+    bot.score.pass &&
+    !builder.hasUnavailableLine &&
+    (builder.asksTellMore || builder.presentReview || builder.unresolved);
   cost.print();
   if (!ok) {
     console.error('\nREPLAY FAIL');

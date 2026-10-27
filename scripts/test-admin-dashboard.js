@@ -177,6 +177,7 @@ async function seedUsers(store) {
       dailyInquiries: '5-20',
       chatTools: 'No, I reply to customers myself',
       contactConsent: 'Yes, sure',
+      whatToDo: 'Answer questions and take bookings',
     },
     createdAt: '2026-10-04T12:00:00.000Z',
   });
@@ -367,7 +368,8 @@ async function testListAndDetail() {
     assert.ok(leadHtml.text.includes('Last active'));
     assert.ok(leadHtml.text.includes('Business'));
     assert.ok(leadHtml.text.includes('What they do'));
-    assert.ok(leadHtml.text.includes('Bot goal'));
+    assert.ok(leadHtml.text.includes('What they want the bot to do'));
+    assert.ok(leadHtml.text.includes('Answer questions and take bookings'));
     assert.ok(leadHtml.text.includes('Hours'));
     assert.ok(leadHtml.text.includes('Location'));
     assert.ok(leadHtml.text.includes('Conversation settings'));
