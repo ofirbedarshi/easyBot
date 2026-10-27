@@ -84,16 +84,12 @@ export function lastAssistant(buildHistory) {
 }
 
 /**
- * Last navigation the app actually showed (`review`, `menu`, `section:N`).
- * Intervening Builder replies have no `nav` and do not replace this.
+ * Navigation on the latest assistant Builder entry (`review`, `menu`,
+ * `section:N`), or null. A later reply without `nav` clears the previous
+ * card or menu; numbered options are valid only for the reply that showed them.
  */
 export function lastShownNav(buildHistory) {
-  const list = Array.isArray(buildHistory) ? buildHistory : [];
-  for (let i = list.length - 1; i >= 0; i -= 1) {
-    const m = list[i];
-    if (m?.role === 'assistant' && m.nav) return m.nav;
-  }
-  return null;
+  return lastAssistant(buildHistory)?.nav || null;
 }
 
 /** True when the latest assistant Builder entry was a menu. */
@@ -184,9 +180,9 @@ export function interveningBuilderQuestion(buildHistory) {
   return last.asksQuestion === true;
 }
 
-/** True when the last navigation the app showed was the two-option review. */
+/** True when the latest assistant Builder entry was the two-option review. */
 export function reviewActive(buildHistory) {
-  return lastShownNav(buildHistory) === 'review';
+  return lastAssistant(buildHistory)?.nav === 'review';
 }
 
 /**

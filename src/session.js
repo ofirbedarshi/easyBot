@@ -25,7 +25,6 @@ import {
   menuActive,
   parseMenuChoice,
   parseMenuItem,
-  interveningBuilderQuestion,
   isReviewNumberChoice,
   parseReviewChoice,
   reviewActive,
@@ -250,9 +249,9 @@ export async function handleMessage(session, text) {
 /**
  * Editing-menu navigation (BUILD only). Menu words require `approvedAt`.
  * A save card offers 1 "Chat with me like a customer" (TEST) and 2
- * "Keep teaching me" (full editing menu). Those stay active while the last shown
- * nav is still the card, except a bare number after an intervening Builder
- * question (`asksQuestion` on that turn, no nav) is an answer to that question.
+ * "Keep teaching me" (full editing menu). Those bind only to the assistant
+ * reply that showed the card. A later reply without `nav` clears them; a
+ * bare digit then goes to the Builder as normal text.
  * Section items are read-only. Until a lead is submitted, item 1 is
  * "Get this bot for my business" and the rest shift down by one.
  * Completing the questionnaire does not append a menu; the next BUILD
@@ -264,9 +263,7 @@ export async function handleMessage(session, text) {
 async function handleNavigation(session, text) {
   if (reviewActive(session.buildHistory)) {
     const pick = parseReviewChoice(text);
-    const numberAnswersQuestion =
-      isReviewNumberChoice(text) && interveningBuilderQuestion(session.buildHistory);
-    if (pick && !numberAnswersQuestion) {
+    if (pick) {
       if (pick === 'try') return tryMyBot(session, text);
       if (pick === 'change') {
         const composed = composeReply({

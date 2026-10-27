@@ -152,9 +152,16 @@ const rows = [
     },
     expect: 'setup',
   },
+  {
+    id: 17,
+    name: 'empty history + approvedAt is still wake',
+    session: { mode: 'BUILD', buildHistory: [], leadIntake: null },
+    profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
+    expect: 'wake',
+  },
 ];
 
-assert.equal(rows.length, 16, 'table must stay 16 rows');
+assert.equal(rows.length, 17, 'table must stay 17 rows');
 
 let failed = 0;
 for (const row of rows) {
@@ -167,8 +174,290 @@ for (const row of rows) {
   }
 }
 
+const TS = '2026-01-01T00:00:00.000Z';
+const opened = [{ role: 'assistant', content: 'opening' }];
+const wrapDraft = { ownerGoal: 'answer_questions', askedTopics: ['commonQuestions'] };
+
+/** Each edge: mutate the same fields handleMessage / enterTest / enterBuild / lead writers change. */
+const transitions = [
+  {
+    id: 'wake→setup',
+    from: { session: { mode: 'BUILD', buildHistory: [], leadIntake: null }, profile: {} },
+    apply: (s) => {
+      s.buildHistory = opened;
+    },
+    expect: 'setup',
+  },
+  {
+    id: 'wake→ready',
+    from: {
+      session: { mode: 'BUILD', buildHistory: [], leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.buildHistory = opened;
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'setup→wrapup',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: { askedTopics: [], ownerGoal: null } },
+    },
+    apply: (_s, p) => {
+      p.draft = wrapDraft;
+    },
+    expect: 'wrapup',
+  },
+  {
+    id: 'setup→ready',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: { askedTopics: [], ownerGoal: null } },
+    },
+    apply: (_s, p) => {
+      p.approvedAt = TS;
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'wrapup→ready',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: wrapDraft },
+    },
+    apply: (_s, p) => {
+      p.approvedAt = TS;
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'setup→test',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: { askedTopics: [], ownerGoal: null } },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+    },
+    expect: 'test',
+  },
+  {
+    id: 'wrapup→test',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: wrapDraft },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+    },
+    expect: 'test',
+  },
+  {
+    id: 'ready→test',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+    },
+    expect: 'test',
+  },
+  {
+    id: 'test→ready',
+    from: {
+      session: { mode: 'TEST', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.mode = 'BUILD';
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'test→setup',
+    from: {
+      session: { mode: 'TEST', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: { askedTopics: [], ownerGoal: null } },
+    },
+    apply: (s) => {
+      s.mode = 'BUILD';
+    },
+    expect: 'setup',
+  },
+  {
+    id: 'test→wrapup',
+    from: {
+      session: { mode: 'TEST', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: wrapDraft },
+    },
+    apply: (s) => {
+      s.mode = 'BUILD';
+    },
+    expect: 'wrapup',
+  },
+  {
+    id: 'ready→lead',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.leadIntake = leadInProgress;
+    },
+    expect: 'lead',
+  },
+  {
+    id: 'lead→lead_resume',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadInProgress },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.leadIntake = leadResume;
+    },
+    expect: 'lead_resume',
+  },
+  {
+    id: 'lead→ready',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadInProgress },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.leadIntake = null;
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'lead→test',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadInProgress },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+      s.leadIntake = null;
+    },
+    expect: 'test',
+  },
+  {
+    id: 'lead_resume→ready',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadResume },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.leadIntake = { submittedAt: leadResume.submittedAt };
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'lead_resume→test',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadResume },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+      s.leadIntake = { submittedAt: leadResume.submittedAt };
+    },
+    expect: 'test',
+  },
+  {
+    id: 'ready→wake',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s, p) => {
+      s.buildHistory = [];
+      s.leadIntake = null;
+      p.approvedAt = null;
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'setup→wake',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: { askedTopics: [], ownerGoal: null } },
+    },
+    apply: (s) => {
+      s.buildHistory = [];
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'wrapup→wake',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: null, draft: wrapDraft },
+    },
+    apply: (s, p) => {
+      s.buildHistory = [];
+      p.draft = { askedTopics: [], ownerGoal: null };
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'test→wake',
+    from: {
+      session: { mode: 'TEST', buildHistory: opened, leadIntake: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s, p) => {
+      s.mode = 'BUILD';
+      s.buildHistory = [];
+      p.approvedAt = null;
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'lead→wake',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadInProgress },
+      profile: { approvedAt: TS },
+    },
+    apply: (s, p) => {
+      s.buildHistory = [];
+      s.leadIntake = null;
+      p.approvedAt = null;
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'lead_resume→wake',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: leadResume },
+      profile: { approvedAt: TS },
+    },
+    apply: (s, p) => {
+      s.buildHistory = [];
+      s.leadIntake = null;
+      p.approvedAt = null;
+    },
+    expect: 'wake',
+  },
+];
+
+for (const edge of transitions) {
+  const session = structuredClone(edge.from.session);
+  const profile = structuredClone(edge.from.profile);
+  assert.notEqual(ownerPhase(session, profile), edge.expect, `${edge.id} already at ${edge.expect}`);
+  edge.apply(session, profile);
+  try {
+    assert.equal(ownerPhase(session, profile), edge.expect, edge.id);
+  } catch (err) {
+    failed += 1;
+    console.error(err.message);
+  }
+}
+
 if (failed) {
-  console.error(`owner-phase: ${failed}/${rows.length} failed`);
+  console.error(`owner-phase: ${failed} failed`);
   process.exit(1);
 }
-console.log(`owner-phase: ${rows.length} cases passed`);
+console.log(`owner-phase: ${rows.length} cases + ${transitions.length} transitions passed`);

@@ -721,6 +721,10 @@ async function testReviewRenderHelpers() {
       { role: 'user', content: 'q' },
       { role: 'assistant', content: 'A private lesson is 200 ILS.' },
     ]),
+    null
+  );
+  assert.equal(
+    lastShownNav([{ role: 'assistant', content: 'review', nav: 'review' }]),
     'review'
   );
   assert.equal(

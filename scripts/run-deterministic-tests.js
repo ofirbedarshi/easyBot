@@ -17,6 +17,7 @@ const SUITES = [
   { id: 'setup-deadend', file: 'scripts/test-setup-deadend.js' },
   { id: 'setup-flow', file: 'scripts/test-setup-flow.js' },
   { id: 'setup-edit-flow', file: 'scripts/test-setup-edit-flow.js' },
+  { id: 'owner-journey', file: 'scripts/test-owner-journey.js' },
   { id: 'owner-phase', file: 'scripts/test-owner-phase.js' },
   { id: 'setup-agenda', file: 'scripts/test-setup-agenda.js' },
   { id: 'compose-reply', file: 'scripts/test-compose-reply.js' },

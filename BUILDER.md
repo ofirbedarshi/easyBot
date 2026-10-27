@@ -38,26 +38,34 @@ Enforced by `enforceConfigRequests` after each real Builder turn:
 
 Enforced by `ownerPhase` in `src/ownerPhase.js`. One of `wake | setup | wrapup | ready | test | lead | lead_resume`. Routing in `handleMessage`, save-card / menu chrome, and the setup gate share this function. **`ready` is `approvedAt`.** `/test` and **Chat with me like a customer** still use `hasEnoughForFirstBot` (name + offering) — that is a capability check, not a phase, so TEST can start during setup once those basics exist. Tell-me-more (`businessDetails`) and the scripted goal question stay agenda items inside `setup`; they are not phases. **`wrapup` is the agenda at `faq` / `intake` / `complete`** (`setupStep` in `src/setupAgenda.js`). The model does not return flow flags (`readyForReview`, `wantsReview`, `asksQuestion`, `askingTopic`). Wrap-up starts from the agenda, not from the model. Leaving TEST via `stop` shows the editing menu whenever `approvedAt` is set, even if BUILD history is still empty (a seeded profile that never woke). That chrome check stays on `approvedAt`; `ownerPhase` would call the same session `wake`.
 
+Derived from `ownerPhase` inputs (`mode`, empty `buildHistory`, `approvedAt`, `setupStep` / `askedTopics`, `leadIntake`) and the writers in `handleMessage` / `enterTest` / `enterBuild` / lead save and cancel / `/reset`. Edges are checked in `scripts/test-owner-phase.js`. **`wake → ready` is real:** empty history is always `wake`, even when `approvedAt` is already set (a seeded profile). The opening fills history and does not clear `approvedAt`, so the next `ownerPhase` is `ready`. A new owner has no `approvedAt`, so they take `wake → setup`.
+
 ```mermaid
 stateDiagram-v2
   [*] --> wake
-  wake --> setup: opening sent
-  setup --> wrapup: agenda reached faq / intake / complete
+  wake --> setup: opening sent, no approvedAt
+  wake --> ready: opening sent, approvedAt already set
+  setup --> wrapup: agenda at faq / intake / complete
+  setup --> ready: approvedAt written this turn
   wrapup --> ready: approvedAt written
+  setup --> test: /test or Chat as customer if name+offering
+  wrapup --> test: /test or Chat as customer if name+offering
   ready --> test: /test or Chat as customer
-  setup --> test: /test if name+offering
-  wrapup --> test: /test if name+offering
   test --> ready: stop when approvedAt
-  test --> setup: stop when still in setup
-  test --> wrapup: stop when still in wrap-up
+  test --> setup: stop when still setup
+  test --> wrapup: stop when still wrap-up
   ready --> lead: Get me working
   lead --> lead_resume: lead saved
   lead --> ready: menu or stop cancels
+  lead --> test: /test
   lead_resume --> ready: next BUILD message
+  lead_resume --> test: /test
   ready --> wake: /reset
   setup --> wake: /reset
   wrapup --> wake: /reset
   test --> wake: /reset
+  lead --> wake: /reset
+  lead_resume --> wake: /reset
 ```
 
 **Setup agenda (enforced, `setupStep` / `stepSetupAgenda` in `src/setupAgenda.js`).** Progress is `draft.askedTopics` (app-owned; the model never sets it). The current step is derived from field presence plus that list — not persisted as a separate `step` blob. The model does not decide when to advance, when setup is done, or which topic to ask. After `ready`, save-card flags are unchanged (see below).
@@ -173,7 +181,7 @@ There is no pending/approval state. Typed words such as "approve", "looks good",
 
 Applies in BUILD mode. **Menu words** (`menu`, `/menu`, …) require `approvedAt`.
 
-- **Save-card options:** while the last navigation the app showed is still the card (`lastShownNav` is `'review'`), `1` or `chat with me like a customer` = **Chat with me like a customer**, and `2` or `keep teaching me` = **Keep teaching me**. Short aliases `try` / `try it` and `change` / `changes` still select those actions. No NLP beyond those closed labels. Later Builder replies that have no `nav` do not clear that. Exception: if the latest assistant turn has no `nav` and composer `asksQuestion` is true (a scripted setup question), a bare `1` or `2` is sent to the Builder as the answer to that question; the option labels still select the card action. After `ready`, Builder turns attach `nav` (card or menu), so a bare `1` or `2` is a chrome pick. Anything else goes to the Builder model. **Keep teaching me** replies "What should we do next?" plus the full editing menu below (`nav: 'menu'`), saves nothing. **Chat with me like a customer** enters TEST when the name + offering minimum is met. Before any save card, menu words and bare numbers still go to the Builder model as normal messages.
+- **Save-card options:** numbered options and the closed labels bind only to the latest assistant reply (`lastShownNav` / `reviewActive` read `lastAssistant(history).nav`). While that reply is the card (`nav: 'review'`), `1` or `chat with me like a customer` = **Chat with me like a customer**, and `2` or `keep teaching me` = **Keep teaching me**. Short aliases `try` / `try it` and `change` / `changes` still select those actions. No NLP beyond those closed labels. Any later assistant reply without `nav` clears the card (and the menu). A bare digit with no active nav is sent to the Builder as normal text. After `ready`, most Builder turns attach `nav` (card or menu); unresolved `configRequests` are `model_only` and have no `nav`. **Keep teaching me** replies "What should we do next?" plus the full editing menu below (`nav: 'menu'`), saves nothing. **Chat with me like a customer** enters TEST when the name + offering minimum is met. Before any save card, menu words and bare numbers still go to the Builder model as normal messages.
 
 - **Menu:** rendered from fixed templates (no LLM call), numbered from 1 in this order: 🚀 Get me working for your business (only when offered, see below), 🏪 Tell me more about your business, ❓ Teach me more questions and answers, 💬 Tell me how to talk to your customers, 🤖 Chat with me like a customer. After leaving TEST via `stop`, the menu is a second message after the off banner, introduced with "What should we do next?". After `stop` while already in BUILD, the menu is introduced with "I'm back! What should I learn next?". Owner goal (`ownerGoal`) and `informationToCollect` stay in the data model, the Builder interview, and the review summary; they are not a menu item — the owner changes them by writing what they want. When the lead item is shown (approved, no lead submitted yet) the menu has five items and Chat with me like a customer is 5. Otherwise (before first approval, or after the lead was submitted) it has four items: 1 🏪 Tell me more about your business, 2 ❓ Teach me more questions and answers, 3 💬 Tell me how to talk to your customers, 4 🤖 Chat with me like a customer. It ends with "Pick a number, or just tell me what you want me to learn."
 - **When it is shown:** after the owner picks **Keep teaching me** on a save card; after `stop`; when a ready owner sends a short menu request (whitelist: `menu`, `/menu`, `main menu`, `show menu`, `back to menu`, `options`, and close variants); on the first BUILD message after a completed lead questionnaire; and after a ready Builder turn that did not change the live profile and has no unresolved config request (appended by `handleBuild`). Longer phrasings go to the Builder model.
@@ -195,3 +203,19 @@ A later edit in BUILD is another interview turn. The prompt tells the model to u
 **Business Bot replies (enforced):** each TEST message is one OpenAI chat completion from the app (`businessBot.js`), or two if that formatted reply matches the previous outgoing assistant message (same identical-reply retry as the Builder): model `OPENAI_MODEL` (default `gpt-4o-mini`), the system prompt from `buildCustomerSystemPrompt` on the live profile (including the same one-line short-paragraph instruction as the Builder), then the last 20 messages of the TEST conversation, then the new message. The model content is passed through `formatModelReply` before the identical-reply check, before the opening is prepended, and before TEST history is stored. Classic models are sent at temperature 0. If the model rejects temperature (typical of reasoning models), the app retries without it, with `max_completion_tokens` and the lowest `reasoning_effort` that model accepts (`none`, then `minimal`, then `low`). The working shape is cached per model name. Default model is still `gpt-4o-mini`. The TEST conversation is the session's `testHistory` (Supabase `easybot_sessions.test_history` for WhatsApp, so it survives restarts and deploys). The app keeps the last 40 messages and clears it on each `/test`. If the OpenAI call fails, the owner gets "Sorry, your bot couldn't answer right now. Please try again in a moment."; the failed turn is not added to the history and provider error text is neither shown nor logged. Owner-facing app messages use plain product wording with no internal service names, URLs, or raw error text. If the WhatsApp worker gets no reply, it sends a generic "Sorry, something went wrong…" message. These templates are enforced; model-generated Builder and Business Bot replies avoiding internal names is a prompt-level expectation only and is not enforced or verified.
 
 **Browser / local:** profile file on disk; session transcript in memory (file-backed sessions). **WhatsApp:** each sender has isolated session + profile + inbound queue in Supabase (`easybot_*` tables). The Twilio webhook validates `X-Twilio-Signature`, enqueues by `MessageSid`, ACKs quickly, and a durable worker processes messages in order per sender. **Unverified:** that the model always preserves every unknown, stores full FAQ answers (not truncated paraphrases), leaves `ownerGoal` unset until clarified, splits FAQ vs intake correctly without the gate, or maps style/price-disclosure natural language reliably.
+
+## Known risks
+
+Found while mapping `ownerPhase` and nav. Not fixed in this step (except stale `lastShownNav`, which now expires).
+
+- Off-purpose does not write history, so the last card or menu stays live and a bare `1` is still chrome.
+- After `ready`, a no-change turn always attaches the menu, so a bare `1` is the lead item even if the model asked something above it.
+- `ownerPhase(session)` without a profile: empty history is `wake` even when `approvedAt` is set. `stop` from TEST with empty history and no `approvedAt` (possible if `/test` ran before wake on a seeded-enough profile) discards the next text as a second wake.
+- Two “ready” definitions: TEST uses `hasEnoughForFirstBot`; menus and save cards use `approvedAt`.
+- Intake remove still needs `ownerEdits` `remove`; omission alone will not drop a row.
+- `composeReply` kind `review` still has no `nav` (dead session path).
+- Seeded profiles that omit `informationToCollect` skip the interview gate.
+- Identity fallback still keys off `?` in the model text.
+- `/end` is a silent `stop` alias.
+- Lead “Other” follow-ups are free text; invalid-number re-ask is only on numbered steps.
+- `handleMessage` routes `wake` / `lead` / `test` with `ownerPhase(session)` and no profile; chrome later loads the profile. A seeded approved profile with empty history wakes and discards the first text.
