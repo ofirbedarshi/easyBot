@@ -930,9 +930,8 @@ await test(
   }
 );
 
-// lastShownNav walks back to the 🎉 review card past no-nav acks
-// (asksQuestion unset). A bare "1" is then Try my bot (enter_test), not a
-// Builder answer. Don't fix here — later composer/agenda work should.
+// A later reply without nav clears the 🎉 card. A bare "1" is Builder text,
+// not Try my bot.
 await test(
   'stale review after no-nav acks does not capture bare 1 (lastShownNav)',
   async () => {
@@ -947,6 +946,7 @@ await test(
             event: 'build_turn',
             mode: 'BUILD',
             approvedAt: APPROVED_AT,
+            nav: 'menu',
             excludes: ['*Test mode is on*'],
           },
         },
@@ -964,11 +964,6 @@ await test(
         ],
       }
     );
-  },
-  {
-    knownFailing: true,
-    reason:
-      'lastShownNav stays review after no-nav acks; bare "1" is enter_test (Try my bot), not a Builder answer',
   }
 );
 
