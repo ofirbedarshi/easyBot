@@ -146,7 +146,7 @@ async function main() {
     (menuRestored || reviewActive(courtesy.session.buildHistory)) &&
     tryA.event === 'enter_test' &&
     courtesy.session.mode === 'TEST' &&
-    /chatting with me as a customer/.test(tryA.reply);
+    /\*Test mode is on\*/.test(tryA.reply);
   results.push(
     okCourtesy
       ? 'PASS courtesy/answer restored next-step UI and Try my bot entered TEST'

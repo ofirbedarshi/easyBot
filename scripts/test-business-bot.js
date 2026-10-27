@@ -22,7 +22,7 @@ import {
   withKnownProfileKeys,
 } from '../src/profile.js';
 import {
-  ENTER_TEST_REPLY,
+  enterTestBanner,
   createSenderSession,
   handleMessage,
   persistSenderSession,
@@ -257,7 +257,8 @@ async function testModelReplyParagraphBreaks() {
   const entered = await handleMessage(session, '/test');
   assert.equal(entered.event, 'enter_test');
   const open = customerOpeningText(profile);
-  assert.equal(entered.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
+  assert.deepEqual(entered.replies, [enterTestBanner(profile.name), open]);
+  assert.equal(entered.reply, enterTestBanner(profile.name));
   const first = await handleMessage(session, 'How much?');
   const expected = 'A cut is 100 shekel.\n\nAnything else I can help with?';
   assert.equal(first.reply, expected);
@@ -284,7 +285,7 @@ async function testTestModeFirstMessageGetsOpening() {
   const entered = await handleMessage(session, '/test');
   assert.equal(entered.event, 'enter_test');
   const open = customerOpeningText(profile);
-  assert.equal(entered.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
+  assert.deepEqual(entered.replies, [enterTestBanner(profile.name), open]);
   assert.ok(open.includes('How can I help you? ✨'), open);
   const first = await handleMessage(session, 'How much it cost?');
   assert.equal(first.reply, 'A cut is 100 shekel.');

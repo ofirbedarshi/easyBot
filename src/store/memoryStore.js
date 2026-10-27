@@ -139,12 +139,15 @@ export function createMemoryStore() {
       if (row) row.twilio_message_sid = twilioMessageSid ?? null;
     },
 
+    async findOutboundsForInbound(inboundSid) {
+      return messages
+        .filter((m) => m.direction === 'outbound' && m.in_reply_to_sid === inboundSid)
+        .sort((a, b) => a.id - b.id);
+    },
+
     async findOutboundForInbound(inboundSid) {
-      return (
-        messages.find(
-          (m) => m.direction === 'outbound' && m.in_reply_to_sid === inboundSid
-        ) || null
-      );
+      const rows = await this.findOutboundsForInbound(inboundSid);
+      return rows[0] || null;
     },
 
     async listMessages(senderId) {

@@ -17,7 +17,8 @@ import {
   createSession,
   handleMessage,
   isExitTestCommand,
-  ENTER_TEST_REPLY,
+  enterTestBanner,
+  exitTestBanner,
 } from '../src/session.js';
 import {
   interveningBuilderQuestion,
@@ -38,6 +39,18 @@ import {
 const PROFILE = testProfilePath('builder-nav');
 const MENU_HEAD = '2. 🏪 Tell me more about your business';
 const FOOTER = 'Pick a number, or just tell me what you want me to learn.';
+
+/** Same display-only *bold* rules as public/index.html formatBody. */
+function formatBody(text) {
+  let html = String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^\w*])\*([^*\n]+)\*(?!\*)/g, '$1<strong>$2</strong>');
+  return html;
+}
 
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
@@ -378,15 +391,25 @@ async function testSixAndEnd() {
   const tryIt = await handleMessage(session, '5');
   assert.equal(tryIt.event, 'enter_test');
   const open = customerOpeningText(approvedProfile());
-  assert.equal(tryIt.reply, `${ENTER_TEST_REPLY}\n\n${open}`);
+  const entryBanner = enterTestBanner('Studio Yoga');
+  assert.deepEqual(tryIt.replies, [entryBanner, open]);
+  assert.equal(tryIt.reply, entryBanner);
   assert.doesNotMatch(tryIt.reply, /\/end/);
+  assert.ok(formatBody(entryBanner).includes('<strong>Test mode is on</strong>'));
+  assert.ok(formatBody(entryBanner).includes('<strong>stop</strong>'));
+  assert.ok(formatBody(exitTestBanner()).includes('<strong>Test mode is off</strong>'));
   assert.equal(session.mode, 'TEST');
   assert.notEqual(session.testSessionId, oldSid);
+  assert.equal(session.testHistory[0].content, open);
   const end = await handleMessage(session, 'stop');
   assert.equal(end.event, 'enter_build');
-  assert.ok(end.reply.startsWith("I'm back! What should I learn next?"), end.reply);
-  assert.ok(end.reply.includes(MENU_HEAD));
-  assert.ok(!/BUILD mode/.test(end.reply));
+  const exitBanner = exitTestBanner();
+  assert.equal(end.reply, exitBanner);
+  assert.equal(end.replies[0], exitBanner);
+  assert.ok(end.replies[1].startsWith('What should we do next?'), end.replies[1]);
+  assert.ok(end.replies[1].includes(MENU_HEAD));
+  assert.ok(!/BUILD mode/.test(end.replies.join('\n')));
+  assert.ok(lastAssistant(session).content.startsWith('What should we do next?'));
   const talks = await handleMessage(session, '4');
   assert.equal(talks.event, 'menu_section');
 }
@@ -519,7 +542,8 @@ async function testFirstReviewTryApprovesAndTests() {
   const tryIt = await handleMessage(session, '1');
   assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
-  assert.ok(tryIt.reply.includes('chatting with me as a customer'), tryIt.reply);
+  assert.ok(tryIt.reply.includes('*Test mode is on*'), tryIt.reply);
+  assert.ok(tryIt.replies[1].includes("How can I help you?"), tryIt.replies[1]);
   assert.ok(loadProfile(PROFILE).approvedAt);
 }
 
@@ -765,7 +789,9 @@ async function testStopExitCommand() {
   assert.equal(again.event, 'enter_test');
   const alias = await handleMessage(session, '/end');
   assert.equal(alias.event, 'enter_build');
+  assert.equal(alias.reply, exitTestBanner());
   assert.doesNotMatch(alias.reply, /\/end/);
+  assert.doesNotMatch(alias.replies.join('\n'), /\/end/);
 }
 
 /** Without wantsReview or readyForReview, a model-written dump is not replaced. */

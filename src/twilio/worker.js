@@ -24,21 +24,65 @@ async function deliverReply({ to, body }) {
   return sendWhatsAppReply({ to, body });
 }
 
+function replyBodies(result) {
+  if (Array.isArray(result?.replies) && result.replies.length) {
+    return result.replies.map((b) => String(b || '')).filter(Boolean);
+  }
+  const one = result?.reply || GENERIC_ERROR_REPLY;
+  return [one];
+}
+
 /**
- * Finish a row that already has an outbound archive row (reclaim / retry).
- * Sends only when the log row has no Twilio sid yet.
+ * Finish outbound archive rows (reclaim / retry).
+ * Sends only when a log row has no Twilio sid yet, in stored order.
  */
-async function finishExistingOutbound(store, row, existing) {
-  let sid = existing.twilio_message_sid;
-  if (!sid) {
-    const sent = await deliverReply({ to: row.sender_id, body: existing.body });
-    sid = sent.sid;
-    await store.setMessageSid(existing.id, sid);
+async function finishExistingOutbounds(store, row, existing) {
+  let sid = null;
+  let body = existing[existing.length - 1]?.body;
+  for (const out of existing) {
+    sid = out.twilio_message_sid;
+    if (!sid) {
+      const sent = await deliverReply({ to: row.sender_id, body: out.body });
+      sid = sent.sid;
+      await store.setMessageSid(out.id, sid);
+    }
+    body = out.body;
   }
   await store.markInboundDone(row.id, {
     replySid: sid,
-    replyBody: existing.body,
+    replyBody: body,
   });
+}
+
+async function finishExistingOutbound(store, row, existing) {
+  return finishExistingOutbounds(store, row, [existing]);
+}
+
+async function logOutboundsThenSend(store, { senderId, inboundSid, bodies, mode }) {
+  const existing = await store.findOutboundsForInbound(inboundSid);
+  const rows = [...existing];
+  for (let i = existing.length; i < bodies.length; i += 1) {
+    const { row } = await store.appendMessage({
+      senderId,
+      direction: 'outbound',
+      body: bodies[i],
+      twilioMessageSid: null,
+      mode,
+      inReplyToSid: inboundSid,
+    });
+    rows.push(row);
+  }
+  let sid = null;
+  for (const out of rows) {
+    sid = out.twilio_message_sid;
+    if (!sid) {
+      const sent = await deliverReply({ to: senderId, body: out.body });
+      sid = sent.sid;
+      await store.setMessageSid(out.id, sid);
+      out.twilio_message_sid = sid;
+    }
+  }
+  return { sid, rows, already: existing.length >= bodies.length };
 }
 
 async function logOutboundThenSend(store, { senderId, inboundSid, body, mode }) {
@@ -46,17 +90,13 @@ async function logOutboundThenSend(store, { senderId, inboundSid, body, mode }) 
   if (existing) {
     return { sid: existing.twilio_message_sid || null, already: true, row: existing };
   }
-  const { row } = await store.appendMessage({
+  const sent = await logOutboundsThenSend(store, {
     senderId,
-    direction: 'outbound',
-    body,
-    twilioMessageSid: null,
+    inboundSid,
+    bodies: [body],
     mode,
-    inReplyToSid: inboundSid,
   });
-  const sent = await deliverReply({ to: senderId, body });
-  await store.setMessageSid(row.id, sent.sid);
-  return { sid: sent.sid, already: false, row };
+  return { sid: sent.sid, already: false, row: sent.rows[0] };
 }
 
 /**
@@ -108,9 +148,9 @@ async function processRow(store, row, { sessionDeps } = {}) {
   const body = row.body || '';
 
   try {
-    const already = await store.findOutboundForInbound(row.message_sid);
-    if (already) {
-      await finishExistingOutbound(store, row, already);
+    const already = await store.findOutboundsForInbound(row.message_sid);
+    if (already.length) {
+      await finishExistingOutbounds(store, row, already);
       return;
     }
 
@@ -183,26 +223,26 @@ async function processRow(store, row, { sessionDeps } = {}) {
     const mode = modeFromHandleResult(result, session);
     await store.updateMessageModeBySid(row.message_sid, mode);
 
-    if (!result.reply) {
+    const bodies = replyBodies(result);
+    if (!result.reply && !result.replies?.length) {
       console.warn(`inbound ${row.message_sid} no reply:`, result.error || '(empty)');
     }
-    const reply = result.reply || GENERIC_ERROR_REPLY;
 
-    await logOutboundThenSend(store, {
+    const sent = await logOutboundsThenSend(store, {
       senderId,
       inboundSid: row.message_sid,
-      body: reply,
+      bodies,
       mode,
     });
     await persistSenderSession(session);
 
-    const outbound = await store.findOutboundForInbound(row.message_sid);
+    const lastBody = bodies[bodies.length - 1];
     await store.markInboundDone(row.id, {
-      replySid: outbound?.twilio_message_sid ?? 'SKIP',
-      replyBody: reply,
+      replySid: sent.sid ?? 'SKIP',
+      replyBody: lastBody,
     });
     console.log(
-      `inbound ${row.message_sid} done reply_sid=${outbound?.twilio_message_sid} chars=${reply.length}`
+      `inbound ${row.message_sid} done reply_sid=${sent.sid} chars=${lastBody.length} parts=${bodies.length}`
     );
   } catch (err) {
     console.error(`process inbound ${row.message_sid}:`, err.message);
