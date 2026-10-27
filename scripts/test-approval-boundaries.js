@@ -38,11 +38,6 @@ import { renderSection } from '../src/ownerNav.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROFILE = testProfilePath('approval-boundaries');
 
-/** Review text minus the app's fixed "What would you like to do next?" line. */
-function withoutOptionsPrompt(reply) {
-  return String(reply).replace(/^What would you like to do next\?$/m, '');
-}
-
 function clean() {
   fs.mkdirSync(path.dirname(PROFILE), { recursive: true });
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
@@ -127,7 +122,7 @@ function liveDraftWith(live, overrides) {
 }
 
 /** A draft change is live on that turn; typed "approve" is just another Builder turn. */
-async function testApproveRequiresPresentedReview() {
+async function testEditSavesImmediatelyTypedApproveIsBuilderTurn() {
   clean();
   const live = baseApprovedLive();
   saveProfile(live, PROFILE);
@@ -185,7 +180,8 @@ async function testEditAfterReviewRequiresNewReview() {
   console.log('PASS successive_edits_save_immediately');
 }
 
-async function testDraftEditLeavesLiveUnchanged() {
+/** A draft edit is saved to the live profile on that turn (no pending approval). */
+async function testDraftEditSavesLive() {
   clean();
   saveProfile(baseApprovedLive(), PROFILE);
   const liveMock = { approvals: [] };
@@ -229,7 +225,8 @@ async function testDraftEditLeavesLiveUnchanged() {
   console.log('PASS draft_edit_saves_live');
 }
 
-async function testReapproveUpdatesLiveBot() {
+/** Applying a change writes the live bot immediately (no re-approve step). */
+async function testEditUpdatesLiveBotImmediately() {
   clean();
   saveProfile(baseApprovedLive(), PROFILE);
   const liveMock = { approvals: [] };
@@ -269,7 +266,7 @@ async function testReapproveUpdatesLiveBot() {
   assert.equal(disk.services[0].price, '$80 / 60 min');
   assert.equal(disk.ownerGoal, newGoal);
   assert.ok(disk.approvedAt);
-  console.log('PASS reapprove_updates_live_bot');
+  console.log('PASS edit_updates_live_bot_immediately');
 }
 
 function testHasEnoughForFirstBotRequiresName() {
@@ -1472,8 +1469,8 @@ async function main() {
   testHasEnoughForFirstBotRequiresName();
   await testTranscriptShapedImmediateSave();
   await testFormatSummaryIncludesOwnerGoal();
-  await testDraftEditLeavesLiveUnchanged();
-  await testReapproveUpdatesLiveBot();
+  await testDraftEditSavesLive();
+  await testEditUpdatesLiveBotImmediately();
   await testIntakeGateBlocksApprove();
   await testNullOwnerGoalDoesNotWipeLive();
   await testBehaviorDraftIsolatesLivePrompt();
@@ -1481,7 +1478,7 @@ async function main() {
   await testLegacyProfileSafeDefaults();
   await testStyleOnlyEditPreservesPriceDisclosure();
   await testBehaviorOnlyMergePreservesFacts();
-  await testApproveRequiresPresentedReview();
+  await testEditSavesImmediatelyTypedApproveIsBuilderTurn();
   await testEditAfterReviewRequiresNewReview();
   await testTypedApproveIsBuilderTurn();
   await testIdentityDraftIsolatesLive();

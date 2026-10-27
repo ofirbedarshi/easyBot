@@ -58,8 +58,8 @@ function clean() {
   if (fs.existsSync(PROFILE)) fs.unlinkSync(PROFILE);
 }
 
-/** Review text minus the app's fixed "what would you like to do next?" line. */
-function withoutOptionsPrompt(reply) {
+/** Review / menu text minus the app's fixed "What should we do next?" line. */
+function withoutNextStepPrompt(reply) {
   return String(reply).replace(/^What should we do next\?$/m, '');
 }
 
@@ -213,7 +213,7 @@ async function testFreeTextAfterSection() {
   assert.equal(menuActive(session.buildHistory), false, 'full menu only after Make changes');
   assert.match(r.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.ok(!r.reply.includes(MENU_HEAD), r.reply);
-  assert.doesNotMatch(withoutOptionsPrompt(r.reply), /\?/);
+  assert.doesNotMatch(withoutNextStepPrompt(r.reply), /\?/);
 }
 
 /** After a review, a customer-style answer does not clear 1 / 2 / Try my bot. */

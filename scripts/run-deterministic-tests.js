@@ -15,6 +15,7 @@ const SUITES = [
   { id: 'setup-skip-stall', file: 'scripts/test-setup-skip-stall.js' },
   { id: 'setup-tell-more', file: 'scripts/test-setup-tell-more.js' },
   { id: 'setup-deadend', file: 'scripts/test-setup-deadend.js' },
+  { id: 'setup-flow', file: 'scripts/test-setup-flow.js' },
   { id: 'builder-nav', file: 'scripts/test-builder-nav.js' },
   { id: 'customer-prompt', file: 'scripts/test-customer-prompt.js' },
   { id: 'twilio-webhook', file: 'scripts/test-twilio-webhook.js' },
