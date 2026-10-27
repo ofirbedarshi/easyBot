@@ -329,7 +329,10 @@ async function testNumberAfterInterveningQuestionGoesToBuilder() {
   assert.equal(ans.event, 'build_turn');
   assert.equal(session.mode, 'BUILD');
   assert.equal(calls.builder, 3);
-  assert.match(ans.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
+  assert.ok(ans.reply.startsWith('What should we do next?'), ans.reply);
+  assert.match(ans.reply, /🏪 Tell me more about your business/);
+  assert.doesNotMatch(ans.reply, /Here's your bot/);
+  assert.doesNotMatch(ans.reply, /How I talk: default/);
 }
 
 async function testTryMyBotWordsAfterInterveningQuestion() {
@@ -348,7 +351,7 @@ async function testTryMyBotWordsAfterInterveningQuestion() {
   assert.equal(calls.builder, 2);
 }
 
-/** Re-presenting the same draft shows the summary with no model line in front. */
+/** Re-presenting the same draft after the first card shows the editing menu. */
 async function testUnchangedReviewOmitsAck() {
   clean();
   const f = facts();
@@ -362,9 +365,11 @@ async function testUnchangedReviewOmitsAck() {
   assert.doesNotMatch(first.reply, /Got it, thanks!/);
   const shown = await handleMessage(session, 'please show the current bot');
   assert.equal(shown.readyForReview, true);
-  assert.ok(shown.reply.startsWith("Here's your bot for Studio Yoga:"), shown.reply);
+  assert.ok(shown.reply.startsWith('What should we do next?'), shown.reply);
+  assert.match(shown.reply, /🏪 Tell me more about your business/);
+  assert.doesNotMatch(shown.reply, /Here's your bot for/);
+  assert.doesNotMatch(shown.reply, /How I talk: default/);
   assert.ok(!shown.reply.includes('**Studio Yoga**'), shown.reply);
-  assert.match(shown.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
 }
 
 /** Numbers without menu context go to the Builder (e.g. a price answer). */

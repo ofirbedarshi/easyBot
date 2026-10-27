@@ -4,6 +4,7 @@ import {
   CONFIG_CAPABILITIES,
   DEMO_SCOPE,
   draftChangesOnlySettings,
+  firstSetupSettled,
   hasEnoughForFirstBot,
   identityResetFlag,
   IDENTITY_KEYS,
@@ -1217,6 +1218,21 @@ function askFixedTopic(turn, draft, topic, lead) {
   };
 }
 
+function replyHasQuestion(text) {
+  return /\?/.test(String(text || ''));
+}
+
+/** Wrap-up (FAQ, intake) once the goal is set, a wrap-up topic was asked, or the model wraps up. */
+function wrapUpActive(profile, draft, priorAsked, turn) {
+  if (profile?.approvedAt) return false;
+  return !!(
+    turn.readyForReview ||
+    turn.wantsReview ||
+    (priorAsked || []).some((k) => WRAP_UP_TOPIC_KEYS.has(k)) ||
+    normalizeOwnerGoal(draft?.ownerGoal)
+  );
+}
+
 function gateTurn(profile, turn) {
   const priorAsked = Array.isArray(profile.draft?.askedTopics) ? profile.draft.askedTopics : [];
   const draft = {
@@ -1247,12 +1263,10 @@ function gateTurn(profile, turn) {
     };
   }
 
-  // Wrap-up topics: when wrapping up, or once that sequence has already started.
-  const wrappingUp = !!(turn.readyForReview || turn.wantsReview);
-  const continueRequired =
-    !profile.approvedAt && priorAsked.some((k) => WRAP_UP_TOPIC_KEYS.has(k));
-  const openWrap =
-    wrappingUp || continueRequired ? nextOpenTopic(profile, draft, priorAsked) : null;
+  // Wrap-up topics: when wrapping up, once that sequence has started, or
+  // once ownerGoal is set (do not wait for the model to flag wrap-up).
+  const continueWrap = wrapUpActive(profile, draft, priorAsked, turn);
+  const openWrap = continueWrap ? nextOpenTopic(profile, draft, priorAsked) : null;
   const modelTopic = openWrap
     ? null
     : topicModelAsked(profile, draft, priorAsked, turn.message, turn.askingTopic);
@@ -1260,6 +1274,27 @@ function gateTurn(profile, turn) {
   if (askTopic) {
     const lead = openWrap ? (askTopic.ack || reviewAck(turn.message)) : turn.message;
     return askFixedTopic(turn, draft, askTopic, lead);
+  }
+
+  // Before approval, a reply with no "?" and no open required topic shows
+  // the save card once FAQ + intake are settled. Do not inject wrap-up
+  // topics before the goal (nextOpenTopic would otherwise return FAQ).
+  if (
+    !profile.approvedAt &&
+    !replyHasQuestion(turn.message) &&
+    !nextOpenTopic(profile, draft, priorAsked) &&
+    firstSetupSettled(profile, draft) &&
+    hasEnoughForFirstBot(mergeDraft(profile, draft))
+  ) {
+    return {
+      ...turn,
+      draft,
+      readyForReview: true,
+      presentReview: true,
+      wantsReview: turn.wantsReview === true,
+      asksQuestion: false,
+      message: reviewAck(turn.message),
+    };
   }
 
   let readyForReview = !!turn.readyForReview;

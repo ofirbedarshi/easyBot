@@ -339,7 +339,8 @@ export function renderSetupComplete(profile) {
 }
 
 /**
- * Owner-facing current-bot card: short `Label: value` summary, then two options.
+ * Leftover current-bot card (plain Label: value). The session path no longer
+ * sends this; unchanged post-approval turns use renderChangeMenu.
  */
 export function renderReview(profile) {
   const R = REVIEW;

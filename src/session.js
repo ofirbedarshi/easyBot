@@ -31,7 +31,6 @@ import {
   lastShownNav,
   renderChangeMenu,
   renderReturnToEditing,
-  renderReview,
   renderSavedChanges,
   renderSetupComplete,
   renderSection,
@@ -593,7 +592,7 @@ async function handleBuild(session, userMessage) {
   const lastNav = lastShownNav(session.buildHistory);
   profile.draft = result.draft;
   const changed = draftDiffersFromLive(prior, result.draft);
-  if (changed) applyDraftToLive(profile);
+  if (changed || result.presentReview) applyDraftToLive(profile);
   await saveAsync(session, profile);
 
   const editingChrome =
@@ -611,9 +610,11 @@ async function handleBuild(session, userMessage) {
     reply = result.message;
   } else if (ready && (changed || result.presentReview)) {
     const ack = changed ? (result.message || '').trim() : '';
-    const card = changed ? renderSavedChanges(prior, profile) : renderReview(profile);
+    const card = changed
+      ? renderSavedChanges(prior, profile)
+      : renderChangeMenu(leadMenuOpts(session, profile));
     reply = [ack, card].filter(Boolean).join('\n\n');
-    nav = 'review';
+    nav = changed ? 'review' : 'menu';
   } else if (ready) {
     reply = [result.message, renderMenu(leadMenuOpts(session, profile))]
       .filter(Boolean)
