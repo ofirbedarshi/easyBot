@@ -3,8 +3,8 @@
  *
  * Starts after the 🎉 setup-complete card. Drives the real handleMessage
  * entry point with a stubbed Builder/Business Bot (no network). The stub
- * runs applyBuilderModelOutput so list merge / ownerEdits /
- * restoreOmittedStrings are the production path — later composer or agenda
+ * runs applyBuilderModelOutput so list merge / ownerEdits
+ * are the production path — later composer or agenda
  * refactors should keep these tables green.
  *
  * Test-only. Does not change production code, prompts, or copy.
@@ -242,11 +242,11 @@ async function test(name, fn, { knownFailing = false, reason = '' } = {}) {
  * (history seeded with the 🎉 card, lastShownNav = review).
  *
  * `model` is a Builder JSON object. The stub runs applyBuilderModelOutput
- * (delta merge) so omitted list items hit restoreOmittedStrings / ownerEdits.
+ * (delta merge) so omitted list items and ownerEdits use the production path.
  */
-async function playApprovedFlow(steps, { history } = {}) {
+async function playApprovedFlow(steps, { history, profile: seed } = {}) {
   clean();
-  saveProfile(approvedProfile(), PROFILE);
+  saveProfile(seed || approvedProfile(), PROFILE);
   const builderQ = [];
   const customerQ = [];
   const session = createSession({
@@ -258,7 +258,10 @@ async function playApprovedFlow(steps, { history } = {}) {
         }
         const parsed = builderQ.shift();
         const currentDraft = profile.draft;
-        const merged = applyBuilderModelOutput(parsed, currentDraft, { mode: 'delta' });
+        const merged = applyBuilderModelOutput(parsed, currentDraft, {
+          mode: 'delta',
+          live: profile,
+        });
         return { source: 'stub-builder', ...parsed, draft: merged };
       },
       businessBotReply: async ({ question }) => {
@@ -571,35 +574,191 @@ await test('add an informationToCollect item', async () => {
   ]);
 });
 
-// restoreOmittedStrings (applyDraftDelta + preserveFacts) re-appends any
-// previously stored intake string that a non-empty incoming list omitted.
-// A single-item remove is therefore impossible unless the model sends [].
-await test(
-  'remove one informationToCollect item (restoreOmittedStrings)',
-  async () => {
-    await playApprovedFlow([
+await test('remove one informationToCollect item (ownerEdits remove)', async () => {
+  await playApprovedFlow([
+    {
+      name: 'drop phone from intake → should be name only',
+      in: 'stop asking for phone',
+      model: modelTurn(
+        { informationToCollect: ['name'] },
+        {
+          message: 'Ready for review.',
+          ownerEdits: [{ field: 'informationToCollect', item: 'phone', action: 'remove' }],
+        }
+      ),
+      expect: {
+        ...saveCardExpect({
+          reply: undefined,
+          includes: [CHANGED_ACK, MENU_HEAD, "*I'll ask customers for:* name"],
+          excludes: [LEGACY_CARD],
+        }),
+        live: { informationToCollect: ['name'] },
+        draft: { informationToCollect: ['name'] },
+      },
+    },
+  ]);
+});
+
+await test('no-change summary turn keeps otherFacts and shows the menu', async () => {
+  const fact = 'We only work on cars';
+  await playApprovedFlow(
+    [
       {
-        name: 'drop phone from intake → should be name only',
-        in: 'stop asking for phone',
-        model: modelTurn(
-          { informationToCollect: ['name'] },
-          { message: 'Ready for review.', readyForReview: true }
-        ),
+        name: 'show me the updated summary → menu, otherFacts kept',
+        in: 'show me the updated summary',
+        model: modelTurn({}, { message: 'Here is the latest.', newFacts: [], factEdits: [] }),
         expect: {
           event: 'build_turn',
           approvedAt: APPROVED_AT,
-          live: { informationToCollect: ['name'] },
-          draft: { informationToCollect: ['name'] },
+          nav: 'menu',
+          includes: ['Here is the latest.', '1. 🚀 Get me working for your business'],
+          excludes: [CHANGED_ACK],
+          live: { otherFacts: [fact] },
+          draft: { otherFacts: [fact] },
         },
       },
-    ]);
-  },
-  {
-    knownFailing: true,
-    reason:
-      'restoreOmittedStrings keeps omitted intake items; a non-empty list cannot drop one row',
+    ],
+    { profile: approvedProfile({ otherFacts: [fact] }) }
+  );
+});
+
+await test('each owner-editable field change produces a save card', async () => {
+  const fact = 'We only work on cars';
+  const unknown = 'Whether we do trucks';
+  const cases = [
+    {
+      name: 'name',
+      seed: {},
+      in: 'rename to Ofir Motors',
+      model: modelTurn({ name: 'Ofir Motors' }),
+      includes: ['*Name:*'],
+    },
+    {
+      name: 'whatWeDo',
+      seed: {},
+      in: 'we are a full service garage',
+      model: modelTurn({ whatWeDo: 'Full service garage' }),
+      includes: ['*What you do:*'],
+    },
+    {
+      name: 'hours',
+      seed: {},
+      in: 'open 9 to 5',
+      model: modelTurn({ hours: 'Mon–Fri 9–5' }),
+      includes: ['*Hours:*'],
+    },
+    {
+      name: 'locationOrArea',
+      seed: {},
+      in: 'we are in Tel Aviv',
+      model: modelTurn({ locationOrArea: 'Tel Aviv' }),
+      includes: ['*Location:*'],
+    },
+    {
+      name: 'ownerGoal',
+      seed: {},
+      in: 'just answer questions',
+      model: modelTurn({ ownerGoal: 'answer_questions' }),
+      includes: ['*My goal:*'],
+    },
+    {
+      name: 'tone',
+      seed: {},
+      in: 'talk professionally',
+      model: modelTurn({ tone: 'professional' }),
+      includes: ['*How I talk:*'],
+    },
+    {
+      name: 'priceDisclosure',
+      seed: {},
+      in: 'only share prices when asked',
+      model: modelTurn({ priceDisclosure: 'on_request' }),
+      includes: ['*Price policy:*'],
+    },
+    {
+      name: 'openingMessage',
+      seed: {},
+      in: 'use this opening',
+      model: modelTurn({ openingMessage: OPENING }),
+      includes: ['*How I talk:*'],
+    },
+    {
+      name: 'services',
+      seed: {},
+      in: 'oil change is now 250',
+      model: modelTurn({ services: [SERVICE_PRICE_EDIT] }),
+      includes: ['*Services & prices:*'],
+    },
+    {
+      name: 'commonQuestions',
+      seed: {},
+      in: 'also teach this FAQ',
+      model: modelTurn({ commonQuestions: [NEW_FAQ] }),
+      includes: ['*Q&A:*'],
+    },
+    {
+      name: 'unanswered FAQ',
+      seed: {},
+      in: 'customers ask about towing',
+      model: modelTurn({ commonQuestions: [{ question: 'Do you tow?', answer: '' }] }),
+      includes: ['*Q&A:*'],
+    },
+    {
+      name: 'informationToCollect add',
+      seed: {},
+      in: 'also ask for the car model',
+      model: modelTurn({ informationToCollect: INTAKE_ADDED }),
+      includes: ["*I'll ask customers for:*"],
+    },
+    {
+      name: 'unknowns add',
+      seed: {},
+      in: 'not sure about trucks yet',
+      model: modelTurn({ unknowns: [unknown] }),
+      includes: ['*Not decided:*'],
+    },
+    {
+      name: 'unknowns remove',
+      seed: { unknowns: [unknown] },
+      in: 'we do trucks',
+      model: modelTurn({}, { resolvedUnknowns: [0] }),
+      includes: ['*Not decided:*'],
+    },
+    {
+      name: 'otherFacts add',
+      seed: {},
+      in: 'we only work on cars',
+      model: modelTurn({}, { newFacts: [fact] }),
+      includes: ['*Other facts:*'],
+    },
+    {
+      name: 'otherFacts remove',
+      seed: { otherFacts: [fact] },
+      in: 'forget that car-only note',
+      model: modelTurn({}, { factEdits: [{ index: 0, text: null }] }),
+      includes: ['*Other facts:*'],
+    },
+  ];
+
+  for (const c of cases) {
+    await playApprovedFlow(
+      [
+        {
+          name: `${c.name} → save card`,
+          in: c.in,
+          model: { ...c.model, message: 'Ready for review.' },
+          expect: {
+            ...saveCardExpect({
+              reply: undefined,
+              includes: [CHANGED_ACK, ...c.includes],
+            }),
+          },
+        },
+      ],
+      { profile: approvedProfile(c.seed) }
+    );
   }
-);
+});
 
 await test('*menu* word and each section card, then back to the menu', async () => {
   const profile = approvedProfile();

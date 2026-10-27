@@ -211,8 +211,9 @@ export function summaryLines(p) {
     intake ?? null
   );
 
-  const faq = normalizeCommonQuestions(p.commonQuestions).filter((f) => f.answer);
-  add('faq', L.faq, faq.length ? R.faqCount(faq.length) : R.faqNone, faq);
+  const faqAll = normalizeCommonQuestions(p.commonQuestions);
+  const faq = faqAll.filter((f) => f.answer);
+  add('faq', L.faq, faq.length ? R.faqCount(faq.length) : R.faqNone, faqAll);
 
   const tone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : null;
   const id = assistantIdentityView(p);
@@ -226,13 +227,32 @@ export function summaryLines(p) {
   return out;
 }
 
-function changeLines(profile, merged) {
-  const prev = new Map(summaryLines(profile).map((l) => [l.id, l]));
+function emptyChangeValue(id) {
+  if (id === 'intake') return REVIEW.nothing;
+  return REVIEW.none;
+}
+
+/**
+ * Lines that belong on the save card. Compares `summaryLines` including
+ * fields that disappear when emptied (otherFacts, unknowns) so a real
+ * removal still produces a line with an existing empty label.
+ */
+export function changeLines(profile, merged) {
+  const prevLines = summaryLines(profile);
+  const nextLines = summaryLines(merged);
+  const prev = new Map(prevLines.map((l) => [l.id, l]));
+  const next = new Map(nextLines.map((l) => [l.id, l]));
+  const ids = [];
+  for (const line of nextLines) ids.push(line.id);
+  for (const line of prevLines) if (!next.has(line.id)) ids.push(line.id);
   const lines = [];
-  for (const line of summaryLines(merged)) {
-    const before = prev.get(line.id);
-    if (before && before.full === line.full) continue;
-    lines.push(fieldLine(CHANGE_LABELS[line.id] || line.label, line.value));
+  for (const id of ids) {
+    const before = prev.get(id);
+    const after = next.get(id);
+    if (before && after && before.full === after.full) continue;
+    const label = CHANGE_LABELS[id] || after?.label || before?.label;
+    const value = after ? after.value : emptyChangeValue(id);
+    lines.push(fieldLine(label, value));
   }
   return lines;
 }

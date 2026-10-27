@@ -419,6 +419,12 @@ export function saveProfile(profile, profilePath = PROFILE_PATH) {
   return profile;
 }
 
+/**
+ * Thin assign of an already-complete draft onto live keys.
+ * Null / blank scalars keep the previous value. A missing array key keeps
+ * live; a present array (including []) is the complete list. Extraction
+ * (`applyExtraction`) is the only place that upserts or restores.
+ */
 export function mergeDraft(profile, draft) {
   const next = { ...profile };
   if (!draft || typeof draft !== 'object') return next;

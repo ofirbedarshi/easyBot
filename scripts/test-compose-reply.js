@@ -219,6 +219,18 @@ test('saved_changes card only and with ack', () => {
   assert.match(card, /^Here's what changed:\n\*Hours:\* Sun–Thu 8–20\n\n/);
 });
 
+test('saved_changes shows emptied otherFacts and unknowns with existing none label', () => {
+  const prior = {
+    ...salon,
+    otherFacts: ['We only work on cars'],
+    unknowns: ['Whether we do trucks'],
+  };
+  const next = { ...salon, otherFacts: [], unknowns: [] };
+  const card = composeReply({ kind: 'saved_changes', prior, profile: next }).reply;
+  assert.match(card, /\*Other facts:\* none/);
+  assert.match(card, /\*Not decided:\* none/);
+});
+
 test('change_menu and menu', () => {
   assert.equal(
     composeReply({ kind: 'change_menu', menuOpts: menuLead }).reply,

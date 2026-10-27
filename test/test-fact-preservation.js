@@ -209,6 +209,16 @@ test('no fact changes keeps stored list intact; invalid edits ignored', () => {
   );
 });
 
+test('intake ownerEdits remove drops one item', () => {
+  const prev = { informationToCollect: ['name', 'phone'] };
+  const removed = preserveFacts(
+    { informationToCollect: ['name', 'phone'] },
+    prev,
+    [{ field: 'informationToCollect', item: 'phone', action: 'remove' }]
+  );
+  assert.deepEqual(removed.informationToCollect, ['name']);
+});
+
 test('no previous draft returns draft as-is', () => {
   const d = { services: [svc('Item A', '$1')] };
   assert.deepEqual(preserveFacts(d, null, []), d);
