@@ -251,7 +251,6 @@ function testConversationSettingsSectionSeparated() {
     informationToCollect: [],
     unknowns: [],
     tone: 'professional and concise',
-    responseLength: 'short',
     priceDisclosure: 'on_request',
   });
 
@@ -276,7 +275,7 @@ function testConversationSettingsSectionSeparated() {
     'facts must not contain price disclosure policy'
   );
   assert.ok(/Tone: professional and concise/i.test(settings));
-  assert.ok(/Reply length: short/i.test(settings));
+  assert.ok(!/Reply length:/i.test(settings));
   assert.ok(/Price disclosure: on request only/i.test(settings));
   assert.ok(
     /must NOT establish facts/i.test(settings),
@@ -416,7 +415,7 @@ function testLegacyDefaultsInPrompt() {
     informationToCollect: [],
     unknowns: [],
     tone: 'warm and calm',
-    // no responseLength / priceDisclosure
+    // no priceDisclosure
   });
   const settings = sectionBetween(
     prompt,
@@ -425,13 +424,11 @@ function testLegacyDefaultsInPrompt() {
   );
   const eff = effectiveBehavior({
     tone: 'warm and calm',
-    responseLength: null,
     priceDisclosure: null,
   });
-  assert.equal(eff.responseLength, DEFAULT_BEHAVIOR.responseLength);
   assert.equal(eff.priceDisclosure, DEFAULT_BEHAVIOR.priceDisclosure);
   assert.ok(settings.includes('warm and calm'));
-  assert.ok(/Reply length: standard/i.test(settings));
+  assert.ok(!/Reply length:/i.test(settings));
   assert.ok(/Price disclosure: relevant/i.test(settings));
   assert.match(settings, /You are Adam, Legacy Biz's digital assistant/);
   assert.doesNotMatch(settings, /Assistant name:/);

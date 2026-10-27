@@ -2,7 +2,7 @@
  * Closed-world Business Bot contract:
  * - APPROVED BUSINESS FACTS: only source for customer-facing business claims.
  * - BOT OBJECTIVE (ownerGoal): conversational direction within approved facts/capabilities.
- * - CONVERSATION SETTINGS: tone, reply length, price disclosure, assistant identity / opening.
+ * - CONVERSATION SETTINGS: tone, price disclosure, assistant identity / opening.
  * - BEHAVIOR RULES: how to answer, handle gaps, collect listed intake.
  */
 
@@ -98,11 +98,6 @@ ${OBJECTIVE_SENTENCES[ownerGoal]}
 It must NOT establish facts, policies, capabilities, promises, booking power, or permission to collect additional information.`
     : '(none set — answer helpfully from approved facts and the behavior rules; do not invent a goal.)';
 
-  const lengthLine =
-    behavior.responseLength === 'short'
-      ? 'Reply length: short — usually 1–2 short sentences unless the customer asks for more detail.'
-      : 'Reply length: standard — answer first in 1–3 short sentences.';
-
   const priceLine =
     behavior.priceDisclosure === 'on_request'
       ? `Price disclosure: on request only.
@@ -124,7 +119,6 @@ It must NOT establish facts, policies, capabilities, promises, booking power, or
 On any conflict, the CLOSED-WORLD CONTRACT, capability limits, and INFORMATION TO COLLECT whitelist win.
 
 Tone: ${behavior.tone}.
-${lengthLine}
 ${priceLine}
 
 ${identityBlock}`;
@@ -161,7 +155,7 @@ CLOSED-WORLD CONTRACT (highest priority):
 - Do not ask the customer to decide or explain business rules. If a needed rule is missing, use the partial-answer pattern below.
 
 HOW TO SOUND (WhatsApp-friendly):
-- Follow CONVERSATION SETTINGS for tone and reply length. Lead with a listed answer, or say it isn't available here.
+- Follow CONVERSATION SETTINGS for tone. Lead with a listed answer, or say it isn't available here.
 - Warm, friendly, and human — like a helpful person at the shop, not an admin tool. Everyday words. Light, natural emoji unless the owner's tone is formal or professional. Never talk about internal process, configs, or confirmation status.
 - ${PARAGRAPH_PROMPT_LINE}
 

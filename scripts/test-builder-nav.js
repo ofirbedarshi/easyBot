@@ -65,7 +65,6 @@ function facts() {
     informationToCollect: ['name', 'phone'],
     unknowns: [],
     tone: 'warm',
-    responseLength: 'short',
     priceDisclosure: 'on_request',
     openingMessage: null,
   };
@@ -145,19 +144,34 @@ async function testSectionRoutingReadOnly() {
   assert.ok(m.reply.includes(MENU_HEAD));
   const talks = await handleMessage(session, '4');
   assert.equal(talks.event, 'menu_section');
-  assert.ok(talks.reply.startsWith('How I talk\n'), talks.reply);
-  assert.ok(talks.reply.includes('Style: warm'), talks.reply);
-  assert.ok(talks.reply.includes('Reply length: short'), talks.reply);
-  assert.ok(talks.reply.includes('Prices: only when the customer asks about pricing'), talks.reply);
-  assert.ok(talks.reply.includes('Opening message'), talks.reply);
-  assert.ok(talks.reply.includes('(default)'), talks.reply);
-  assert.ok(talks.reply.trim().endsWith('What should we do next?'), talks.reply);
+  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n'), talks.reply);
+  assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
+  assert.ok(!talks.reply.includes('Reply length'), talks.reply);
+  assert.ok(!talks.reply.includes('Price policy'), talks.reply);
+  assert.ok(talks.reply.includes('*Opening message:*'), talks.reply);
+  assert.ok(!talks.reply.includes('(default)'), talks.reply);
+  assert.ok(
+    talks.reply.trim().endsWith('What do you want to change?\nType *menu* to go back to the main menu.'),
+    talks.reply
+  );
   assert.equal(readRaw(), before, 'profile file must be unchanged by navigation');
   assert.equal(calls.builder, 0);
 
+  // *menu* from a section returns to the main editing menu (like stop: exact word).
+  const back = await handleMessage(session, '*menu*');
+  assert.equal(back.event, 'menu');
+  assert.ok(back.reply.startsWith('What should we do next?'), back.reply);
+  assert.ok(back.reply.includes(MENU_HEAD), back.reply);
+  assert.equal(calls.builder, 0, '*menu* must not reach the Builder');
+  const please = await handleMessage(session, 'please menu');
+  assert.equal(please.event, 'build_turn');
+  assert.equal(calls.builder, 1, 'please menu must reach the Builder');
+
   // A number right after a section view is an answer, not a menu choice.
+  await handleMessage(session, 'menu');
+  await handleMessage(session, '4');
   await handleMessage(session, '3');
-  assert.equal(calls.builder, 1, 'number after section view must reach the Builder');
+  assert.equal(calls.builder, 2, 'number after section view must reach the Builder');
 
   // Other sections render their own fields.
   await handleMessage(session, 'menu');
@@ -401,8 +415,8 @@ async function testPendingChangesPreserved() {
   session.buildHistory.push({ role: 'user', content: 'hi, I run a yoga studio' });
   await handleMessage(session, 'menu');
   const talks = await handleMessage(session, '4');
-  assert.ok(talks.reply.includes("Here's what I have:"), talks.reply);
-  assert.ok(talks.reply.includes('Style: warm'), talks.reply);
+  assert.ok(talks.reply.includes('💬 This is how I talk to your customers right now:'), talks.reply);
+  assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
   assert.ok(!talks.reply.includes('Pending change'), talks.reply);
   await handleMessage(session, 'menu');
   const s1 = await handleMessage(session, '2');
@@ -449,14 +463,25 @@ async function testMenuLabels() {
     end.reply
   );
   const talks = await handleMessage(session, '4');
-  assert.ok(talks.reply.startsWith("How I talk\nHere's what I have:"), talks.reply);
-  assert.ok(talks.reply.includes('Prices: only when the customer asks about pricing'), talks.reply);
+  assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:'), talks.reply);
+  assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
+  const biz = await handleMessage(session, 'menu');
+  assert.ok(biz.reply.startsWith('What should we do next?'), biz.reply);
+  const s1 = await handleMessage(session, '2');
+  assert.ok(s1.reply.includes('*Price policy:* I share prices only when a customer asks'), s1.reply);
 }
 
 /** Menu request and menu number parsing. */
 async function testMenuParseHelpers() {
   assert.equal(isMenuRequest('Menu'), true);
-  assert.equal(isMenuRequest('menu please'), true);
+  assert.equal(isMenuRequest('*menu*'), true);
+  assert.equal(isMenuRequest('*Menu*'), true);
+  assert.equal(isMenuRequest('  *menu*  '), true);
+  assert.equal(isMenuRequest('/menu'), true);
+  assert.equal(isMenuRequest('show menu'), true);
+  assert.equal(isMenuRequest('menu please'), false);
+  assert.equal(isMenuRequest('please menu'), false);
+  assert.equal(isMenuRequest('menu.'), false);
   assert.equal(isMenuRequest('change the menu prices'), false);
   assert.equal(parseMenuChoice(' 4. '), 4);
   assert.equal(parseMenuChoice('7'), null);
@@ -483,7 +508,8 @@ async function testFirstReviewTryApprovesAndTests() {
   assert.doesNotMatch(review.reply, /\(was:/);
   assert.match(review.reply, /\nServices: Private lesson — 200 ILS \/ 60 min\n/);
   assert.match(review.reply, /\nI'll ask customers for: name, phone\n/);
-  assert.match(review.reply, /\nHow I talk: [^\n]*prices only when asked/);
+  assert.match(review.reply, /\nHow I talk: warm\n/);
+  assert.match(review.reply, /\nPrice policy: I share prices only when a customer asks\n/);
   assert.doesNotMatch(review.reply, /What your bot will do|contact you directly/);
   assert.match(review.reply, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.ok(!review.reply.includes('2. Edit Q&A'), 'full menu hidden until Make changes');
@@ -557,18 +583,19 @@ async function testSectionsBeforeApprovalShowDraft() {
 }
 
 async function testReviewRenderHelpers() {
-  const p = { draft: { ...facts(), informationToCollect: [], tone: null, responseLength: null, priceDisclosure: null } };
+  const p = { draft: { ...facts(), informationToCollect: [], tone: null, priceDisclosure: null } };
   const en = renderReview(p);
   assert.match(en, /Here's your bot for Studio Yoga:/);
   assert.match(en, /1\. 🤖 Chat with me like a customer\n2\. ✏️ Keep teaching me/);
   assert.match(en, /\nI'll ask customers for: nothing\n/);
   assert.match(en, /\nHow I talk: default\n/, 'unset settings shown as default');
+  assert.match(en, /\nPrice policy: I mention prices when they're relevant\n/);
   // One line per item, in review-summary order.
   const labels = en
     .split('\n')
     .map((l) => l.split(':')[0])
-    .filter((l) => ['Business info', 'Services', 'Area', 'Hours', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk'].includes(l));
-  assert.deepEqual(labels, ['Business info', 'Services', 'Area', 'Hours', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk']);
+    .filter((l) => ['Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk'].includes(l));
+  assert.deepEqual(labels, ['Business info', 'Services', 'Area', 'Hours', 'Price policy', 'My goal', "I'll ask customers for", 'Q&A', 'How I talk']);
 
   // Gaps are shown; review values are not clipped; legacy free-text goal reads as not set.
   const gaps = renderReview(

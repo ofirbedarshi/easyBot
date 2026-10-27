@@ -54,7 +54,6 @@ function draft() {
       'The salon does not offer braids or extensions.',
     ],
     tone: null,
-    responseLength: null,
     priceDisclosure: null,
     assistantName: null,
     openingMessage: null,

@@ -1,14 +1,14 @@
 import {
   assistantIdentityView,
-  defaultCustomerOpening,
+  customerOpeningText,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
   normalizeFaqItem,
   normalizeOwnerGoal,
   normalizePriceDisclosure,
-  normalizeResponseLength,
   OWNER_GOAL_LABELS,
+  pricePolicyOwnerLabel,
 } from './profile.js';
 import { LEAD_MENU_LABEL } from './leadIntake.js';
 
@@ -25,39 +25,27 @@ const STRINGS = {
     '💬 Tell me how to talk to your customers',
     '🤖 Chat with me like a customer',
   ],
-  sections: ['Your business', 'Questions and answers', 'How I talk'],
+  sectionIntros: [
+    '🏪 This is what I know about your business:',
+    '❓ These are the questions I know how to answer:',
+    '💬 This is how I talk to your customers right now:',
+  ],
   menuFooter: 'Pick a number, or just tell me what you want me to learn.',
   returned: "I'm back! What should I learn next?",
   setupContinue: "I'm still learning about your business. Tell me more and I'll keep going.",
-  ask: 'What should we do next?',
-  current: "Here's what I have:",
-  notSet: '(not set)',
-  none: '(none)',
-  defaultMark: '(default)',
+  ask: 'What do you want to change?',
+  menuHint: 'Type *menu* to go back to the main menu.',
+  notAdded: 'not added yet',
+  noQuestions: 'No questions yet.',
   fields: {
-    name: 'Business name',
-    whatWeDo: 'What the business does',
-    services: 'Services',
+    name: 'Name',
+    whatYouDo: 'What you do',
+    services: 'Services & prices',
     hours: 'Hours',
-    locationOrArea: 'Location / area',
-    unknowns: 'Not decided yet',
-    ownerGoal: 'My goal',
-    informationToCollect: "I'll ask customers for",
-    intakeNotAnswered: '(not decided yet)',
-    commonQuestions: 'Questions and answers',
-    q: 'Q',
-    a: 'A',
-    noAnswer: '(no answer recorded — the bot will not invent one)',
+    location: 'Location',
+    pricePolicy: 'Price policy',
     tone: 'Style',
-    responseLength: 'Reply length',
-    priceDisclosure: 'Prices',
     openingMessage: 'Opening message',
-    defaultOpening: (biz) => `(default) “${defaultCustomerOpening({ name: biz })}”`,
-  },
-  responseLengthLabels: { short: 'short', standard: 'standard' },
-  priceDisclosureLabels: {
-    relevant: 'when useful and relevant',
-    on_request: 'only when the customer asks about pricing',
   },
 };
 
@@ -80,9 +68,23 @@ function normalizeShort(text) {
     .replace(/\s+/g, ' ');
 }
 
-/** Short, explicit navigation request (whitelist; longer phrasing goes to the Builder). */
+/** One pair of surrounding WhatsApp bold asterisks, if present. */
+export function unwrapWhatsAppBold(text) {
+  const t = String(text || '').trim();
+  const m = /^\*([^*]+)\*$/.exec(t);
+  return (m ? m[1] : t).trim();
+}
+
+/**
+ * Menu request: the whole message is `menu` (case-insensitive, optional
+ * WhatsApp `*bold*`), or one of the existing extra aliases. `menu.` and
+ * `please menu` are not commands.
+ */
 export function isMenuRequest(text) {
+  const inner = unwrapWhatsAppBold(text).toLowerCase();
+  if (inner === 'menu') return true;
   const s = normalizeShort(text).replace(/\s*please$/, '');
+  if (s === 'menu') return false;
   return MENU_REQUESTS.has(s);
 }
 
@@ -173,6 +175,7 @@ const REVIEW = {
     services: 'Services',
     area: 'Area',
     hours: 'Hours',
+    pricePolicy: 'Price policy',
     unknowns: 'Not decided',
     goal: 'My goal',
     intake: "I'll ask customers for",
@@ -234,6 +237,8 @@ export function summaryLines(p) {
   add('area', L.area, area ? brief(area) : R.gap, area);
   const hours = textOrNull(p.hours);
   add('hours', L.hours, hours ? brief(hours) : R.gap, hours);
+  const price = normalizePriceDisclosure(p.priceDisclosure) || 'relevant';
+  add('pricePolicy', L.pricePolicy, pricePolicyOwnerLabel(p.priceDisclosure), price);
   const unknowns = Array.isArray(p.unknowns) ? p.unknowns : [];
   if (unknowns.length) add('unknowns', L.unknowns, brief(unknowns.join('; ')), unknowns);
   const otherFacts = Array.isArray(p.otherFacts) ? p.otherFacts : [];
@@ -260,20 +265,16 @@ export function summaryLines(p) {
   );
 
   const tone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : null;
-  const len = normalizeResponseLength(p.responseLength);
-  const price = normalizePriceDisclosure(p.priceDisclosure);
   const id = assistantIdentityView(p);
   const talks = [
     tone,
-    len === 'short' ? R.shortReplies : len === 'standard' ? R.standardReplies : null,
-    price === 'on_request' ? R.pricesOnRequest : price === 'relevant' ? R.pricesRelevant : null,
     id.openingMessage ? R.customOpening : null,
   ].filter(Boolean);
   add(
     'talks',
     L.talks,
     talks.length ? brief(talks.join(', ')) : R.defaultValue,
-    { tone, len, price, opening: id.openingMessage }
+    { tone, opening: id.openingMessage }
   );
   return out;
 }
@@ -367,63 +368,61 @@ export function reviewActive(buildHistory) {
   return lastShownNav(buildHistory) === 'review';
 }
 
+function fieldLine(label, value) {
+  return `*${label}:* ${value}`;
+}
+
+function quoteOpeningLines(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `> ${line}`)
+    .join('\n');
+}
+
+function serviceLine(svc) {
+  const price = svc.price != null && svc.price !== '' ? ` — ${svc.price}` : '';
+  const notes = svc.notes ? ` (${svc.notes})` : '';
+  return `${svc.name || '?'}${price}${notes}`;
+}
+
 function sectionLines(section, p) {
   const s = STRINGS;
   const f = s.fields;
-  const val = (v) => (v == null || v === '' ? s.notSet : String(v));
+  const val = (v) => (v == null || v === '' ? s.notAdded : String(v));
   const lines = [];
   if (section === 1) {
-    lines.push(`• ${f.name}: ${val(p.name)}`);
-    lines.push(`• ${f.whatWeDo}: ${val(p.whatWeDo)}`);
-    if (Array.isArray(p.services) && p.services.length) {
-      lines.push(`• ${f.services}:`);
-      for (const svc of p.services) {
-        const price = svc.price != null && svc.price !== '' ? ` — ${svc.price}` : '';
-        const notes = svc.notes ? ` (${svc.notes})` : '';
-        lines.push(`   - ${svc.name || '?'}${price}${notes}`);
-      }
+    lines.push(fieldLine(f.name, val(p.name)));
+    lines.push(fieldLine(f.whatYouDo, val(p.whatWeDo)));
+    const services = Array.isArray(p.services) ? p.services : [];
+    if (services.length) {
+      lines.push(`*${f.services}:*`);
+      for (const svc of services) lines.push(serviceLine(svc));
     } else {
-      lines.push(`• ${f.services}: ${s.none}`);
+      lines.push(fieldLine(f.services, s.notAdded));
     }
-    lines.push(`• ${f.hours}: ${val(p.hours)}`);
-    lines.push(`• ${f.locationOrArea}: ${val(p.locationOrArea)}`);
-    if (Array.isArray(p.unknowns) && p.unknowns.length) {
-      lines.push(`• ${f.unknowns}:`);
-      for (const u of p.unknowns) lines.push(`   - ${u}`);
-    }
-    if (Array.isArray(p.otherFacts) && p.otherFacts.length) {
-      lines.push(`• ${OTHER_FACTS_LABEL}:`);
-      for (const fact of p.otherFacts) lines.push(`   - ${fact}`);
-    }
+    lines.push(fieldLine(f.hours, val(p.hours)));
+    lines.push(fieldLine(f.location, val(p.locationOrArea)));
+    lines.push(fieldLine(f.pricePolicy, pricePolicyOwnerLabel(p.priceDisclosure)));
   } else if (section === 2) {
     const faq = (Array.isArray(p.commonQuestions) ? p.commonQuestions : [])
       .map(normalizeFaqItem)
       .filter(Boolean);
     if (!faq.length) {
-      lines.push(`• ${f.commonQuestions}: ${s.none}`);
+      lines.push(s.noQuestions);
     } else {
-      for (const item of faq) {
-        lines.push(`• ${f.q}: ${item.question}`);
-        lines.push(`  ${f.a}: ${item.answer || f.noAnswer}`);
-      }
+      faq.forEach((item, i) => {
+        if (i) lines.push('');
+        lines.push(`*${item.question}*`);
+        lines.push(item.answer || s.notAdded);
+      });
     }
   } else if (section === 3) {
     const eff = effectiveBehavior(p);
-    const toneSet = typeof p.tone === 'string' && p.tone.trim();
-    const tone = toneSet ? p.tone.trim() : `${eff.tone} ${s.defaultMark}`;
-    const lenSet = normalizeResponseLength(p.responseLength);
-    const priceSet = normalizePriceDisclosure(p.priceDisclosure);
-    const len = s.responseLengthLabels[eff.responseLength];
-    const price = s.priceDisclosureLabels[eff.priceDisclosure];
-    lines.push(`• ${f.tone}: ${tone}`);
-    lines.push(`• ${f.responseLength}: ${lenSet ? len : `${len} ${s.defaultMark}`}`);
-    lines.push(`• ${f.priceDisclosure}: ${priceSet ? price : `${price} ${s.defaultMark}`}`);
-    const id = assistantIdentityView(p);
-    lines.push(
-      `• ${f.openingMessage}: ${
-        id.openingMessage ? `“${id.openingMessage}”` : f.defaultOpening(p.name)
-      }`
-    );
+    lines.push(fieldLine(f.tone, eff.tone));
+    lines.push(`*${f.openingMessage}:*`);
+    lines.push(quoteOpeningLines(customerOpeningText(p)));
   }
   return lines;
 }
@@ -433,6 +432,5 @@ function sectionLines(section, p) {
  */
 export function renderSection(section, profile) {
   const s = STRINGS;
-  const title = s.sections[section - 1];
-  return [title, s.current, ...sectionLines(section, profile), '', s.ask].join('\n');
+  return [s.sectionIntros[section - 1], ...sectionLines(section, profile), '', s.ask, s.menuHint].join('\n');
 }

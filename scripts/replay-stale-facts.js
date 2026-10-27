@@ -49,7 +49,6 @@ function draft() {
     unknowns: [],
     otherFacts: [`A standard visit is ${OLD} on weekdays.`],
     tone: null,
-    responseLength: null,
     priceDisclosure: null,
     assistantName: null,
     openingMessage: `Welcome — a standard visit starts at ${OLD}.`,

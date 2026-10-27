@@ -1,16 +1,13 @@
 import { stageLabel } from './stage.js';
 import {
   OWNER_GOAL_LABELS,
-  PRICE_DISCLOSURE_LABELS,
-  RESPONSE_LENGTH_LABELS,
   assistantIdentityView,
   defaultCustomerOpening,
   effectiveBehavior,
   mergeDraft,
   normalizeCommonQuestions,
   normalizeOwnerGoal,
-  normalizePriceDisclosure,
-  normalizeResponseLength,
+  pricePolicyOwnerLabel,
 } from '../profile.js';
 
 /** All dashboard clocks and calendar days use this zone. */
@@ -650,14 +647,11 @@ function profileFactsHtml(profile) {
     : null;
   const unknowns = Array.isArray(p.unknowns) ? p.unknowns : [];
   const other = Array.isArray(p.otherFacts) ? p.otherFacts : [];
-  const storedLen = normalizeResponseLength(p.responseLength);
-  const storedPrice = normalizePriceDisclosure(p.priceDisclosure);
   const storedTone = typeof p.tone === 'string' && p.tone.trim() ? p.tone.trim() : '';
   const eff = effectiveBehavior(p);
   const identity = assistantIdentityView(p);
   const tone = storedTone || `${eff.tone} (default)`;
-  const replyLength = `${RESPONSE_LENGTH_LABELS[eff.responseLength] || RESPONSE_LENGTH_LABELS.standard}${storedLen ? '' : ' (default)'}`;
-  const prices = `${PRICE_DISCLOSURE_LABELS[eff.priceDisclosure] || PRICE_DISCLOSURE_LABELS.relevant}${storedPrice ? '' : ' (default)'}`;
+  const prices = pricePolicyOwnerLabel(p.priceDisclosure);
   const opening = identity.openingMessage
     ? identity.openingMessage
     : `(default) “${defaultCustomerOpening(p)}”`;
@@ -716,8 +710,6 @@ function profileFactsHtml(profile) {
     <h4>Conversation settings</h4>
     <div class="profile-rows">
       ${profileRow('Tone', esc(tone))}
-      ${profileRow('Reply length', esc(replyLength))}
-      ${profileRow('Prices', esc(prices))}
       ${profileRow('Opening', esc(opening))}
     </div>
   </div>`);
@@ -728,6 +720,7 @@ function profileFactsHtml(profile) {
     ${profileRow('Bot goal', goalLabel ? esc(goalLabel) : unsetHtml())}
     ${profileRow('Hours', textOrUnset(p.hours))}
     ${profileRow('Location', textOrUnset(p.locationOrArea))}
+    ${profileRow('Price policy', esc(prices))}
   </div>${extras.join('')}`;
 }
 
