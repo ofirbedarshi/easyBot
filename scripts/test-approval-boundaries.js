@@ -570,7 +570,7 @@ function testRequiredTopicsGate() {
   );
   assert.equal(afterFaq.presentReview, false);
   assert.equal(afterFaq.asksQuestion, true);
-  assert.equal(afterFaq.message, `${intake.ack}\n\n${intake.question}`);
+  assert.equal(afterFaq.message, `Ofir Garage is your garage ✨\n\n${intake.question}`);
   assert.deepEqual(afterFaq.draft.askedTopics, ['commonQuestions', 'informationToCollect']);
 
   // Model asks FAQ in its own words → fixed question swapped in and recorded.

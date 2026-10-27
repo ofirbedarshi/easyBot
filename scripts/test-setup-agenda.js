@@ -10,6 +10,7 @@ import {
   setupStep,
   stepSetupAgenda,
 } from '../src/setupAgenda.js';
+import { composeReply } from '../src/composeReply.js';
 
 assert.deepEqual(
   [...SETUP_STEPS],
@@ -149,6 +150,7 @@ const rows = [
       step: 'intake',
       askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
       topicKey: 'informationToCollect',
+      ack: null,
     },
   },
   {
@@ -160,6 +162,7 @@ const rows = [
       step: 'intake',
       askedTopics: ['businessDetails', 'commonQuestions', 'informationToCollect'],
       topicKey: 'informationToCollect',
+      ack: null,
     },
   },
   {
@@ -299,6 +302,67 @@ assert.equal(
   'complete'
 );
 assert.ok(normalizeOwnerGoal(withGoal().ownerGoal));
+
+{
+  const answeredFaq = withGoal({
+    commonQuestions: [{ question: 'Trucks?', answer: 'Yes, light trucks.' }],
+  });
+  const first = advance({ priorAsked: ['businessDetails'], draft: answeredFaq });
+  assert.equal(first.ack, INTAKE.ack, 'first intake after answered FAQ keeps INTAKE_ACK');
+  assert.equal(
+    composeReply({
+      kind: 'ask_topic',
+      parts: { topic: first.topic, ack: first.ack, draft: answeredFaq },
+    }).reply,
+    `${INTAKE.ack}\n\n${INTAKE.question}`
+  );
+
+  const repeatModel = 'We collect it at booking. Shall I start?';
+  const repeatDraft = withGoal({ informationToCollect: null });
+  const repeat = advance({
+    priorAsked: ['businessDetails', 'commonQuestions', 'informationToCollect'],
+    draft: repeatDraft,
+    modelMessage: repeatModel,
+  });
+  assert.equal(repeat.ack, null, 'repeat intake has no INTAKE_ACK');
+  const repeatReply = composeReply({
+    kind: 'ask_topic',
+    modelText: repeatModel,
+    parts: { topic: repeat.topic, ack: repeat.ack, draft: repeatDraft },
+  }).reply;
+  assert.equal(repeatReply, `We collect it at booking.\n\n${INTAKE.question}`);
+  assert.ok(!repeatReply.includes(INTAKE.ack));
+
+  const faqQModel =
+    'I collect it when a customer is ready to book. When works for you?';
+  const faqEmpty = withGoal();
+  const afterUnansweredFaq = advance({
+    priorAsked: ['businessDetails', 'commonQuestions'],
+    draft: faqEmpty,
+    modelMessage: faqQModel,
+  });
+  assert.equal(afterUnansweredFaq.ack, null, 'unanswered FAQ → intake has no INTAKE_ACK');
+  const faqQReply = composeReply({
+    kind: 'ask_topic',
+    modelText: faqQModel,
+    parts: { topic: afterUnansweredFaq.topic, ack: afterUnansweredFaq.ack, draft: faqEmpty },
+  }).reply;
+  assert.equal(faqQReply, `I collect it when a customer is ready to book.\n\n${INTAKE.question}`);
+  assert.ok(!faqQReply.includes(INTAKE.ack));
+  assert.ok(!/noted/i.test(faqQReply));
+
+  const detailsDraft = nameWhat();
+  const detailsRepeat = composeReply({
+    kind: 'ask_topic',
+    modelText: 'Happy to explain hours first. What else should I know?',
+    parts: { topic: DETAILS, ack: null, draft: detailsDraft },
+  }).reply;
+  assert.equal(
+    detailsRepeat,
+    `Happy to explain hours first.\n\n${DETAILS.questionFor(detailsDraft)}`
+  );
+  assert.ok(!detailsRepeat.includes(DETAILS.ack));
+}
 
 if (failed) {
   console.error(`setup-agenda: ${failed}/${rows.length} failed`);

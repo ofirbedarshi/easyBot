@@ -172,6 +172,38 @@ test('ask_topic faq and intake', () => {
   );
 });
 
+test('ask_topic without ack keeps model lead', () => {
+  const intake = topicByKey('informationToCollect');
+  assert.equal(
+    composeReply({
+      kind: 'ask_topic',
+      modelText: 'We collect it at booking. Shall I start?',
+      parts: { topic: intake, ack: null, draft: {} },
+    }).reply,
+    `We collect it at booking.\n\n${INTAKE_QUESTION}`
+  );
+  assert.equal(
+    composeReply({
+      kind: 'ask_topic',
+      modelText: 'When will you collect it?',
+      parts: { topic: intake, ack: null, draft: {} },
+    }).reply,
+    INTAKE_QUESTION
+  );
+});
+
+test('ask_topic businessDetails without ack keeps model lead', () => {
+  const draft = { name: NAME, whatWeDo: 'Yoga', services: [], hours: null, locationOrArea: null };
+  const topic = topicByKey('businessDetails');
+  const out = composeReply({
+    kind: 'ask_topic',
+    modelText: 'Happy to explain hours first. What else should I know?',
+    parts: { topic, ack: null, draft },
+  });
+  assert.equal(out.reply, `Happy to explain hours first.\n\n${topicQuestion(topic, draft)}`);
+  assert.ok(!out.reply.includes(BUSINESS_DETAILS_ACK));
+});
+
 test('ask_goal', () => {
   const model = 'Got it, thanks!';
   const out = composeReply({ kind: 'ask_goal', modelText: model });

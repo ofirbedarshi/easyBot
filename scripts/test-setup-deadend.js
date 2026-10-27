@@ -147,7 +147,10 @@ await test('FAQ asked + intake still null + no-? ack → scripted intake', () =>
     modelTurn(draft, { message: 'Pixel Fix repairs phones and laptops ✨', asksQuestion: false }),
     'skip'
   );
-  assert.equal(gated.message, `${INTAKE.ack}\n\n${INTAKE.question}`);
+  assert.equal(
+    gated.message,
+    `Pixel Fix repairs phones and laptops ✨\n\n${INTAKE.question}`
+  );
   assert.equal(gated.asksQuestion, true);
   assert.equal(gated.presentReview, false);
   assert.deepEqual(gated.draft.askedTopics, [

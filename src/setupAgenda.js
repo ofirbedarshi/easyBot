@@ -77,6 +77,24 @@ function topicForStep(step) {
   return null;
 }
 
+/** Fixed ack only on the first ask, and only if the previous step has an answer. */
+function previousStepAnswered(step, draft) {
+  if (step === 'businessDetails') return hasNameAndWhat(draft);
+  if (step === 'faq') return !!normalizeOwnerGoal(draft?.ownerGoal);
+  if (step === 'intake') {
+    const faq = topicByKey('commonQuestions');
+    return !!(faq && faq.isAnswered(draft));
+  }
+  return false;
+}
+
+function topicAck(topic, priorAsked, step, draft) {
+  if (!topic?.ack) return null;
+  if (priorAsked.includes(topic.key)) return null;
+  if (!previousStepAnswered(step, draft)) return null;
+  return topic.ack;
+}
+
 /**
  * Advance the agenda after extraction. Does not read owner text. The model
  * no longer returns flow flags; this function never did.
@@ -158,7 +176,7 @@ export function stepSetupAgenda(input = {}) {
     askedTopics,
     topic,
     question: null,
-    ack: topic?.ack || null,
+    ack: topicAck(topic, priorAsked, step, draft),
     presentComplete: false,
     stay: false,
   };
