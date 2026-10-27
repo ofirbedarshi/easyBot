@@ -116,7 +116,7 @@ test('applyDraftDelta: informationToCollect null keeps; [] settles empty', () =>
   );
 });
 
-test('applyDraftDelta: partial informationToCollect restores omitted items', () => {
+test('applyDraftDelta: partial informationToCollect unions omitted items', () => {
   const settled = ['name', 'phone', 'preferred time'];
   assert.deepEqual(
     applyDraftDelta({ informationToCollect: ['name'] }, { informationToCollect: settled })
@@ -128,6 +128,23 @@ test('applyDraftDelta: partial informationToCollect restores omitted items', () 
       .informationToCollect,
     ['name', 'phone', 'preferred time', 'email']
   );
+});
+
+test('applyBuilderModelOutput: ownerEdits remove drops one intake item', () => {
+  const current = { informationToCollect: ['name', 'phone'], otherFacts: [], unknowns: [] };
+  const kept = applyBuilderModelOutput(
+    { draft: { informationToCollect: ['name'] }, ownerEdits: [] },
+    current
+  );
+  assert.deepEqual(kept.informationToCollect, ['name', 'phone']);
+  const removed = applyBuilderModelOutput(
+    {
+      draft: { informationToCollect: ['name'] },
+      ownerEdits: [{ field: 'informationToCollect', item: 'phone', action: 'remove' }],
+    },
+    current
+  );
+  assert.deepEqual(removed.informationToCollect, ['name']);
 });
 
 test('applyDraftDelta: empty services array keeps previous list', () => {

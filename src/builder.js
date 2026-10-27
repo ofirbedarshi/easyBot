@@ -9,11 +9,8 @@ import {
   identityResetFlag,
   IDENTITY_KEYS,
   mergeDraft,
-  normalizeCommonQuestions,
   FALLBACK_OWNER_GOAL,
-  normalizeIdentityText,
   normalizeOwnerGoal,
-  normalizePriceDisclosure,
   OWNER_GOAL_LABELS,
   OWNER_GOAL_VALUES,
   PRICE_DISCLOSURE_LABELS,
@@ -45,6 +42,29 @@ import {
   reviewAck,
   withSingleQuestion,
 } from './composeReply.js';
+import {
+  applyBuilderModelOutput,
+  applyConsistencyUpdates,
+  applyDraftDelta,
+  applyExtraction,
+  applyFactOps,
+  dropResolved,
+  preserveFacts,
+  reconcileDraft,
+  sameKey,
+  seedStoredDraft,
+} from './applyExtraction.js';
+
+export {
+  applyBuilderModelOutput,
+  applyConsistencyUpdates,
+  applyDraftDelta,
+  applyExtraction,
+  applyFactOps,
+  dropResolved,
+  preserveFacts,
+  reconcileDraft,
+};
 
 export {
   GOAL_FALLBACK_DISCLAIMER,
@@ -172,7 +192,7 @@ draft is a delta: null means unchanged this turn (reset flags: false unless the 
 - unknowns: only NEW undecided items this turn (empty array if none). Drop answered ones via resolvedUnknowns.
 - informationToCollect: the full list if the owner answered or changed it this turn; null if they did not.
 - newFacts (top-level, not inside draft): otherFacts the owner states this turn that are not already stored (empty array if none).
-ownerEdits: every already-stored value in services, commonQuestions, name, whatWeDo, hours, or locationOrArea that the owner's CURRENT message changes or removes. field = draft key; item = the stored service name or FAQ question (null for text fields). Adding a new item is not an edit.
+ownerEdits: stored services, FAQ, intake, name, whatWeDo, hours, or locationOrArea the owner's CURRENT message changes or removes. field = draft key; item = the stored key (null for text fields). Adding a new item is not an edit.
 factEdits: stored otherFacts (by index shown in the context) the owner's CURRENT message corrects (text = corrected fact) or withdraws (text = null). Empty if none.
 resolvedUnknowns: indexes of stored unknowns (numbered in the context) that the owner's CURRENT message answers; store the answer in its field. unknowns holds only what the owner said is undecided — never a stated fact.
 onPurpose, configRequests, goalSupported, goalUnsupportedPart: as specified above. Arrays empty if none.
@@ -302,207 +322,6 @@ export function hasAnsweredInformationToCollect(draftOrProfile) {
   return Array.isArray(draftOrProfile?.informationToCollect);
 }
 
-/** Fold punctuation so "Men's cut" and "men’s cut" are the same key. */
-const foldKey = (s) =>
-  String(s || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\u2018\u2019\u201A\u02BC`]/g, "'");
-
-const sameKey = (a, b) => foldKey(a) === foldKey(b);
-
-/** True when `next` still contains all of `prev`, i.e. the change only adds detail. */
-const extends_ = (next, prev) => foldKey(next).includes(foldKey(prev));
-
-/** Loose identity for model-reported edit targets, which may abbreviate the stored key. */
-const overlaps = (a, b) => {
-  const x = foldKey(a);
-  const y = foldKey(b);
-  return !!x && !!y && (x.includes(y) || y.includes(x));
-};
-
-/**
- * An ownerEdit item matches a stored list key only when they are the same key,
- * or the edit is an abbreviation that overlaps exactly one stored item.
- * A null / blank item never matches a list row (it is for text fields only).
- */
-function uniqueItemMatch(editItem, storedItem, storedItems) {
-  if (!editItem || !storedItem) return false;
-  if (sameKey(editItem, storedItem)) return true;
-  if (!overlaps(editItem, storedItem)) return false;
-  const hits = storedItems.filter((s) => s && overlaps(editItem, s));
-  return hits.length === 1;
-}
-
-function listEdit(edits, field, item, storedItems) {
-  if (!item) return null;
-  return (Array.isArray(edits) ? edits : []).find(
-    (e) => e && e.field === field && e.item && uniqueItemMatch(e.item, item, storedItems)
-  ) || null;
-}
-
-function textFieldEdited(edits, field) {
-  return (Array.isArray(edits) ? edits : []).some((e) => e && e.field === field);
-}
-
-/**
- * Upsert incoming keyed objects onto the previous list. Previous order is kept;
- * new items append. An empty incoming array means no list changes this turn.
- */
-function upsertKeyedList(prevList, incoming, key) {
-  const prev = Array.isArray(prevList) ? prevList.filter(Boolean) : [];
-  if (!Array.isArray(incoming) || incoming.length === 0) return [...prev];
-  const result = [];
-  const used = new Set();
-  for (const old of prev) {
-    const i = incoming.findIndex((x, idx) => x && !used.has(idx) && sameKey(x[key], old[key]));
-    if (i === -1) {
-      result.push(old);
-      continue;
-    }
-    used.add(i);
-    result.push(incoming[i]);
-  }
-  for (let i = 0; i < incoming.length; i++) {
-    if (!used.has(i) && incoming[i]) result.push(incoming[i]);
-  }
-  return result;
-}
-
-/** Restore omitted strings; append items the previous list did not have. */
-function restoreOmittedStrings(prevList, incoming) {
-  const prev = Array.isArray(prevList) ? prevList.filter((x) => typeof x === 'string' && x.trim()) : [];
-  if (!Array.isArray(incoming)) return prev;
-  const result = [];
-  const used = new Set();
-  for (const old of prev) {
-    const i = incoming.findIndex((x, idx) => !used.has(idx) && sameKey(x, old));
-    if (i === -1) {
-      result.push(old);
-      continue;
-    }
-    used.add(i);
-    result.push(incoming[i]);
-  }
-  for (let i = 0; i < incoming.length; i++) {
-    if (used.has(i)) continue;
-    const text = typeof incoming[i] === 'string' ? incoming[i].trim() : '';
-    if (text && !result.some((x) => sameKey(x, text))) result.push(incoming[i]);
-  }
-  return result;
-}
-
-/**
- * Keep previously stored facts the model dropped or altered without the owner asking.
- * The model reports owner-requested changes in `ownerEdits`. A shortening that does
- * not keep the whole previous value is reverted unless reported (or, for list items,
- * proposed in this turn's delta). A text-field rewrite proposed in the delta is kept.
- * Items are matched by identity (service name, FAQ
- * question) so an edited item replaces the old one instead of duplicating it.
- * A list-field abbreviation is accepted only when it matches exactly one stored item.
- * Restored items stay in their previous position; new items append.
- * `unknowns` are not guarded here; resolved ones are removed by dropResolved.
- * `otherFacts` are code-owned (see applyFactOps).
- * Relies on the model reporting edits. An unreported shortening is reverted.
- * A rewrite proposed in this turn's delta (neither value contains the other)
- * is kept, same as a list item the raw delta proposed.
- */
-export function preserveFacts(draft, currentDraft, ownerEdits, incomingDelta) {
-  if (!currentDraft) return draft;
-  const next = { ...draft };
-  const prev = currentDraft;
-  const edits = Array.isArray(ownerEdits) ? ownerEdits : [];
-  const delta = incomingDelta && typeof incomingDelta === 'object' ? incomingDelta : {};
-
-  const guardList = (field, key, valueKeys) => {
-    if (!Array.isArray(prev[field])) return;
-    const incoming = Array.isArray(next[field]) ? next[field] : [];
-    const rawDelta = Array.isArray(delta[field]) ? delta[field] : [];
-    const proposed = new Set(
-      rawDelta.filter((x) => x && x[key]).map((x) => foldKey(x[key]))
-    );
-    const storedItems = prev[field].map((x) => x?.[key]).filter(Boolean);
-    const used = new Set();
-    const list = [];
-    for (const old of prev[field]) {
-      if (!old) continue;
-      const edit = listEdit(edits, field, old[key], storedItems);
-      const i = incoming.findIndex((x, idx) => x && !used.has(idx) && sameKey(x[key], old[key]));
-      if (edit?.action === 'remove') {
-        if (i !== -1) used.add(i);
-        continue;
-      }
-      if (i === -1) {
-        if (!edit) list.push(old);
-        continue;
-      }
-      used.add(i);
-      if (edit || proposed.has(foldKey(old[key]))) {
-        list.push(incoming[i]);
-        continue;
-      }
-      const kept = { ...incoming[i] };
-      for (const k of valueKeys) if (old[k] && !extends_(kept[k], old[k])) kept[k] = old[k];
-      list.push(kept);
-    }
-    for (let i = 0; i < incoming.length; i++) {
-      if (!used.has(i) && incoming[i]) list.push(incoming[i]);
-    }
-    next[field] = list;
-  };
-  guardList('services', 'name', ['price', 'notes']);
-  guardList('commonQuestions', 'question', ['answer']);
-
-  if (Array.isArray(prev.informationToCollect) && Array.isArray(next.informationToCollect)) {
-    next.informationToCollect = restoreOmittedStrings(
-      prev.informationToCollect,
-      next.informationToCollect
-    );
-  }
-
-  for (const field of ['name', 'whatWeDo', 'hours', 'locationOrArea']) {
-    if (!prev[field] || extends_(next[field], prev[field]) || textFieldEdited(edits, field)) {
-      continue;
-    }
-    const proposed = typeof delta[field] === 'string' && delta[field].trim();
-    const shortening = !!(proposed && extends_(prev[field], next[field]));
-    if (!proposed || shortening) next[field] = prev[field];
-  }
-  return next;
-}
-
-/** Remove stored unknowns the model reported as answered (by index into the stored list). */
-export function dropResolved(unknowns, stored, resolved) {
-  const list = Array.isArray(unknowns) ? unknowns : [];
-  const prev = Array.isArray(stored) ? stored : [];
-  const gone = (Array.isArray(resolved) ? resolved : [])
-    .filter((i) => Number.isInteger(i) && i >= 0 && i < prev.length)
-    .map((i) => prev[i]);
-  return list.filter((u) => !gone.some((g) => sameKey(g, u)));
-}
-
-/**
- * Apply this turn's otherFacts changes to the stored list. The model never re-emits
- * the list, so stored facts cannot silently disappear, shorten, or duplicate.
- * Edit indexes refer to the list shown to the model this turn; invalid edits are ignored.
- */
-export function applyFactOps(facts, newFacts, edits) {
-  const list = Array.isArray(facts) ? [...facts] : [];
-  const removed = new Set();
-  for (const e of Array.isArray(edits) ? edits : []) {
-    if (!Number.isInteger(e?.index) || e.index < 0 || e.index >= list.length) continue;
-    const text = typeof e.text === 'string' ? e.text.trim() : '';
-    if (text) list[e.index] = text;
-    else if (e.text === null) removed.add(e.index);
-  }
-  const next = list.filter((_, i) => !removed.has(i));
-  for (const f of Array.isArray(newFacts) ? newFacts : []) {
-    const text = typeof f === 'string' ? f.trim() : '';
-    if (text && !next.some((x) => sameKey(x, text))) next.push(text);
-  }
-  return next;
-}
-
 const CONSISTENCY_TEXT_FIELDS = [
   'name',
   'whatWeDo',
@@ -610,30 +429,6 @@ export function existingValueChanges(previousDraft, nextDraft) {
   return changes;
 }
 
-/** Apply consistency-pass updates without preserveFacts (app-owned). */
-export function applyConsistencyUpdates(draft, updates) {
-  const u = updates && typeof updates === 'object' ? updates : {};
-  const next = applyDraftDelta(
-    {
-      name: u.name ?? null,
-      whatWeDo: u.whatWeDo ?? null,
-      hours: u.hours ?? null,
-      locationOrArea: u.locationOrArea ?? null,
-      openingMessage: u.openingMessage ?? null,
-      services: Array.isArray(u.services) ? u.services : [],
-      commonQuestions: Array.isArray(u.commonQuestions) ? u.commonQuestions : [],
-    },
-    draft
-  );
-  if (Array.isArray(u.factEdits) && u.factEdits.length) {
-    next.otherFacts = applyFactOps(draft?.otherFacts, [], u.factEdits);
-  }
-  if (Array.isArray(next.commonQuestions)) {
-    next.commonQuestions = normalizeCommonQuestions(next.commonQuestions);
-  }
-  return next;
-}
-
 const CONSISTENCY_SYSTEM = `You keep stored business text consistent with the latest facts.
 You receive facts that changed or were removed, and the current draft.
 Return updates only for stored text that still states an old fact.
@@ -709,177 +504,6 @@ export async function runConsistencyPass(previousDraft, nextDraft, opts = {}) {
       changes,
     };
   }
-}
-
-const DELTA_TEXT_KEYS = [
-  'name',
-  'whatWeDo',
-  'ownerGoal',
-  'ownerGoalRequested',
-  'hours',
-  'locationOrArea',
-  'tone',
-  'priceDisclosure',
-];
-
-/**
- * Merge a schema-enforced draft delta into the stored draft.
- * Null / omitted scalars mean unchanged. services / commonQuestions are upserted
- * by identity (empty array = no list changes). informationToCollect restores
- * omitted items when a non-empty array is present; [] still means collect
- * nothing. unknowns are append-only
- * here; dropResolved removes answered ones. preserveFacts then applies ownerEdits
- * and restores any remaining omitted rows in their original position.
- */
-export function applyDraftDelta(delta, currentDraft) {
-  const d = delta && typeof delta === 'object' ? delta : {};
-  const prev = currentDraft || {};
-  const next = { ...prev };
-
-  for (const key of DELTA_TEXT_KEYS) {
-    if (d[key] != null && d[key] !== '') next[key] = d[key];
-  }
-  if (Array.isArray(d.services)) next.services = upsertKeyedList(prev.services, d.services, 'name');
-  if (Array.isArray(d.commonQuestions)) {
-    next.commonQuestions = upsertKeyedList(prev.commonQuestions, d.commonQuestions, 'question');
-  }
-  if (Array.isArray(d.informationToCollect)) {
-    if (d.informationToCollect.length === 0) {
-      next.informationToCollect = [];
-    } else {
-      next.informationToCollect = restoreOmittedStrings(
-        prev.informationToCollect,
-        d.informationToCollect
-      );
-    }
-  }
-  if (Array.isArray(d.unknowns)) {
-    const list = Array.isArray(prev.unknowns) ? [...prev.unknowns] : [];
-    for (const u of d.unknowns) {
-      const text = typeof u === 'string' ? u.trim() : '';
-      if (text && !list.some((x) => sameKey(x, text))) list.push(text);
-    }
-    next.unknowns = list;
-  }
-  for (const key of IDENTITY_KEYS) {
-    const flag = identityResetFlag(key);
-    if (d[flag] === true) {
-      next[key] = null;
-      next[flag] = true;
-    } else if (d[key] != null && d[key] !== '') {
-      next[key] = d[key];
-      next[flag] = false;
-    }
-  }
-  return next;
-}
-
-/**
- * Apply one Builder model JSON object to the stored draft.
- * `mode: 'delta'` (production): top-level newFacts, null draft fields unchanged.
- * `mode: 'legacy'`: full draft snapshot, newFacts inside draft (pre-schema path).
- */
-export function applyBuilderModelOutput(parsed, currentDraft, { mode = 'delta' } = {}) {
-  const incoming = parsed?.draft && typeof parsed.draft === 'object' ? parsed.draft : {};
-  const newFacts = mode === 'legacy' ? incoming.newFacts : parsed?.newFacts;
-  const draftIn =
-    mode === 'legacy'
-      ? parsed?.draft && typeof parsed.draft === 'object'
-        ? parsed.draft
-        : currentDraft
-      : applyDraftDelta(incoming, currentDraft);
-
-  const reconciled = reconcileDraft(draftIn || currentDraft, currentDraft);
-  const { newFacts: _dropped, ...guarded } = preserveFacts(
-    reconciled,
-    currentDraft,
-    parsed?.ownerEdits,
-    mode === 'legacy' ? null : incoming
-  );
-  return {
-    ...guarded,
-    otherFacts: applyFactOps(currentDraft?.otherFacts, newFacts, parsed?.factEdits),
-    unknowns: dropResolved(guarded.unknowns, currentDraft?.unknowns, parsed?.resolvedUnknowns),
-  };
-}
-
-/**
- * Preserve settled fields and normalize behavior enums after a Builder model turn.
- * Exported for deterministic tests (style-only edits must not wipe priceDisclosure).
- */
-export function reconcileDraft(draft, currentDraft) {
-  const next = { ...(draft || {}) };
-  const prev = currentDraft || {};
-
-  if (Array.isArray(next.commonQuestions)) {
-    next.commonQuestions = normalizeCommonQuestions(next.commonQuestions);
-  }
-
-  // App-owned: which required topics the app already asked (model never sets it)
-  next.askedTopics = Array.isArray(prev.askedTopics) ? [...prev.askedTopics] : [];
-
-  // Preserve prior informationToCollect when model omits it or sends null after settled
-  if (
-    !Array.isArray(next.informationToCollect) &&
-    Array.isArray(prev.informationToCollect)
-  ) {
-    next.informationToCollect = prev.informationToCollect;
-  } else if (
-    next.informationToCollect === undefined &&
-    prev.informationToCollect === null
-  ) {
-    next.informationToCollect = null;
-  }
-
-  // ownerGoal: supported values only; invalid/null/omit → keep previous (never invent)
-  next.ownerGoal =
-    normalizeOwnerGoal(next.ownerGoal) ?? normalizeOwnerGoal(prev.ownerGoal) ?? null;
-  next.ownerGoalRequested =
-    normalizeIdentityText(next.ownerGoalRequested) ??
-    normalizeIdentityText(prev.ownerGoalRequested) ??
-    null;
-
-  // Tone: preserve when omitted / blanked after set
-  if ((next.tone == null || next.tone === '') && prev.tone) {
-    next.tone = prev.tone;
-  } else if (next.tone === undefined) {
-    next.tone = prev.tone ?? null;
-  } else if (typeof next.tone === 'string') {
-    next.tone = next.tone.trim() || prev.tone || null;
-  }
-
-  // priceDisclosure: normalize; invalid/null/omit → keep previous (protects style-only edits)
-  {
-    const n = normalizePriceDisclosure(next.priceDisclosure);
-    if (n != null) {
-      next.priceDisclosure = n;
-    } else if (prev.priceDisclosure != null) {
-      next.priceDisclosure = normalizePriceDisclosure(prev.priceDisclosure);
-    } else {
-      next.priceDisclosure = null;
-    }
-  }
-
-  // Identity: a new value wins; explicit reset flag clears (and stays pending
-  // until replaced); omitted / null / blank keeps the previous value.
-  for (const key of IDENTITY_KEYS) {
-    const flag = identityResetFlag(key);
-    const value = normalizeIdentityText(next[key]);
-    if (value != null) {
-      next[key] = value;
-      next[flag] = false;
-    } else if (next[flag] === true) {
-      next[key] = null;
-    } else if (prev[flag] === true) {
-      next[key] = null;
-      next[flag] = true;
-    } else {
-      next[key] = normalizeIdentityText(prev[key]);
-      next[flag] = false;
-    }
-  }
-
-  return next;
 }
 
 const CONFIG_REQUEST_STATUSES = ['supported', 'ambiguous', 'unsupported'];
@@ -959,25 +583,28 @@ export async function runBuilderTurn({
   const model = modelOverride || process.env.OPENAI_BUILDER_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
   const legacy = mode === 'legacy';
 
-  const currentDraft = profile.draft || {
-    name: profile.name,
-    whatWeDo: profile.whatWeDo,
-    ownerGoal: normalizeOwnerGoal(profile.ownerGoal),
-    ownerGoalRequested: profile.ownerGoalRequested ?? null,
-    services: profile.services,
-    hours: profile.hours,
-    locationOrArea: profile.locationOrArea,
-    commonQuestions: profile.commonQuestions,
-    informationToCollect:
-      profile.informationToCollect === undefined
-        ? null
-        : profile.informationToCollect,
-    unknowns: profile.unknowns || [],
-    otherFacts: profile.otherFacts || [],
-    tone: profile.tone,
-    priceDisclosure: profile.priceDisclosure ?? null,
-    openingMessage: profile.openingMessage ?? null,
-  };
+  const currentDraft = seedStoredDraft(
+    profile.draft || {
+      name: profile.name,
+      whatWeDo: profile.whatWeDo,
+      ownerGoal: normalizeOwnerGoal(profile.ownerGoal),
+      ownerGoalRequested: profile.ownerGoalRequested ?? null,
+      services: profile.services,
+      hours: profile.hours,
+      locationOrArea: profile.locationOrArea,
+      commonQuestions: profile.commonQuestions,
+      informationToCollect:
+        profile.informationToCollect === undefined
+          ? null
+          : profile.informationToCollect,
+      unknowns: profile.unknowns || [],
+      otherFacts: profile.otherFacts || [],
+      tone: profile.tone,
+      priceDisclosure: profile.priceDisclosure ?? null,
+      openingMessage: profile.openingMessage ?? null,
+    },
+    profile
+  );
 
   const mergedForHint = mergeDraft(profile, currentDraft);
   const hasName = !!(
@@ -1081,6 +708,7 @@ export async function runBuilderTurn({
 
   const preserved = applyBuilderModelOutput(parsed, currentDraft, {
     mode: legacy ? 'legacy' : 'delta',
+    live: profile,
   });
 
   const { draft: mergedDraft, unresolved } = enforceConfigRequests(

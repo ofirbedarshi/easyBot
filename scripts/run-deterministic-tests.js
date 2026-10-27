@@ -31,6 +31,7 @@ const SUITES = [
   { id: 'format-reply', file: 'test/test-format-reply.js' },
   { id: 'identical-reply', file: 'test/test-identical-reply.js' },
   { id: 'fact-preservation', file: 'test/test-fact-preservation.js' },
+  { id: 'apply-extraction', file: 'test/test-apply-extraction.js' },
   { id: 'validate-cto-state', file: 'scripts/validate-cto-state.js' },
   { id: 'admin-dashboard', file: 'scripts/test-admin-dashboard.js' },
   { id: 'demo-playback', file: 'scripts/test-demo-playback.js' },

@@ -7,13 +7,14 @@ import {
   applyDraftToLive,
   draftDiffersFromLive,
   hasEnoughForFirstBot,
+  mergeDraft,
 } from './profile.js';
 import {
   applyReviewGate,
   hasUnresolvedConfig,
   runBuilderTurn as defaultRunBuilderTurn,
 } from './builder.js';
-import { composeReply } from './composeReply.js';
+import { changeLines, composeReply } from './composeReply.js';
 import { EMPTY_MESSAGE_ERROR } from './copy.js';
 import {
   businessBotReply as defaultBusinessBotReply,
@@ -573,7 +574,16 @@ async function handleBuild(session, userMessage) {
   result = applyReviewGate(profile, result, userMessage);
   const prior = structuredClone(profile);
   profile.draft = result.draft;
-  const changed = draftDiffersFromLive(prior, result.draft);
+  const nextView = mergeDraft(prior, result.draft);
+  const differs = draftDiffersFromLive(prior, result.draft);
+  const visible = changeLines(prior, nextView).length > 0;
+  const changed = differs && visible;
+  if (differs && !visible) {
+    profile.draft = {
+      ...(prior.draft || result.draft),
+      askedTopics: result.draft?.askedTopics ?? prior.draft?.askedTopics,
+    };
+  }
   if (changed || result.presentReview) applyDraftToLive(profile);
   await saveAsync(session, profile);
 
