@@ -84,31 +84,61 @@ export function resolveOptionalPhone(raw) {
   return { phone, warning: null };
 }
 
-export function siteTextFromSourcePages(sourcePages) {
-  const chunks = [];
-  if (typeof sourcePages === 'string') {
-    chunks.push(sourcePages);
-  } else if (Array.isArray(sourcePages)) {
-    for (const page of sourcePages) {
-      if (typeof page === 'string') {
-        chunks.push(page);
-        continue;
-      }
-      if (page && typeof page === 'object') {
-        const t = page.text ?? page.content ?? page.body;
-        if (typeof t === 'string') chunks.push(t);
-      }
-    }
-  }
-  const cleaned = chunks
-    .map((s) => String(s).trim())
-    .filter(Boolean)
-    .join('\n\n')
-    .trim();
+function capExtractionText(text) {
+  const cleaned = String(text || '').trim();
   if (!cleaned) return '';
   return cleaned.length > SOURCE_PAGES_MAX_CHARS
     ? cleaned.slice(0, SOURCE_PAGES_MAX_CHARS)
     : cleaned;
+}
+
+function fieldText(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return String(value || '').trim();
+}
+
+/** When source_pages is empty, use the prospect's structured public fields. */
+export function structuredProspectText(prospect) {
+  const lines = [];
+  const add = (label, value) => {
+    const v = fieldText(value);
+    if (v) lines.push(`${label}:\n${v}`);
+  };
+  add('Category', prospect?.category);
+  add('City', prospect?.city);
+  add('Services', prospect?.services);
+  add('Prices', prospect?.prices);
+  add('Hours', prospect?.hours);
+  add('Notes', prospect?.notes);
+  return lines.join('\n\n');
+}
+
+/**
+ * `source_pages` is an array of `{url, text}`. Join each page with its URL as
+ * a header. Empty array → caller should fall back to structured fields.
+ */
+export function siteTextFromSourcePages(sourcePages) {
+  if (!Array.isArray(sourcePages) || sourcePages.length === 0) return '';
+  const chunks = [];
+  for (const page of sourcePages) {
+    if (!page || typeof page !== 'object') continue;
+    const url = String(page.url || '').trim();
+    const text = String(page.text || '').trim();
+    if (!url && !text) continue;
+    chunks.push(url ? `${url}\n${text}`.trim() : text);
+  }
+  return capExtractionText(chunks.join('\n\n'));
+}
+
+export function extractionTextFromProspect(prospect) {
+  const fromPages = siteTextFromSourcePages(prospect?.source_pages);
+  if (fromPages) return fromPages;
+  return capExtractionText(structuredProspectText(prospect));
 }
 
 export function mapProspect(prospect) {
@@ -119,8 +149,8 @@ export function mapProspect(prospect) {
   if (!label) throw new Error('Prospect has no name');
   const sourceUrl =
     String(prospect.whatsapp_source_url || prospect.website || '').trim() || null;
-  const siteText = siteTextFromSourcePages(prospect.source_pages);
-  if (!siteText) throw new Error('Prospect has no source_pages text');
+  const siteText = extractionTextFromProspect(prospect);
+  if (!siteText) throw new Error('Prospect has no source_pages text or structured fields');
   const { phone, warning } = resolveOptionalPhone(prospect.whatsapp_e164);
   return {
     businessLabel: label,

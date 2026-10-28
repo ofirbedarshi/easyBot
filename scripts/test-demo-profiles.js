@@ -11,6 +11,7 @@ import {
 } from '../src/copy.js';
 import {
   createDemo,
+  extractionTextFromProspect,
   loadProspectById,
   parseArgs as parseCreateDemoArgs,
   PHONE_MISSING_WARNING,
@@ -454,13 +455,17 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(withPhone.businessLabel, 'Fake Harbor Cuts');
   assert.equal(withPhone.businessPhone, '+15125550100');
   assert.equal(withPhone.sourceUrl, 'https://fake-harbor.example/contact');
-  assert.match(withPhone.siteText, /Fake Harbor Cuts/);
+  assert.match(withPhone.siteText, /^https:\/\/fake-harbor\.example\/\nFake Harbor Cuts/);
+  assert.match(withPhone.siteText, /https:\/\/fake-harbor\.example\/prices\nMen's cut \$25/);
   const noPhone = loadProspectById(fixture, 'fake-no-phone');
   assert.equal(noPhone.businessPhone, null);
   assert.match(noPhone.phoneWarning, /code link only/);
   assert.equal(noPhone.sourceUrl, 'https://fake-cafe.example');
+  assert.match(noPhone.siteText, /Category:\ncafe/);
+  assert.match(noPhone.siteText, /Prices:\nLatte \$4/);
+  assert.equal(noPhone.siteText.includes('https://'), false);
   assert.throws(() => loadProspectById(fixture, 'does-not-exist'));
-  ok('prospect fixture maps name/phone/source/source_pages');
+  ok('prospect fixture maps name/phone/source/{url,text} pages');
 }
 
 {
@@ -471,9 +476,30 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(resolveOptionalPhone('').warning, PHONE_MISSING_WARNING);
   assert.equal(resolveOptionalPhone('+1 (512) 555-0100').phone, '+15125550100');
   const long = 'x'.repeat(SOURCE_PAGES_MAX_CHARS + 50);
-  assert.equal(siteTextFromSourcePages([long]).length, SOURCE_PAGES_MAX_CHARS);
-  assert.equal(siteTextFromSourcePages([{ text: 'Page one.' }, 'Page two.']), 'Page one.\n\nPage two.');
-  ok('optional phone warning and source_pages cap');
+  assert.equal(
+    siteTextFromSourcePages([{ url: 'https://ex.example', text: long }]).length,
+    SOURCE_PAGES_MAX_CHARS
+  );
+  assert.equal(
+    siteTextFromSourcePages([
+      { url: 'https://a.example', text: 'Page one.' },
+      { url: 'https://b.example', text: 'Page two.' },
+    ]),
+    'https://a.example\nPage one.\n\nhttps://b.example\nPage two.'
+  );
+  assert.equal(siteTextFromSourcePages([]), '');
+  const fallback = extractionTextFromProspect({
+    source_pages: [],
+    category: 'salon',
+    city: 'Leeds',
+    services: 'Cut',
+    prices: 'Cut £20',
+    hours: 'Tue–Sat',
+    notes: 'Walk-ins',
+  });
+  assert.match(fallback, /City:\nLeeds/);
+  assert.match(fallback, /Prices:\nCut £20/);
+  ok('optional phone warning and source_pages {url,text} cap + 0-page fallback');
 }
 
 {
