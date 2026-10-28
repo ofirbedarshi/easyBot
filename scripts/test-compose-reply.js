@@ -12,6 +12,9 @@ import {
   GENERIC_ERROR_REPLY,
   IDENTITY_FALLBACK_QUESTION,
   INTAKE_MENU_LABEL,
+  CHATS_FOOTER,
+  CHATS_MENU_LABEL,
+  chatsEmptyLine,
   LEAD_ALREADY_SENT,
   LEAD_BRIDGE,
   LEAD_INTRO,
@@ -88,10 +91,19 @@ const menuLead = { leadOption: true };
 const menuNoLead = { leadOption: false };
 
 function menuText(opts) {
-  const items = [...(opts.leadOption ? ['lead'] : []), 'try', 1, 2, 'intake', 3];
+  const items = [
+    ...(opts.leadOption ? ['lead'] : []),
+    'try',
+    ...(opts.chatsOption ? ['chats'] : []),
+    1,
+    2,
+    'intake',
+    3,
+  ];
   const label = (item) => {
     if (item === 'lead') return `🚀 ${LEAD_MENU_LABEL}`;
     if (item === 'try') return NAV.menu[3];
+    if (item === 'chats') return `📋 ${CHATS_MENU_LABEL}`;
     if (item === 'intake') return INTAKE_MENU_LABEL;
     return NAV.menu[item - 1];
   };
@@ -480,6 +492,36 @@ test('withSingleQuestion and reviewAck stay byte-identical helpers', () => {
   assert.equal(withSingleQuestion('Ack? more', 'Q?'), 'Q?');
   assert.equal(reviewAck('Looks good. Ready for review?'), 'Looks good.');
   assert.equal(reviewAck('1. skip me\nHere is a summary:'), '');
+});
+
+const menuAfterTest = { leadOption: true, chatsOption: true };
+
+test('chats_empty named and unnamed plus menu', () => {
+  const unnamed = composeReply({ kind: 'chats_empty', menuOpts: menuAfterTest });
+  assert.equal(
+    unnamed.reply,
+    `${chatsEmptyLine()}\n\n${REVIEW.changeAsk}\n\n${menuText(menuAfterTest)}`
+  );
+  assert.equal(unnamed.nav, 'menu');
+  assert.ok(!unnamed.reply.includes(CHATS_FOOTER));
+  const named = composeReply({
+    kind: 'chats_empty',
+    menuOpts: menuAfterTest,
+    ownerName: 'Dana',
+  });
+  assert.equal(
+    named.reply,
+    `${chatsEmptyLine('Dana')}\n\n${menuIntro('Dana')}\n\n${menuText(menuAfterTest)}`
+  );
+  assert.ok(menuText(menuAfterTest).includes(`📋 ${CHATS_MENU_LABEL}`));
+});
+
+test('chats_report and chats_followup append footer only', () => {
+  const report = composeReply({ kind: 'chats_report', modelText: 'I had 1 chat.' });
+  assert.equal(report.reply, `I had 1 chat.\n\n${CHATS_FOOTER}`);
+  assert.equal(report.nav, null);
+  const follow = composeReply({ kind: 'chats_followup', modelText: 'He asked the price.' });
+  assert.equal(follow.reply, `He asked the price.\n\n${CHATS_FOOTER}`);
 });
 
 const failed = results.filter((r) => !r.pass);

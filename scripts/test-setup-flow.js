@@ -151,19 +151,19 @@ function expectedTellMore(forDraft = draft(), ownerName = OWNER) {
 function expectedReadyFirst(leadOption = false, ownerName = OWNER) {
   return composeReply({
     kind: 'ready_first',
-    menuOpts: { leadOption },
+    menuOpts: { leadOption, chatsOption: leadOption },
     ownerName,
   }).reply;
 }
 
 function expectedMenu(leadOption = false, ownerName = OWNER) {
-  return renderChangeMenu({ leadOption }, ownerName);
+  return renderChangeMenu({ leadOption, chatsOption: leadOption }, ownerName);
 }
 
 function expectedBackMenu(leadOption = false, ownerName = OWNER) {
   return composeReply({
     kind: 'test_exit',
-    menuOpts: { leadOption },
+    menuOpts: { leadOption, chatsOption: leadOption },
     ownerName,
     parts: { ready: true },
   }).replies[1];

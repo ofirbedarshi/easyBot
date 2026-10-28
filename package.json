@@ -15,6 +15,7 @@
     "test:limits": "node scripts/test-limits.js",
     "test:isolation": "node scripts/test-sender-isolation.js",
     "test:lead": "node scripts/test-lead-intake.js",
+    "test:review-chats": "node scripts/test-review-chats.js",
     "test:admin": "node scripts/test-admin-dashboard.js",
     "test:business-bot": "node scripts/test-business-bot.js",
     "regress": "node scripts/run-live-regress.js",

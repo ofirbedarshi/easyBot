@@ -27,6 +27,7 @@ const SUITES = [
   { id: 'limits', file: 'scripts/test-limits.js' },
   { id: 'sender-isolation', file: 'scripts/test-sender-isolation.js' },
   { id: 'lead-intake', file: 'scripts/test-lead-intake.js' },
+  { id: 'review-chats', file: 'scripts/test-review-chats.js' },
   { id: 'business-bot', file: 'scripts/test-business-bot.js' },
   { id: 'builder-output', file: 'test/test-builder-output.js' },
   { id: 'format-reply', file: 'test/test-format-reply.js' },

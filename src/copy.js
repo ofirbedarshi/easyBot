@@ -66,6 +66,20 @@ export function returnedIntro(name) {
 }
 
 export const INTAKE_MENU_LABEL = '📝 Choose details to collect from customers';
+export const CHATS_MENU_LABEL = "Tell me about today's customer chats";
+
+export const CHATS_EMPTY_NO_NAME =
+  "I haven't talked with any customers today yet 🙂\nPick 🤖 Chat with me like a customer and I'll tell you all about it after!";
+
+export function chatsEmptyLine(name) {
+  const n = displayOwnerName(name);
+  return n
+    ? `I haven't talked with any customers today yet, ${n} 🙂\nPick 🤖 Chat with me like a customer and I'll tell you all about it after!`
+    : CHATS_EMPTY_NO_NAME;
+}
+
+export const CHATS_FOOTER =
+  'Ask me anything about these chats 💬, or type *menu* to go back.';
 
 export const PRICE_POLICY_OWNER_LABELS = {
   relevant: "I mention prices when they're relevant",

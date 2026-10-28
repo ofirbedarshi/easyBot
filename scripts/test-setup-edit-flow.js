@@ -183,14 +183,14 @@ function assertReplyShape(reply, label) {
   assert.equal(jsonKind, null, `${label}: raw ${jsonKind} leaked:\n${text}`);
 }
 
-function expectedMenu(leadOption = false) {
-  return renderChangeMenu({ leadOption });
+function expectedMenu(leadOption = false, chatsOption = leadOption) {
+  return renderChangeMenu({ leadOption, chatsOption });
 }
 
-function expectedBackMenu(leadOption = false) {
+function expectedBackMenu(leadOption = false, chatsOption = leadOption) {
   return composeReply({
     kind: 'test_exit',
-    menuOpts: { leadOption },
+    menuOpts: { leadOption, chatsOption },
     parts: { ready: true },
   }).replies[1];
 }
@@ -268,11 +268,12 @@ async function playApprovedFlow(steps, { history, profile: seed } = {}) {
   } else {
     const profile = loadProfile(PROFILE);
     const leadOption = !!profile.firstTestedAt;
+    const chatsOption = !!profile.firstTestedAt;
     session.buildHistory.push(
       { role: 'user', content: 'hello' },
       { role: 'assistant', content: "Hi, I'm Adam" },
       { role: 'user', content: 'setup dump' },
-      { role: 'assistant', content: renderReadyFirst({ leadOption }), nav: 'menu' }
+      { role: 'assistant', content: renderReadyFirst({ leadOption, chatsOption }), nav: 'menu' }
     );
   }
 
@@ -378,7 +379,10 @@ function saveCardExpect(extra = {}) {
     event: 'build_turn',
     mode: 'BUILD',
     reply: ({ before, profile }) =>
-      renderSavedChanges(before, profile, { leadOption: !!profile.firstTestedAt }),
+      renderSavedChanges(before, profile, {
+        leadOption: !!profile.firstTestedAt,
+        chatsOption: !!profile.firstTestedAt,
+      }),
     startsWith: CHANGED_ACK,
     approvedAt: APPROVED_AT,
     nav: 'menu',
@@ -1123,10 +1127,10 @@ await test('lead form from the menu after first TEST, then menu header', async (
         expect: {
           event: 'menu',
           mode: 'BUILD',
-          reply: expectedMenu(false),
+          reply: expectedMenu(false, true),
           approvedAt: APPROVED_AT,
           nav: 'menu',
-          includes: [MENU_HEAD, '1. 🤖 Chat with me like a customer'],
+          includes: [MENU_HEAD, '1. 🤖 Chat with me like a customer', "2. 📋 Tell me about today's customer chats"],
           excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
         },
       },

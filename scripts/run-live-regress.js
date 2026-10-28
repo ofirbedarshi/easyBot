@@ -81,6 +81,7 @@ const SCENARIOS = [
   },
   { id: 'on-purpose', args: ['scripts/replay-on-purpose.js'] },
   { id: 'intake-remove', args: ['scripts/replay-intake-remove.js'] },
+  { id: 'review-chats', args: ['scripts/replay-review-chats.js'] },
 ];
 
 function redact(text) {

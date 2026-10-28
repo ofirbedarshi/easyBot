@@ -23,6 +23,12 @@ function isMissingOwnerNameColumn(error) {
   return code === '42703' || /owner_name/i.test(msg);
 }
 
+function isMissingReviewChatsColumn(error) {
+  const code = error?.code;
+  const msg = String(error?.message || '');
+  return code === '42703' || /review_chats/i.test(msg);
+}
+
 export function createSupabaseStore() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -146,6 +152,7 @@ export function createSupabaseStore() {
         testHistory: data.test_history || [],
         testSessionId: data.test_session_id || `test-${Date.now()}`,
         leadIntake: data.lead_intake ?? null,
+        reviewChats: data.review_chats ?? null,
         ownerName: data.owner_name ?? null,
       };
     },
@@ -158,6 +165,7 @@ export function createSupabaseStore() {
         test_history: session.testHistory || [],
         test_session_id: session.testSessionId,
         lead_intake: session.leadIntake ?? null,
+        review_chats: session.reviewChats ?? null,
         owner_name: session.ownerName ?? null,
         updated_at: new Date().toISOString(),
       };
@@ -167,6 +175,13 @@ export function createSupabaseStore() {
         .eq('sender_id', senderId);
       if (error && isMissingOwnerNameColumn(error)) {
         delete payload.owner_name;
+        ({ error } = await sb
+          .from('easybot_sessions')
+          .update(payload)
+          .eq('sender_id', senderId));
+      }
+      if (error && isMissingReviewChatsColumn(error)) {
+        delete payload.review_chats;
         ({ error } = await sb
           .from('easybot_sessions')
           .update(payload)
