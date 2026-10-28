@@ -183,10 +183,10 @@ export function reviewedDemoRecord({
   code,
   now = new Date(),
 } = {}) {
-  const phone = businessPhone == null ? null : normalizeBusinessPhone(businessPhone);
-  if (businessPhone != null && !phone) {
-    throw new Error('reviewedDemoRecord: invalid business phone (need E.164)');
-  }
+  const phone =
+    businessPhone == null || String(businessPhone).trim() === ''
+      ? null
+      : normalizeBusinessPhone(businessPhone);
   assertDemoReady(profile);
   const approved = withKnownProfileKeys(profile);
   if (!approved.approvedAt) approved.approvedAt = now.toISOString();

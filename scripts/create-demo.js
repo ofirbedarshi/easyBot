@@ -8,9 +8,12 @@
  *     --phone +15125550100 \
  *     --source https://harborcuts.example \
  *     --text ./harbor-cuts.txt
- *     [--yes]
+ *     [--yes] [--dry-run]
  *
- * Requires OPENAI_API_KEY and Supabase env. Never prints secrets.
+ *   node scripts/create-demo.js --prospect ./prospects.json --id fake-harbor [--yes] [--dry-run]
+ *
+ * Requires OPENAI_API_KEY. Supabase env is required to save (not for --dry-run).
+ * Never prints secrets. Do not commit real prospect files.
  */
 import 'dotenv/config';
 import fs from 'fs';
@@ -28,15 +31,31 @@ import {
 import { formatSummary } from '../src/profile.js';
 import { createStore } from '../src/store/index.js';
 
-function parseArgs(argv) {
-  const out = { yes: false };
+export const SOURCE_PAGES_MAX_CHARS = 12_000;
+
+const PHONE_MISSING_WARNING =
+  'No valid mobile E.164. Saving with business_phone null (code link only).';
+
+export function parseArgs(argv) {
+  const out = { yes: false, dryRun: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--yes' || a === '-y') {
       out.yes = true;
       continue;
     }
-    if (a === '--label' || a === '--phone' || a === '--source' || a === '--text') {
+    if (a === '--dry-run') {
+      out.dryRun = true;
+      continue;
+    }
+    if (
+      a === '--label' ||
+      a === '--phone' ||
+      a === '--source' ||
+      a === '--text' ||
+      a === '--prospect' ||
+      a === '--id'
+    ) {
       const key = a.slice(2);
       const val = argv[++i];
       if (val == null || val.startsWith('--')) {
@@ -48,6 +67,127 @@ function parseArgs(argv) {
     throw new Error(`Unknown argument: ${a}`);
   }
   return out;
+}
+
+export function resolveOptionalPhone(raw) {
+  const trimmed = raw == null ? '' : String(raw).trim();
+  if (!trimmed) {
+    return { phone: null, warning: PHONE_MISSING_WARNING };
+  }
+  const phone = normalizeBusinessPhone(trimmed);
+  if (!phone) {
+    return {
+      phone: null,
+      warning: `${PHONE_MISSING_WARNING} ${JSON.stringify(trimmed)} is not E.164 (short links are not resolved).`,
+    };
+  }
+  return { phone, warning: null };
+}
+
+export function siteTextFromSourcePages(sourcePages) {
+  const chunks = [];
+  if (typeof sourcePages === 'string') {
+    chunks.push(sourcePages);
+  } else if (Array.isArray(sourcePages)) {
+    for (const page of sourcePages) {
+      if (typeof page === 'string') {
+        chunks.push(page);
+        continue;
+      }
+      if (page && typeof page === 'object') {
+        const t = page.text ?? page.content ?? page.body;
+        if (typeof t === 'string') chunks.push(t);
+      }
+    }
+  }
+  const cleaned = chunks
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+  if (!cleaned) return '';
+  return cleaned.length > SOURCE_PAGES_MAX_CHARS
+    ? cleaned.slice(0, SOURCE_PAGES_MAX_CHARS)
+    : cleaned;
+}
+
+export function mapProspect(prospect) {
+  if (!prospect || typeof prospect !== 'object') {
+    throw new Error('Prospect is missing');
+  }
+  const label = String(prospect.name || '').trim();
+  if (!label) throw new Error('Prospect has no name');
+  const sourceUrl =
+    String(prospect.whatsapp_source_url || prospect.website || '').trim() || null;
+  const siteText = siteTextFromSourcePages(prospect.source_pages);
+  if (!siteText) throw new Error('Prospect has no source_pages text');
+  const { phone, warning } = resolveOptionalPhone(prospect.whatsapp_e164);
+  return {
+    businessLabel: label,
+    businessPhone: phone,
+    phoneWarning: warning,
+    sourceUrl,
+    siteText,
+    prospectId: prospect.id ?? null,
+  };
+}
+
+export function loadProspectById(filePath, id, readFile = fs.readFileSync) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFile(filePath, 'utf8'));
+  } catch (err) {
+    throw new Error(`Could not read prospect file: ${err.message}`);
+  }
+  const list = Array.isArray(parsed?.prospects) ? parsed.prospects : null;
+  if (!list) throw new Error('Prospect file must have a prospects array');
+  const needle = String(id);
+  const found = list.find((p) => String(p?.id) === needle);
+  if (!found) throw new Error(`Prospect id ${needle} not found`);
+  return mapProspect(found);
+}
+
+function resolvePath(p, cwd = process.cwd()) {
+  return path.isAbsolute(p) ? p : path.join(cwd, p);
+}
+
+export function resolveCreateDemoInput(args, opts = {}) {
+  const readFile = opts.readFile || fs.readFileSync;
+  const cwd = opts.cwd || process.cwd();
+  const hasProspect = !!(args.prospect || args.id);
+  const hasFlags = !!(args.label || args.source || args.text || args.phone);
+  if (hasProspect && (args.label || args.source || args.text)) {
+    throw new Error('Use either --prospect/--id or --label/--source/--text, not both');
+  }
+  if (args.prospect || args.id) {
+    if (!args.prospect || args.id == null) {
+      throw new Error('Both --prospect and --id are required');
+    }
+    return loadProspectById(resolvePath(args.prospect, cwd), args.id, readFile);
+  }
+  if (hasFlags) {
+    if (!args.label || !args.source || !args.text) {
+      throw new Error('Flag mode needs --label, --source, and --text (--phone is optional)');
+    }
+    const textPath = resolvePath(args.text, cwd);
+    let siteText;
+    try {
+      siteText = readFile(textPath, 'utf8');
+    } catch {
+      throw new Error(`Text file not found: ${args.text}`);
+    }
+    if (!String(siteText).trim()) throw new Error('Text file is empty.');
+    const { phone, warning } = resolveOptionalPhone(args.phone);
+    return {
+      businessLabel: String(args.label).trim(),
+      businessPhone: phone,
+      phoneWarning: warning,
+      sourceUrl: args.source,
+      siteText: String(siteText),
+      prospectId: null,
+    };
+  }
+  throw new Error('Need --label/--source/--text or --prospect/--id');
 }
 
 async function confirmSave(yes) {
@@ -65,9 +205,64 @@ async function confirmSave(yes) {
 
 function usage() {
   return [
-    'Usage: node scripts/create-demo.js --label <name> --phone <e164> --source <url> --text <file> [--yes]',
-    'Paste public text from the business website into <file>. The script does not scrape.',
+    'Usage:',
+    '  node scripts/create-demo.js --label <name> [--phone <e164>] --source <url> --text <file> [--yes] [--dry-run]',
+    '  node scripts/create-demo.js --prospect <file.json> --id <id> [--yes] [--dry-run]',
+    'Paste public text from the business website into <file>, or pass cleaned source_pages via --prospect.',
+    'The script does not scrape and does not resolve short links.',
   ].join('\n');
+}
+
+/**
+ * @param {ReturnType<typeof parseArgs>} args
+ * @param {object} [deps]
+ */
+export async function createDemo(args, deps = {}) {
+  const input = resolveCreateDemoInput(args, deps);
+  if (input.phoneWarning) {
+    console.warn(input.phoneWarning);
+  }
+
+  const extract = deps.extractDemoProfile || extractDemoProfile;
+  const { profile } = await extract({
+    siteText: input.siteText,
+    sourceUrl: input.sourceUrl,
+    runBuilderTurn: deps.runBuilderTurn || runBuilderTurn,
+  });
+
+  console.log('\nExtracted profile\n');
+  console.log(formatSummary(profile));
+  console.log('');
+
+  if (args.dryRun) {
+    console.log('Dry run. Nothing saved.');
+    return { dryRun: true, saved: null, input, profile };
+  }
+
+  const confirm = deps.confirmSave || confirmSave;
+  const ok = await confirm(args.yes);
+  if (!ok) {
+    console.log('Aborted. Nothing saved.');
+    return { aborted: true, saved: null, input, profile };
+  }
+
+  const store = deps.store || createStore();
+  if (!deps.store && store.kind !== 'supabase') {
+    throw new Error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+
+  const record = reviewedDemoRecord({
+    businessLabel: input.businessLabel,
+    businessPhone: input.businessPhone,
+    sourceUrl: input.sourceUrl,
+    profile,
+    code: generateDemoCode(),
+  });
+  const saved = await store.insertDemo(record);
+  const phoneNote = saved.business_phone || 'code link only';
+  console.log(`Saved demo ${saved.id} for ${saved.business_label} (${phoneNote}).`);
+  console.log(`Fallback link: ${fallbackWaLink(saved.code)}`);
+  return { dryRun: false, saved, input, profile };
 }
 
 async function main() {
@@ -80,66 +275,18 @@ async function main() {
     process.exit(1);
   }
 
-  if (!args.label || !args.phone || !args.source || !args.text) {
-    console.error(usage());
-    process.exit(1);
-  }
-
-  const phone = normalizeBusinessPhone(args.phone);
-  if (!phone) {
-    console.error('Invalid business phone. Use E.164, for example +15125550100.');
-    process.exit(1);
-  }
-
-  const textPath = path.isAbsolute(args.text) ? args.text : path.join(process.cwd(), args.text);
-  if (!fs.existsSync(textPath)) {
-    console.error(`Text file not found: ${args.text}`);
-    process.exit(1);
-  }
-  const siteText = fs.readFileSync(textPath, 'utf8');
-  if (!siteText.trim()) {
-    console.error('Text file is empty.');
-    process.exit(1);
-  }
-
   if (!process.env.OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY missing');
     process.exit(1);
   }
 
-  const store = createStore();
-  if (store.kind !== 'supabase') {
-    console.error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  try {
+    await createDemo(args);
+  } catch (err) {
+    console.error(err.message);
+    if (/Usage:/.test(err.message)) console.error(usage());
     process.exit(1);
   }
-
-  console.log(`Extracting demo profile for ${args.label} from ${args.source}…`);
-  const { profile } = await extractDemoProfile({
-    siteText,
-    sourceUrl: args.source,
-    runBuilderTurn,
-  });
-
-  console.log('\nExtracted profile\n');
-  console.log(formatSummary(profile));
-  console.log('');
-
-  const ok = await confirmSave(args.yes);
-  if (!ok) {
-    console.log('Aborted. Nothing saved.');
-    process.exit(0);
-  }
-
-  const record = reviewedDemoRecord({
-    businessLabel: args.label,
-    businessPhone: phone,
-    sourceUrl: args.source,
-    profile,
-    code: generateDemoCode(),
-  });
-  const saved = await store.insertDemo(record);
-  console.log(`Saved demo ${saved.id} for ${saved.business_label} (${saved.business_phone}).`);
-  console.log(`Fallback link: ${fallbackWaLink(saved.code)}`);
 }
 
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -150,4 +297,4 @@ if (invoked) {
   });
 }
 
-export { parseArgs, confirmSave };
+export { confirmSave, PHONE_MISSING_WARNING };

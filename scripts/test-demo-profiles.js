@@ -10,6 +10,16 @@ import {
   returnedIntro,
 } from '../src/copy.js';
 import {
+  createDemo,
+  loadProspectById,
+  parseArgs as parseCreateDemoArgs,
+  PHONE_MISSING_WARNING,
+  resolveCreateDemoInput,
+  resolveOptionalPhone,
+  siteTextFromSourcePages,
+  SOURCE_PAGES_MAX_CHARS,
+} from './create-demo.js';
+import {
   DEMO_CODE_ALPHABET,
   DEMO_CODE_RE,
   extractDemoProfile,
@@ -28,6 +38,8 @@ import {
 } from '../src/session.js';
 import { createMemoryStore } from '../src/store/memoryStore.js';
 import { renderMenu } from '../src/ownerNav.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const PHONE = '+15125550100';
 const SENDER = `whatsapp:${PHONE}`;
@@ -382,6 +394,167 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
     })
   );
   ok('refuses to save a profile that cannot enter TEST');
+}
+
+{
+  const noPhone = reviewedDemoRecord({
+    businessLabel: 'Site Salon',
+    businessPhone: null,
+    sourceUrl: 'https://sitesalon.example',
+    profile: demoProfile({ name: 'Site Salon', whatWeDo: 'Hair salon' }),
+    code: 'NOPHONE1',
+  });
+  assert.equal(noPhone.business_phone, null);
+  const hidden = reviewedDemoRecord({
+    businessLabel: 'Site Salon',
+    businessPhone: 'https://wa.me/shortlink',
+    sourceUrl: 'https://sitesalon.example',
+    profile: demoProfile({ name: 'Site Salon', whatWeDo: 'Hair salon' }),
+    code: 'NOPHONE2',
+  });
+  assert.equal(hidden.business_phone, null);
+  const store = createMemoryStore();
+  await store.insertDemo(noPhone);
+  await store.insertDemo(hidden);
+  ok('null / invalid phone saves as code-only');
+}
+
+{
+  const args = parseCreateDemoArgs([
+    '--prospect',
+    'test/fixtures/demo-prospect.fake.json',
+    '--id',
+    'fake-harbor',
+    '--dry-run',
+  ]);
+  assert.equal(args.prospect, 'test/fixtures/demo-prospect.fake.json');
+  assert.equal(args.id, 'fake-harbor');
+  assert.equal(args.dryRun, true);
+  assert.equal(args.yes, false);
+  const flags = parseCreateDemoArgs([
+    '--label',
+    'X',
+    '--source',
+    'https://x.example',
+    '--text',
+    'x.txt',
+    '--yes',
+  ]);
+  assert.equal(flags.yes, true);
+  assert.equal(flags.phone, undefined);
+  ok('create-demo parseArgs: --prospect/--id/--dry-run and optional --phone');
+}
+
+{
+  const fixture = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../test/fixtures/demo-prospect.fake.json'
+  );
+  const withPhone = loadProspectById(fixture, 'fake-harbor');
+  assert.equal(withPhone.businessLabel, 'Fake Harbor Cuts');
+  assert.equal(withPhone.businessPhone, '+15125550100');
+  assert.equal(withPhone.sourceUrl, 'https://fake-harbor.example/contact');
+  assert.match(withPhone.siteText, /Fake Harbor Cuts/);
+  const noPhone = loadProspectById(fixture, 'fake-no-phone');
+  assert.equal(noPhone.businessPhone, null);
+  assert.match(noPhone.phoneWarning, /code link only/);
+  assert.equal(noPhone.sourceUrl, 'https://fake-cafe.example');
+  assert.throws(() => loadProspectById(fixture, 'does-not-exist'));
+  ok('prospect fixture maps name/phone/source/source_pages');
+}
+
+{
+  const { phone, warning } = resolveOptionalPhone('https://wa.me/AbC');
+  assert.equal(phone, null);
+  assert.match(warning, /short links are not resolved/);
+  assert.equal(resolveOptionalPhone('').phone, null);
+  assert.equal(resolveOptionalPhone('').warning, PHONE_MISSING_WARNING);
+  assert.equal(resolveOptionalPhone('+1 (512) 555-0100').phone, '+15125550100');
+  const long = 'x'.repeat(SOURCE_PAGES_MAX_CHARS + 50);
+  assert.equal(siteTextFromSourcePages([long]).length, SOURCE_PAGES_MAX_CHARS);
+  assert.equal(siteTextFromSourcePages([{ text: 'Page one.' }, 'Page two.']), 'Page one.\n\nPage two.');
+  ok('optional phone warning and source_pages cap');
+}
+
+{
+  const fixtureRel = 'test/fixtures/demo-prospect.fake.json';
+  const mixed = {
+    prospect: fixtureRel,
+    id: 'fake-harbor',
+    label: 'Nope',
+    source: 'https://x.example',
+    text: 'x.txt',
+  };
+  assert.throws(() => resolveCreateDemoInput(mixed));
+  const fromFlags = resolveCreateDemoInput(
+    {
+      label: 'Flag Shop',
+      source: 'https://flag.example',
+      text: 'paste.txt',
+    },
+    {
+      cwd: '/tmp',
+      readFile: (p) => {
+        assert.equal(p, path.join('/tmp', 'paste.txt'));
+        return 'Flag Shop is a test store. Widgets $1.';
+      },
+    }
+  );
+  assert.equal(fromFlags.businessLabel, 'Flag Shop');
+  assert.equal(fromFlags.businessPhone, null);
+  assert.equal(fromFlags.phoneWarning, PHONE_MISSING_WARNING);
+  ok('resolveCreateDemoInput: flags without phone, reject mixed modes');
+}
+
+{
+  const fixture = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../test/fixtures/demo-prospect.fake.json'
+  );
+  const store = createMemoryStore();
+  let inserted = 0;
+  const origInsert = store.insertDemo.bind(store);
+  store.insertDemo = async (...args) => {
+    inserted += 1;
+    return origInsert(...args);
+  };
+  const turn = {
+    onPurpose: true,
+    draft: {
+      name: 'Fake Harbor Cuts',
+      whatWeDo: 'Barbershop',
+      services: [{ name: 'Haircut', price: '$30', notes: null }],
+    },
+    newFacts: [],
+  };
+  const dry = await createDemo(
+    { prospect: fixture, id: 'fake-harbor', dryRun: true, yes: true },
+    {
+      store,
+      runBuilderTurn: async () => turn,
+      confirmSave: async () => true,
+    }
+  );
+  assert.equal(dry.dryRun, true);
+  assert.equal(dry.saved, null);
+  assert.equal(inserted, 0);
+  assert.equal(dry.input.businessPhone, '+15125550100');
+
+  const savedRun = await createDemo(
+    { prospect: fixture, id: 'fake-no-phone', yes: true },
+    {
+      store,
+      runBuilderTurn: async () => ({
+        ...turn,
+        draft: { ...turn.draft, name: 'Fake Hidden Number Cafe', whatWeDo: 'Cafe' },
+      }),
+      confirmSave: async () => true,
+    }
+  );
+  assert.equal(savedRun.dryRun, false);
+  assert.equal(savedRun.saved.business_phone, null);
+  assert.equal(inserted, 1);
+  ok('createDemo --dry-run writes nothing; prospect without E.164 is code-only');
 }
 
 console.log(`\n${passed} passed`);
