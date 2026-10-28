@@ -30,11 +30,11 @@ test('openingMessage keeps paragraph breaks and Adam welcome copy', () => {
   assert.equal(open.source, 'app');
   assert.equal(
     open.message,
-    "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\nBefore we start, what would you like me to call you?"
+    "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\n🔒 What you tell me stays yours: never sold, never used for ads, never shared with anyone but your customers.\n\nBefore we start, what would you like me to call you?"
   );
   assert.match(open.message, /\n\n/);
   assert.equal(open.message.includes('\n\n'), true);
-  assert.equal(open.message.split('\n\n').length, 4);
+  assert.equal(open.message.split('\n\n').length, 5);
   assert.equal(formatModelReply(open.message), open.message);
 });
 

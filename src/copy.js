@@ -4,7 +4,7 @@
  */
 
 export const OPENING_MESSAGE =
-  "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\nBefore we start, what would you like me to call you?";
+  "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\n🔒 What you tell me stays yours: never sold, never used for ads, never shared with anyone but your customers.\n\nBefore we start, what would you like me to call you?";
 
 export const OWNER_NAME_QUESTION =
   'Before we start, what would you like me to call you?';

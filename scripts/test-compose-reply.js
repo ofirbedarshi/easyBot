@@ -137,7 +137,7 @@ function test(name, fn) {
 test('opening', () => {
   const out = composeReply({ kind: 'opening' });
   assert.equal(out.reply, OPENING_MESSAGE);
-  assert.equal(out.reply.split('\n\n').length, 4);
+  assert.equal(out.reply.split('\n\n').length, 5);
   assert.ok(out.reply.endsWith(OWNER_NAME_QUESTION));
   assert.equal(out.nav, null);
 });
