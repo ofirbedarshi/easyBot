@@ -21,7 +21,7 @@ Do **not** paste secrets into chat. Set them in Render Dashboard → Environment
    - `PUBLIC_BASE_URL=https://<your-easybot-app>.onrender.com` (exact, no trailing slash)
    - `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    - Twilio vars when ready
-4. Free tier sleeps ~15m; hit `/api/health` before Sandbox tests.
+4. Free tier sleeps ~15m; hit `/api/health` before WhatsApp tests.
 
 ## GitHub Actions → Render deploy
 
@@ -65,17 +65,17 @@ Each hook call appends `&ref=<commit-sha>` so Render deploys that push.
 
 Optional: set the service’s **Auto Deploy** to **No** so only this Action triggers deploys (avoids double deploys if native auto-deploy starts working again).
 
-## You: Twilio (when WhatsApp number / Sandbox ready)
+## You: Twilio (production WhatsApp sender)
 
 | Setting | Where |
 |---|---|
-| Webhook URL | Twilio Console → WhatsApp Sandbox or sender → `https://<PUBLIC_BASE_URL>/webhooks/twilio/whatsapp` |
+| Webhook URL | Twilio Console → WhatsApp sender → `https://<PUBLIC_BASE_URL>/webhooks/twilio/whatsapp` |
 | Method | HTTP POST |
 | `TWILIO_ACCOUNT_SID` | Render env |
 | `TWILIO_AUTH_TOKEN` | Render env (same token used for signature validation) |
-| `TWILIO_WHATSAPP_FROM` | Render env, e.g. `whatsapp:+14155238886` for Sandbox |
+| `TWILIO_WHATSAPP_FROM` | Render env, e.g. `whatsapp:+17623205871` |
 
-Sandbox is **not** a public number you can advertise.
+The live sender is a production Twilio number. The Twilio Sandbox is only for local testing.
 
 ## Test labels
 
@@ -84,9 +84,9 @@ Sandbox is **not** a public number you can advertise.
 | Deterministic | `npm test` | All no-network suites (also GitHub Actions on PR / push to main) |
 | Mocked | `npm run test:twilio` | Ran — signatures, dupes, isolation, order, `/test`+`stop` |
 | Live model | `npm run regress` | Manual gpt-6-luna replays (a few cents; optional `Live regress` workflow_dispatch) |
-| Sandbox | Message Sandbox after Render URL live | **Not run** — Twilio number still in progress |
-| Live | Real WhatsApp number E2E | **Not run** — not public-ready |
+| Sandbox | Message Sandbox after Render URL live (local testing only) | **Not run** — production number is configured |
+| Live | Real WhatsApp number E2E | **Not run** — production number is configured |
 
 ## Not public-ready
 
-Do not declare launch until one real WhatsApp conversation succeeds end-to-end on your number (not only Sandbox, if you plan to use a real sender).
+Do not declare launch until one real WhatsApp conversation succeeds end-to-end on the production number (Sandbox is only for local testing).
