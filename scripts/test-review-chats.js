@@ -274,6 +274,32 @@ test('clarifyFromBuilderMessage rejects remember-claims', () => {
   assert.ok(REVIEW_CHATS_SYSTEM.includes('Set teaching true only when'));
 });
 
+await test('teaching false does not call the Builder', async () => {
+  let builderCalls = 0;
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) =>
+      question
+        ? { message: 'She asked how much a private lesson is.', teaching: false }
+        : { message: 'I had 1 chat. I could not answer the private-lesson price.', teaching: false },
+    runBuilderTurn: async () => {
+      builderCalls += 1;
+      throw new Error('Builder should not run when teaching is false');
+    },
+  });
+  await handleMessage(session, '3');
+  assert.equal(builderCalls, 0);
+  const before = await store.loadProfile(sender);
+  const follow = await handleMessage(session, 'what exactly did she ask about the price?');
+  assert.equal(follow.event, 'chats_turn');
+  assert.equal(ownerPhase(session), 'chats');
+  assert.equal(builderCalls, 0);
+  assert.ok(follow.reply.includes('She asked how much a private lesson is.'), follow.reply);
+  assert.ok(!/remember|saved/i.test(follow.reply), follow.reply);
+  const after = await store.loadProfile(sender);
+  assert.equal(after.services[0].price, before.services[0].price);
+  assert.equal(after.services[0].price, '$80');
+});
+
 await test('teach in chats mode updates the live service price', async () => {
   const builderCalls = [];
   const { store, sender, session } = await seededChatsSession({
