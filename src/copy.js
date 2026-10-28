@@ -3,11 +3,12 @@
  * The composer (`composeReply.js`) is the only assembler of outgoing replies.
  */
 
-export const OPENING_MESSAGE =
-  "Hi, I'm Adam, your personal assistant 👋😊\n\nI'll answer your customers 24/7, save you time, and help you get more customers and grow your business 🚀\n\nTeach me everything I need to know about your business, and I'll take care of your customers in the best way 💬✨\n\n🔒 What you tell me stays yours: never sold, never used for ads, never shared with anyone but your customers.\n\nBefore we start, what would you like me to call you?";
-
 export const OWNER_NAME_QUESTION =
   'Before we start, what would you like me to call you?';
+
+export const OPENING_MESSAGE =
+  "Hi, I'm Adam 👋 Tell me about your business, then try chatting with me as one of your customers.\n\n" +
+  OWNER_NAME_QUESTION;
 
 export const IDENTITY_FALLBACK_QUESTION =
   "What's your business called, and what does it do?";
