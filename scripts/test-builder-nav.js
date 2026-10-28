@@ -165,8 +165,8 @@ async function testSectionRoutingReadOnly() {
   const before = readRaw();
   const m = await handleMessage(session, 'menu');
   assert.equal(m.event, 'menu');
-  assert.ok(m.reply.includes(`3. ${TELL_MORE}`), m.reply);
-  const talks = await handleMessage(session, '6');
+  assert.ok(m.reply.includes(`4. ${TELL_MORE}`), m.reply);
+  const talks = await handleMessage(session, '7');
   assert.equal(talks.event, 'menu_section');
   assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n\n'), talks.reply);
   assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
@@ -185,7 +185,7 @@ async function testSectionRoutingReadOnly() {
   const back = await handleMessage(session, '*menu*');
   assert.equal(back.event, 'menu');
   assert.ok(back.reply.startsWith('What should we do next?'), back.reply);
-  assert.ok(back.reply.includes(`3. ${TELL_MORE}`), back.reply);
+  assert.ok(back.reply.includes(`4. ${TELL_MORE}`), back.reply);
   assert.equal(calls.builder, 0, '*menu* must not reach the Builder');
   const please = await handleMessage(session, 'please menu');
   assert.equal(please.event, 'build_turn');
@@ -193,16 +193,16 @@ async function testSectionRoutingReadOnly() {
 
   // A number right after a section view is an answer, not a menu choice.
   await handleMessage(session, 'menu');
-  await handleMessage(session, '6');
+  await handleMessage(session, '7');
   await handleMessage(session, '3');
   assert.equal(calls.builder, 2, 'number after section view must reach the Builder');
 
   // Other sections render their own fields.
   await handleMessage(session, 'menu');
-  const s1 = await handleMessage(session, '3');
+  const s1 = await handleMessage(session, '4');
   assert.ok(s1.reply.includes('Studio Yoga') && s1.reply.includes('200 ILS'), s1.reply);
   await handleMessage(session, 'menu');
-  const s2 = await handleMessage(session, '4');
+  const s2 = await handleMessage(session, '5');
   assert.ok(s2.reply.includes('Yes, beginners welcome.'), s2.reply);
 }
 
@@ -424,11 +424,11 @@ async function testSixAndEnd() {
   assert.equal(end.reply, exitBanner);
   assert.equal(end.replies[0], exitBanner);
   assert.ok(end.replies[1].startsWith("I'm back! What should I learn next?"), end.replies[1]);
-  assert.ok(end.replies[1].includes(`3. ${TELL_MORE}`), end.replies[1]);
+  assert.ok(end.replies[1].includes(`4. ${TELL_MORE}`), end.replies[1]);
   assert.ok(end.replies[1].includes('1. 🚀 Get me working for your business'), end.replies[1]);
   assert.ok(!/BUILD mode/.test(end.replies.join('\n')));
   assert.ok(lastAssistant(session).content.startsWith("I'm back! What should I learn next?"));
-  const talks = await handleMessage(session, '6');
+  const talks = await handleMessage(session, '7');
   assert.equal(talks.event, 'menu_section');
 }
 
@@ -495,22 +495,23 @@ async function testMenuLabels() {
       [
         '1. 🚀 Get me working for your business',
         '2. 🤖 Chat with me like a customer',
-        `3. ${TELL_MORE}`,
-        '4. ❓ Teach me more questions and answers',
-        `5. ${INTAKE_MENU_LABEL}`,
-        '6. 💬 Tell me how to talk to your customers',
+        "3. 📋 Tell me about today's customer chats",
+        `4. ${TELL_MORE}`,
+        '5. ❓ Teach me more questions and answers',
+        `6. ${INTAKE_MENU_LABEL}`,
+        '7. 💬 Tell me how to talk to your customers',
         '',
         'Pick a number, or just tell me what you want me to learn.',
       ].join('\n')
     ),
     end.reply
   );
-  const talks = await handleMessage(session, '6');
+  const talks = await handleMessage(session, '7');
   assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n\n'), talks.reply);
   assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
   const biz = await handleMessage(session, 'menu');
   assert.ok(biz.reply.startsWith('What should we do next?'), biz.reply);
-  const s1 = await handleMessage(session, '3');
+  const s1 = await handleMessage(session, '4');
   assert.ok(s1.reply.includes('*Price policy:* I share prices only when a customer asks'), s1.reply);
 }
 
@@ -534,6 +535,8 @@ async function testMenuParseHelpers() {
   assert.ok(renderMenu().endsWith(FOOTER));
   assert.equal(menuItems({ leadOption: false }).length, 5);
   assert.equal(menuItems({ leadOption: true }).length, 6);
+  assert.equal(menuItems({ chatsOption: true }).length, 6);
+  assert.equal(menuItems({ leadOption: true, chatsOption: true }).length, 7);
 }
 
 /** First ready is the full menu (no lead); 1 enters TEST and stamps firstTestedAt. */
@@ -757,10 +760,14 @@ async function testReviewRenderHelpers() {
 async function testMenuLayoutStates() {
   const lead = { leadOption: true };
   const noLead = { leadOption: false };
+  const afterTest = { leadOption: true, chatsOption: true };
+  const afterLead = { leadOption: false, chatsOption: true };
   assert.deepEqual(menuItems(lead), ['lead', 'try', 1, 2, 'intake', 3]);
   assert.deepEqual(menuItems(noLead), ['try', 1, 2, 'intake', 3]);
+  assert.deepEqual(menuItems(afterTest), ['lead', 'try', 'chats', 1, 2, 'intake', 3]);
+  assert.deepEqual(menuItems(afterLead), ['try', 'chats', 1, 2, 'intake', 3]);
   assert.deepEqual(menuItems(), menuItems(noLead));
-  for (const opts of [lead, noLead]) {
+  for (const opts of [lead, noLead, afterTest, afterLead]) {
     const rendered = renderMenu(opts).split('\n').filter((l) => /^\d\. /.test(l));
     assert.equal(rendered.length, menuItems(opts).length);
     rendered.forEach((line, i) => {
@@ -780,14 +787,18 @@ async function testMenuLayoutStates() {
   assert.equal(parseMenuItem('5', noLead), 3);
   assert.equal(parseMenuItem('6', noLead), null);
   assert.equal(parseMenuItem('7', lead), null);
+  assert.equal(parseMenuItem('3', afterTest), 'chats');
+  assert.equal(parseMenuItem('2', afterLead), 'chats');
+  assert.equal(parseMenuItem('7', afterTest), 3);
   assert.equal(parseMenuItem('0', lead), null);
   assert.equal(parseMenuItem('change Q&A', lead), null);
-  const withLead = renderMenu(lead).split('\n');
+  const withLead = renderMenu(afterTest).split('\n');
   assert.equal(withLead[0], '1. 🚀 Get me working for your business');
   assert.equal(withLead[1], '2. 🤖 Chat with me like a customer');
-  assert.equal(withLead[2], `3. ${TELL_MORE}`);
-  assert.equal(withLead[4], `5. ${INTAKE_MENU_LABEL}`);
-  assert.equal(withLead[5], '6. 💬 Tell me how to talk to your customers');
+  assert.equal(withLead[2], "3. 📋 Tell me about today's customer chats");
+  assert.equal(withLead[3], `4. ${TELL_MORE}`);
+  assert.equal(withLead[5], `6. ${INTAKE_MENU_LABEL}`);
+  assert.equal(withLead[6], '7. 💬 Tell me how to talk to your customers');
   const withoutLead = renderMenu(noLead).split('\n');
   assert.equal(withoutLead[0], '1. 🤖 Chat with me like a customer');
   assert.equal(withoutLead[1], `2. ${TELL_MORE}`);

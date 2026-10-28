@@ -122,7 +122,11 @@ const profile = {
   firstTestedAt: new Date().toISOString(),
 };
 await store.saveProfile(sender, profile);
-const menuEntry = { role: 'assistant', content: renderMenu({ leadOption: true }), nav: 'menu' };
+const menuEntry = {
+  role: 'assistant',
+  content: renderMenu({ leadOption: true, chatsOption: true }),
+  nav: 'menu',
+};
 await store.saveSession(sender, {
   mode: 'BUILD',
   buildHistory: [menuEntry],
@@ -214,17 +218,18 @@ assert.equal(
     'What should we do next?',
     '',
     '1. 🤖 Chat with me like a customer',
-    '2. 🏪 Tell me more about your business',
-    '3. ❓ Teach me more questions and answers',
-    '4. 📝 Choose details to collect from customers',
-    '5. 💬 Tell me how to talk to your customers',
+    "2. 📋 Tell me about today's customer chats",
+    '3. 🏪 Tell me more about your business',
+    '4. ❓ Teach me more questions and answers',
+    '5. 📝 Choose details to collect from customers',
+    '6. 💬 Tell me how to talk to your customers',
     '',
     'Pick a number, or just tell me what you want me to learn.',
   ].join('\n')
 );
 assert.ok(!res.reply.includes(LEAD_MENU_LABEL));
 assert.equal((await store.loadSession(sender)).leadIntake.resumeMenu, undefined);
-res = await send('2');
+res = await send('3');
 assert.equal(res.event, 'menu_section');
 assert.ok(res.reply.startsWith('🏪 This is what I know about your business:\n\n'), res.reply);
 assert.ok((await store.loadSession(sender)).leadIntake.submittedAt);
@@ -331,7 +336,9 @@ await store.saveProfile(sender4, {
 });
 await store.saveSession(sender4, {
   mode: 'BUILD',
-  buildHistory: [{ role: 'assistant', content: renderMenu({ leadOption: true }), nav: 'menu' }],
+  buildHistory: [
+    { role: 'assistant', content: renderMenu({ leadOption: true, chatsOption: true }), nav: 'menu' },
+  ],
   testHistory: [],
   testSessionId: 't',
 });

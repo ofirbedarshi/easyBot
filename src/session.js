@@ -37,6 +37,11 @@ import {
   stepLeadIntake,
 } from './leadIntake.js';
 import { ownerPhase } from './ownerPhase.js';
+import {
+  groupTestChats,
+  loadLoggedMessages,
+  reviewChatsReply as defaultReviewChatsReply,
+} from './reviewChats.js';
 
 function deps(session) {
   return session.deps || {};
@@ -48,6 +53,10 @@ function runBuilderTurnFn(session) {
 
 function businessBotReplyFn(session) {
   return deps(session).businessBotReply || defaultBusinessBotReply;
+}
+
+function reviewChatsReplyFn(session) {
+  return deps(session).reviewChatsReply || defaultReviewChatsReply;
 }
 
 /**
@@ -70,6 +79,8 @@ export function createSession(profilePathOrOpts) {
     testSessionId: `test-${Date.now()}`,
     profilePath: opts.profilePath || defaultProfilePath(),
     leadIntake: null,
+    reviewChats: null,
+    loggedTestMessages: [],
     ownerName: null,
     store: null,
     senderId: null,
@@ -88,6 +99,8 @@ export async function createSenderSession(store, senderId, options = {}) {
     testHistory: saved.testHistory || [],
     testSessionId: saved.testSessionId || `test-${Date.now()}`,
     leadIntake: saved.leadIntake || null,
+    reviewChats: saved.reviewChats || null,
+    loggedTestMessages: [],
     ownerName: saved.ownerName ?? null,
     profilePath: null,
     store,
@@ -195,6 +208,7 @@ export async function handleMessage(session, text) {
   if (trimmed === '/test' || trimmed === '/reset' || exitTest) {
     cancelLeadIntake(session);
     clearLeadResume(session);
+    clearReviewChats(session);
   }
   if (trimmed === '/test') {
     return enterTest(session);
@@ -209,6 +223,8 @@ export async function handleMessage(session, text) {
     session.mode = 'BUILD';
     session.testSessionId = `test-${Date.now()}`;
     session.leadIntake = null;
+    session.reviewChats = null;
+    session.loggedTestMessages = [];
     session.ownerName = null;
     if (session.store && session.senderId && typeof session.store.deleteLead === 'function') {
       await session.store.deleteLead(session.senderId);
@@ -244,6 +260,7 @@ export async function handleMessage(session, text) {
 
   if (phase === 'lead') return handleLeadIntake(session, trimmed);
   if (phase === 'lead_resume') return resumeOwnerMenu(session, trimmed);
+  if (phase === 'chats') return handleReviewChats(session, trimmed);
 
   const nav = await handleNavigation(session, trimmed);
   if (nav) return nav;
@@ -272,7 +289,7 @@ async function handleNavigation(session, text) {
     !isReviewNumberChoice(text);
   if (!wantsMenu && !numbered && !tryWords) return null;
   const profile = await loadAsync(session);
-  const choice = numbered ? parseMenuItem(text, leadMenuOpts(session, profile)) : null;
+  const choice = numbered ? parseMenuItem(text, ownerMenuOpts(session, profile)) : null;
   if (!wantsMenu && choice == null && !tryWords) return null;
 
   const ready = ownerPhase(session, profile) === 'ready';
@@ -281,11 +298,12 @@ async function handleNavigation(session, text) {
 
   if (choice === 'lead') return beginLeadIntake(session);
   if (tryWords || choice === 'try') return tryMyBot(session);
+  if (choice === 'chats') return beginReviewChats(session, text);
 
   const composed = wantsMenu
     ? composeReply({
         kind: 'change_menu',
-        menuOpts: leadMenuOpts(session, profile),
+        menuOpts: ownerMenuOpts(session, profile),
         ownerName: session.ownerName,
       })
     : composeReply({ kind: 'section', profile, parts: { section: choice } });
@@ -328,6 +346,7 @@ async function enterTest(session) {
   const composed = composeReply({ kind: 'test_enter', profile });
   session.testHistory = [{ role: 'assistant', content: composed.replies[1] }];
   session.testSessionId = `test-${Date.now()}`;
+  logLocalMessage(session, { direction: 'outbound', body: composed.reply, mode: 'command' });
   return {
     ok: true,
     reply: composed.reply,
@@ -340,12 +359,15 @@ async function enterTest(session) {
 
 async function enterBuild(session) {
   const leavingTest = session.mode === 'TEST';
+  if (leavingTest) {
+    logLocalMessage(session, { direction: 'inbound', body: 'stop', mode: 'command' });
+  }
   session.mode = 'BUILD';
   const profile = await loadAsync(session);
   // approvedAt, not ownerPhase === 'ready': empty BUILD history is wake
   // (first inbound still opens), but leaving TEST already treats a
   // seeded ready profile as ready.
-  const menuOpts = leadMenuOpts(session, profile);
+  const menuOpts = ownerMenuOpts(session, profile);
   if (profile.approvedAt) {
     const composed = leavingTest
       ? composeReply({
@@ -387,12 +409,136 @@ async function enterBuild(session) {
   };
 }
 
-function leadMenuOpts(session, profile) {
+function ownerMenuOpts(session, profile) {
   return {
     leadOption:
       !!profile?.approvedAt &&
       !!profile?.firstTestedAt &&
       !leadSubmitted(session.leadIntake),
+    chatsOption: !!profile?.firstTestedAt,
+  };
+}
+
+function clearReviewChats(session) {
+  session.reviewChats = null;
+}
+
+function logLocalMessage(session, { direction, body, mode }) {
+  if (session.store && session.senderId) return;
+  session.loggedTestMessages = session.loggedTestMessages || [];
+  const lastId = session.loggedTestMessages.at(-1)?.id || 0;
+  session.loggedTestMessages.push({
+    id: lastId + 1,
+    direction,
+    body: body ?? '',
+    mode,
+    created_at: new Date().toISOString(),
+  });
+}
+
+async function beginReviewChats(session, text) {
+  const profile = await loadAsync(session);
+  const rows = await loadLoggedMessages(session);
+  const chats = groupTestChats(rows);
+  if (!chats.length) {
+    clearReviewChats(session);
+    const composed = composeReply({
+      kind: 'chats_empty',
+      menuOpts: ownerMenuOpts(session, profile),
+      ownerName: session.ownerName,
+    });
+    session.buildHistory.push({ role: 'user', content: text });
+    session.buildHistory.push({
+      role: 'assistant',
+      content: composed.reply,
+      nav: composed.nav,
+    });
+    return {
+      ok: true,
+      reply: composed.reply,
+      source: 'app',
+      event: 'chats_empty',
+      ...(await getStateAsync(session)),
+    };
+  }
+
+  session.reviewChats = {
+    active: true,
+    snapshot: chats,
+    history: [],
+    startedAt: new Date().toISOString(),
+  };
+  let modelText;
+  try {
+    modelText = await reviewChatsReplyFn(session)({
+      snapshot: chats,
+      history: [],
+      question: null,
+    });
+  } catch (err) {
+    console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
+    modelText = composeReply({ kind: 'error_generic' }).reply;
+  }
+  const composed = composeReply({ kind: 'chats_report', modelText });
+  session.reviewChats.history.push({ role: 'assistant', content: modelText });
+  return {
+    ok: true,
+    reply: composed.reply,
+    source: 'real-llm',
+    event: 'enter_chats',
+    ...(await getStateAsync(session)),
+  };
+}
+
+async function handleReviewChats(session, text) {
+  if (isMenuRequest(text)) {
+    clearReviewChats(session);
+    const profile = await loadAsync(session);
+    const composed = composeReply({
+      kind: 'change_menu',
+      menuOpts: ownerMenuOpts(session, profile),
+      ownerName: session.ownerName,
+    });
+    session.buildHistory.push({ role: 'user', content: text });
+    session.buildHistory.push({
+      role: 'assistant',
+      content: composed.reply,
+      nav: composed.nav,
+    });
+    return {
+      ok: true,
+      reply: composed.reply,
+      source: 'app',
+      event: 'menu',
+      ...(await getStateAsync(session)),
+    };
+  }
+
+  const snapshot = session.reviewChats?.snapshot || [];
+  const history = session.reviewChats?.history || [];
+  let modelText;
+  try {
+    modelText = await reviewChatsReplyFn(session)({
+      snapshot,
+      history,
+      question: text,
+    });
+  } catch (err) {
+    console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
+    modelText = composeReply({ kind: 'error_generic' }).reply;
+  }
+  const composed = composeReply({ kind: 'chats_followup', modelText });
+  session.reviewChats.history = [
+    ...history,
+    { role: 'user', content: text },
+    { role: 'assistant', content: modelText },
+  ].slice(-20);
+  return {
+    ok: true,
+    reply: composed.reply,
+    source: 'real-llm',
+    event: 'chats_turn',
+    ...(await getStateAsync(session)),
   };
 }
 
@@ -413,7 +559,7 @@ async function resumeOwnerMenu(session, text) {
   const profile = await loadAsync(session);
   const composed = composeReply({
     kind: 'change_menu',
-    menuOpts: leadMenuOpts(session, profile),
+    menuOpts: ownerMenuOpts(session, profile),
     ownerName: session.ownerName,
   });
   const reply = composed.reply;
@@ -440,7 +586,7 @@ async function beginLeadIntake(session) {
       session,
       composeReply({
         kind: 'lead_already_sent',
-        menuOpts: leadMenuOpts(session, profile),
+        menuOpts: ownerMenuOpts(session, profile),
       }).reply,
       'lead_already_sent'
     );
@@ -458,7 +604,7 @@ async function handleLeadIntake(session, text) {
       session,
       composeReply({
         kind: 'lead_cancelled',
-        menuOpts: leadMenuOpts(session, profile),
+        menuOpts: ownerMenuOpts(session, profile),
       }).reply,
       'lead_cancelled'
     );
@@ -504,6 +650,8 @@ async function handleTest(session, question) {
     session.testHistory.push({ role: 'user', content: question });
     session.testHistory.push({ role: 'assistant', content: reply });
     session.testHistory = session.testHistory.slice(-BUSINESS_BOT_STORED_MESSAGES);
+    logLocalMessage(session, { direction: 'inbound', body: question, mode: 'test' });
+    logLocalMessage(session, { direction: 'outbound', body: reply, mode: 'test' });
   } catch (err) {
     // Provider error text can echo a masked API key; keep it out of chat and logs.
     console.error('Business Bot reply failed:', err?.status || err?.code || err?.name || 'error');
@@ -608,7 +756,7 @@ async function handleBuild(session, userMessage) {
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;
   const unresolved = hasUnresolvedConfig(result);
 
-  const menuOpts = leadMenuOpts(session, profile);
+  const menuOpts = ownerMenuOpts(session, profile);
   let composed;
   if (firstApproval) {
     composed = composeReply({ kind: 'ready_first', menuOpts, ownerName });

@@ -27,6 +27,9 @@ const EVENT_MODE = {
   lead_cancelled: 'lead',
   test_turn: 'test',
   build_turn: 'builder',
+  enter_chats: 'menu',
+  chats_empty: 'menu',
+  chats_turn: 'menu',
 };
 
 /**

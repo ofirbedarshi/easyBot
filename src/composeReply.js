@@ -11,6 +11,9 @@ import {
   GENERIC_ERROR_REPLY,
   IDENTITY_FALLBACK_QUESTION,
   INTAKE_MENU_LABEL,
+  CHATS_FOOTER,
+  CHATS_MENU_LABEL,
+  chatsEmptyLine,
   LEAD_ALREADY_SENT,
   LEAD_INTRO,
   LEAD_INVALID,
@@ -80,6 +83,9 @@ export const COMPOSE_KINDS = Object.freeze([
   'review',
   'setup_continue',
   'return_to_editing',
+  'chats_empty',
+  'chats_report',
+  'chats_followup',
 ]);
 
 const REVIEW_FILLER =
@@ -302,19 +308,30 @@ export function sectionLines(section, p) {
 }
 
 /**
- * Ordered editing-menu items: optional 'lead', then 'try', then sections
- * 1–3 (numbers) and 'intake'. Rendering and number parsing both use this
- * list, so a picked number always maps to the item shown at that position.
+ * Ordered editing-menu items: optional 'lead', then 'try', optional
+ * 'chats', then sections 1–3 (numbers) and 'intake'. Rendering and
+ * number parsing both use this list, so a picked number always maps to
+ * the item shown at that position.
  * Lead is included only when `leadOption` is true (approved + firstTestedAt
  * + no lead submitted) and stays first when shown.
+ * Chats is included only when `chatsOption` is true (`firstTestedAt` set).
  */
-export function menuItems({ leadOption = false } = {}) {
-  return [...(leadOption ? ['lead'] : []), 'try', 1, 2, 'intake', 3];
+export function menuItems({ leadOption = false, chatsOption = false } = {}) {
+  return [
+    ...(leadOption ? ['lead'] : []),
+    'try',
+    ...(chatsOption ? ['chats'] : []),
+    1,
+    2,
+    'intake',
+    3,
+  ];
 }
 
 function menuLabel(item) {
   if (item === 'lead') return `🚀 ${LEAD_MENU_LABEL}`;
   if (item === 'try') return NAV.menu[3];
+  if (item === 'chats') return `📋 ${CHATS_MENU_LABEL}`;
   if (item === 'intake') return INTAKE_MENU_LABEL;
   return NAV.menu[item - 1];
 }
@@ -371,7 +388,7 @@ function done(reply, extra = {}) {
  *   modelText?: string,
  *   profile?: object,
  *   prior?: object,
- *   menuOpts?: { leadOption?: boolean },
+ *   menuOpts?: { leadOption?: boolean, chatsOption?: boolean },
  *   parts?: object,
  * }} spec
  * @returns {{ reply: string, replies?: string[], nav: string|null, asksQuestion: boolean }}
@@ -555,6 +572,15 @@ export function composeReply(spec = {}) {
 
     case 'return_to_editing':
       return done(`${returnedIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`, { nav: 'menu' });
+
+    case 'chats_empty':
+      return done(`${chatsEmptyLine(ownerName)}\n\n${menuIntro(ownerName)}\n\n${renderMenuText(menuOpts)}`, {
+        nav: 'menu',
+      });
+
+    case 'chats_report':
+    case 'chats_followup':
+      return done([modelText, CHATS_FOOTER].filter(Boolean).join('\n\n'));
 
     default:
       throw new Error(`unknown compose kind: ${kind}`);

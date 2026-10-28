@@ -78,11 +78,11 @@ function modelTurn(delta = {}, overrides = {}) {
 }
 
 function expectedMenu(leadOption, ownerName = OWNER) {
-  return renderChangeMenu({ leadOption }, ownerName);
+  return renderChangeMenu({ leadOption, chatsOption: leadOption }, ownerName);
 }
 
 function expectedBackMenu(leadOption, ownerName = OWNER) {
-  return `${returnedIntro(ownerName)}\n\n${renderMenu({ leadOption })}`;
+  return `${returnedIntro(ownerName)}\n\n${renderMenu({ leadOption, chatsOption: leadOption })}`;
 }
 
 function resolveExpect(value, ctx) {
@@ -186,7 +186,10 @@ function saveCard(extra = {}) {
         modelText: 'Noted ✨',
         prior: before,
         profile,
-        menuOpts: { leadOption: !!profile.firstTestedAt },
+        menuOpts: {
+          leadOption: !!profile.firstTestedAt,
+          chatsOption: !!profile.firstTestedAt,
+        },
       }).reply,
     approvedAt: true,
     nav: 'menu',
@@ -587,7 +590,7 @@ await playJourney([
       event: 'menu',
       mode: 'BUILD',
       phase: 'ready',
-      reply: expectedMenu(false),
+      reply: renderChangeMenu({ leadOption: false, chatsOption: true }, OWNER),
       nav: 'menu',
     },
   },

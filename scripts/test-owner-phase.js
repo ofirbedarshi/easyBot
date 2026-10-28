@@ -7,7 +7,7 @@ import { OWNER_PHASES, ownerPhase } from '../src/ownerPhase.js';
 
 assert.deepEqual(
   [...OWNER_PHASES],
-  ['wake', 'setup', 'ready', 'test', 'lead', 'lead_resume']
+  ['wake', 'setup', 'ready', 'test', 'lead', 'lead_resume', 'chats']
 );
 
 const history = [{ role: 'assistant', content: 'hi' }];
@@ -98,6 +98,18 @@ const rows = [
     session: { mode: 'BUILD', buildHistory: [], leadIntake: null },
     profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
     expect: 'wake',
+  },
+  {
+    id: 12,
+    name: 'BUILD review chats active is chats',
+    session: {
+      mode: 'BUILD',
+      buildHistory: history,
+      leadIntake: null,
+      reviewChats: { active: true, snapshot: [], history: [] },
+    },
+    profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
+    expect: 'chats',
   },
 ];
 
@@ -200,6 +212,33 @@ const transitions = [
       s.leadIntake = leadInProgress;
     },
     expect: 'lead',
+  },
+  {
+    id: 'ready→chats',
+    from: {
+      session: { mode: 'BUILD', buildHistory: opened, leadIntake: null, reviewChats: null },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.reviewChats = { active: true, snapshot: [], history: [] };
+    },
+    expect: 'chats',
+  },
+  {
+    id: 'chats→ready',
+    from: {
+      session: {
+        mode: 'BUILD',
+        buildHistory: opened,
+        leadIntake: null,
+        reviewChats: { active: true, snapshot: [], history: [] },
+      },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.reviewChats = null;
+    },
+    expect: 'ready',
   },
   {
     id: 'lead→lead_resume',

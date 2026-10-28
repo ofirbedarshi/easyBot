@@ -93,7 +93,8 @@ export function menuActive(buildHistory) {
 
 /**
  * Editing menu. `leadOption` adds the lead item first (Chat stays next);
- * that shifts the other items down by one.
+ * `chatsOption` inserts the review-chats item after Chat. Either one
+ * shifts the later items down.
  */
 export function renderMenu(menuOpts) {
   return composeReply({ kind: 'menu', menuOpts }).reply;
