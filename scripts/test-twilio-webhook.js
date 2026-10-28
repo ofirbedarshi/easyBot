@@ -429,5 +429,51 @@ console.log('=== MOCKED Twilio webhook suite (not Sandbox / not live) ===\n');
   worker.stop();
 }
 
+// --- /reset deletes this sender entirely; worker does not recreate ---
+{
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15557777';
+  const other = 'whatsapp:+15557778';
+  await store.saveProfile(sender, { ...emptyProfile(), name: 'Reset Studio' });
+  await store.saveLead(sender, {
+    senderId: sender,
+    businessName: 'Reset Studio',
+    answers: { contactConsent: 'Yes, sure' },
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+  await store.saveProfile(other, { ...emptyProfile(), name: 'Keep Studio' });
+  await store.saveLead(other, {
+    senderId: other,
+    businessName: 'Keep Studio',
+    answers: { contactConsent: 'No, thanks' },
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+  const session = await createSenderSession(store, sender);
+  bootstrapSession(session);
+  await persistSenderSession(session);
+
+  const worker = startInboundWorker(store, { intervalMs: 10_000 });
+  await withServer(store, async ({ base }) => {
+    const params = {
+      MessageSid: 'SMreset1',
+      AccountSid: 'ACtest',
+      From: sender,
+      To: 'whatsapp:+15550000',
+      Body: '/reset',
+      NumMedia: '0',
+    };
+    await postWebhook(base, params, { 'X-Twilio-Signature': sign(params) });
+  });
+  const dump = await drain(store, worker);
+  assert.equal(dump.senders[sender], undefined, 'reset sender row gone');
+  assert.equal(dump.leads[sender], undefined);
+  assert.ok(!dump.messages.some((m) => m.sender_id === sender));
+  assert.ok(!dump.inbound.some((r) => r.sender_id === sender));
+  assert.ok(dump.senders[other], 'other sender remains');
+  assert.ok(dump.leads[other], 'other sender lead remains');
+  ok('/reset wipes sender data and does not recreate the row');
+  worker.stop();
+}
+
 console.log(`\n=== ${passed} mocked checks passed ===`);
 console.log('Not run here: Twilio Sandbox, live WhatsApp number.\n');

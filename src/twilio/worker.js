@@ -221,12 +221,28 @@ async function processRow(store, row, { sessionDeps } = {}) {
     });
     const result = await handleMessage(session, length.text);
     const mode = modeFromHandleResult(result, session);
-    await store.updateMessageModeBySid(row.message_sid, mode);
 
     const bodies = replyBodies(result);
     if (!result.reply && !result.replies?.length) {
       console.warn(`inbound ${row.message_sid} no reply:`, result.error || '(empty)');
     }
+
+    if (result.event === 'reset' || session.purged) {
+      let sid = 'SKIP';
+      for (const text of bodies) {
+        const sent = await deliverReply({ to: senderId, body: text });
+        sid = sent.sid;
+      }
+      if (typeof store.deleteSender === 'function') {
+        await store.deleteSender(senderId);
+      }
+      console.log(
+        `inbound ${row.message_sid} reset purged sender reply_sid=${sid} parts=${bodies.length}`
+      );
+      return;
+    }
+
+    await store.updateMessageModeBySid(row.message_sid, mode);
 
     const sent = await logOutboundsThenSend(store, {
       senderId,

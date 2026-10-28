@@ -89,6 +89,7 @@ async function testRequestShape() {
   const [req] = client.requests;
   assert.equal(req.model, 'gpt-4o-mini');
   assert.equal(req.temperature, 0);
+  assert.equal(req.store, false);
   assert.deepEqual(req.messages[0], {
     role: 'system',
     content: buildCustomerSystemPrompt(profile),
@@ -105,6 +106,7 @@ async function testRequestShape() {
   await businessBotReply({ profile, history: [], question: 'Hi', client: client2 });
   assert.equal(client2.requests[0].model, 'gpt-test-model');
   assert.equal(client2.requests[0].temperature, 0);
+  assert.equal(client2.requests[0].store, false);
 
   if (prevModel === undefined) delete process.env.OPENAI_MODEL;
   else process.env.OPENAI_MODEL = prevModel;
@@ -152,8 +154,10 @@ async function testReasoningModelFallback() {
     `${customerOpeningText(approvedProfile())}\n\nreasoned`
   );
   assert.equal(client.requests[0].temperature, 0);
+  assert.equal(client.requests[0].store, false);
   const ok = [...client.requests].reverse().find((r) => r.temperature == null);
   assert.ok(ok, 'retries without temperature');
+  assert.equal(ok.store, false);
   assert.equal(ok.reasoning_effort, 'minimal');
   assert.ok(ok.max_completion_tokens > 0);
   await businessBotReply({

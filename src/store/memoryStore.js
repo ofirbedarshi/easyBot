@@ -107,6 +107,22 @@ export function createMemoryStore() {
       leads.delete(senderId);
     },
 
+    async deleteSender(senderId) {
+      senders.delete(senderId);
+      profiles.delete(senderId);
+      sessions.delete(senderId);
+      leads.delete(senderId);
+      for (let i = inbound.length - 1; i >= 0; i--) {
+        if (inbound[i].sender_id === senderId) {
+          bySid.delete(inbound[i].message_sid);
+          inbound.splice(i, 1);
+        }
+      }
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].sender_id === senderId) messages.splice(i, 1);
+      }
+    },
+
     async appendMessage({
       senderId,
       direction,

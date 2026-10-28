@@ -170,7 +170,7 @@ function apiErrorText(err) {
 
 /** Initial Chat Completions body for a Builder turn (classic models keep temperature). */
 export function builderChatParams({ model, messages, response_format, temperature = 0.4 }) {
-  return { model, messages, response_format, temperature };
+  return { model, messages, response_format, temperature, store: false };
 }
 
 /**

@@ -8,6 +8,7 @@ export const OWNER_NAME_QUESTION =
 
 export const OPENING_MESSAGE =
   "Hi, I'm Adam 👋 Tell me about your business, then try chatting with me as one of your customers.\n\n" +
+  'We never sell your data or use it for ads.\n\n' +
   OWNER_NAME_QUESTION;
 
 export const IDENTITY_FALLBACK_QUESTION =

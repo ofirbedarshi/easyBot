@@ -6,6 +6,7 @@ Do **not** paste secrets into chat. Set them in Render Dashboard → Environment
 
 - Supabase project **easybot** created (ref `ikaljptwjamzxlyrwndi`, region `eu-central-1`)
 - Migration `easybot_*` tables + claim RPC applied
+- Log retention SQL (`supabase/migrations/20261028120000_easybot_log_retention.sql`) deletes `easybot_messages` and `easybot_inbound_messages` older than **90 days** via pg_cron. Apply it yourself in the easybot project; the app does not run it.
 - App: Twilio webhook, durable worker, sender isolation, rate limits
 - `render.yaml` ready
 - **Render deploy paused** until you run `render login` (CLI installed at `~/.local/bin/render`)
@@ -17,6 +18,7 @@ Do **not** paste secrets into chat. Set them in Render Dashboard → Environment
    - **easybot-app** — Node, `npm install` / `npm start`, health `/api/health`
 3. Set env on **easybot-app** (names only listed in `.env.example`):
    - `NODE_ENV=production`
+   - Do **not** set `ENABLE_WEB_TESTER` on the public app (`/api/chat`, `/api/state`, `/api/start`, `/api/cto-progress` stay 404). `/api/health` stays public. `/?demo=luna` is client-only and does not use those APIs.
    - `PUBLIC_BASE_URL=https://<your-easybot-app>.onrender.com` (exact, no trailing slash)
    - `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    - Twilio vars when ready
