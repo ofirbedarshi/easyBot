@@ -2,10 +2,12 @@
  * In-memory store for mocked WhatsApp tests (no Supabase / Twilio network).
  */
 
+import crypto from 'crypto';
 import { emptyProfile } from '../profile.js';
 import { phoneE164FromSenderId } from '../phone.js';
 import { modeFromSessionPreview } from '../conversationLog.js';
 import { buildUserDetail, buildUserRow } from '../admin/users.js';
+import { defaultDemoExpiresAt, isClaimableDemo } from '../demoProfiles.js';
 
 /** Matches easybot_claim_next_inbound 120s reclaim. */
 export const INBOUND_CLAIM_STALE_MS = 120_000;
@@ -25,6 +27,8 @@ export function createMemoryStore() {
   const messages = [];
   /** @type {Map<string, object>} */
   const leads = new Map();
+  /** @type {Map<string, object>} */
+  const demos = new Map();
   let nextId = 1;
   let nextMessageId = 1;
 
@@ -34,6 +38,10 @@ export function createMemoryStore() {
 
   return {
     kind: 'memory',
+
+    async hasSender(senderId) {
+      return senders.has(senderId);
+    },
 
     async ensureSender(senderId) {
       const phoneE164 = phoneE164FromSenderId(senderId);
@@ -64,6 +72,7 @@ export function createMemoryStore() {
           leadIntake: null,
           reviewChats: null,
           ownerName: null,
+          demoOrigin: false,
         });
       }
     },
@@ -94,6 +103,7 @@ export function createMemoryStore() {
         leadIntake: structuredClone(session.leadIntake ?? null),
         reviewChats: structuredClone(session.reviewChats ?? null),
         ownerName: session.ownerName ?? null,
+        demoOrigin: session.demoOrigin === true,
       });
     },
 
@@ -291,6 +301,145 @@ export function createMemoryStore() {
       row.finished_at = new Date().toISOString();
     },
 
+    async insertDemo(row) {
+      const id = row.id || crypto.randomUUID();
+      const code = String(row.code || '').toUpperCase();
+      if (!code) throw new Error('insertDemo: code required');
+      const prospectId =
+        row.prospect_id == null || String(row.prospect_id).trim() === ''
+          ? null
+          : String(row.prospect_id).trim();
+      for (const existing of demos.values()) {
+        if (existing.code === code) throw new Error('insertDemo: code already exists');
+        if (
+          row.business_phone &&
+          existing.business_phone &&
+          existing.business_phone === row.business_phone
+        ) {
+          throw new Error('insertDemo: business_phone already exists');
+        }
+        if (prospectId && existing.prospect_id && existing.prospect_id === prospectId) {
+          throw new Error('insertDemo: prospect_id already exists');
+        }
+      }
+      const rec = {
+        id,
+        business_label: row.business_label,
+        prospect_id: prospectId,
+        business_phone: row.business_phone ?? null,
+        code,
+        profile: structuredClone(row.profile),
+        owner_name: row.owner_name ?? null,
+        source_url: row.source_url ?? null,
+        reviewed_at: row.reviewed_at ?? null,
+        created_at: row.created_at || new Date().toISOString(),
+        expires_at: row.expires_at || defaultDemoExpiresAt(),
+        claimed_by: row.claimed_by ?? null,
+        claimed_at: row.claimed_at ?? null,
+      };
+      demos.set(id, rec);
+      return structuredClone(rec);
+    },
+
+    async findClaimableDemoByPhone(phone) {
+      for (const row of demos.values()) {
+        if (row.business_phone === phone && isClaimableDemo(row)) {
+          return structuredClone(row);
+        }
+      }
+      return null;
+    },
+
+    async findClaimableDemoByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      for (const row of demos.values()) {
+        if (row.code === needle && isClaimableDemo(row)) {
+          return structuredClone(row);
+        }
+      }
+      return null;
+    },
+
+    async claimDemo(id, claimedBy) {
+      const row = demos.get(id);
+      if (!row || !isClaimableDemo(row)) return null;
+      row.claimed_by = claimedBy;
+      row.claimed_at = new Date().toISOString();
+      return structuredClone(row);
+    },
+
+    async findDemoByProspectId(prospectId) {
+      const needle = String(prospectId || '').trim();
+      if (!needle) return null;
+      for (const row of demos.values()) {
+        if (row.prospect_id === needle) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async findDemoByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      for (const row of demos.values()) {
+        if (row.code === needle) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async findDemoByPhone(phone) {
+      if (!phone) return null;
+      for (const row of demos.values()) {
+        if (row.business_phone === phone) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async countSenderDelete(senderId) {
+      return {
+        easybot_senders: senders.has(senderId) ? 1 : 0,
+        easybot_business_profiles: profiles.has(senderId) ? 1 : 0,
+        easybot_sessions: sessions.has(senderId) ? 1 : 0,
+        easybot_messages: messages.filter((m) => m.sender_id === senderId).length,
+        easybot_inbound_messages: inbound.filter((r) => r.sender_id === senderId).length,
+        easybot_leads: leads.has(senderId) ? 1 : 0,
+      };
+    },
+
+    async deleteSenderData(senderId) {
+      const counts = {
+        easybot_messages: 0,
+        easybot_inbound_messages: 0,
+        easybot_leads: 0,
+        easybot_sessions: 0,
+        easybot_business_profiles: 0,
+        easybot_senders: 0,
+      };
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].sender_id === senderId) {
+          messages.splice(i, 1);
+          counts.easybot_messages += 1;
+        }
+      }
+      for (let i = inbound.length - 1; i >= 0; i--) {
+        if (inbound[i].sender_id === senderId) {
+          bySid.delete(inbound[i].message_sid);
+          inbound.splice(i, 1);
+          counts.easybot_inbound_messages += 1;
+        }
+      }
+      if (leads.delete(senderId)) counts.easybot_leads = 1;
+      if (sessions.delete(senderId)) counts.easybot_sessions = 1;
+      if (profiles.delete(senderId)) counts.easybot_business_profiles = 1;
+      if (senders.delete(senderId)) counts.easybot_senders = 1;
+      return counts;
+    },
+
+    async deleteDemo(id) {
+      if (!demos.has(id)) return 0;
+      demos.delete(id);
+      return 1;
+    },
+
     async countSenderMessagesSince(senderId, sinceIso) {
       const since = new Date(sinceIso).getTime();
       return inbound.filter(
@@ -307,6 +456,7 @@ export function createMemoryStore() {
         inbound: inbound.map((r) => ({ ...r })),
         messages: messages.map((m) => ({ ...m })),
         leads: Object.fromEntries(leads),
+        demos: Object.fromEntries(demos),
       };
     },
 

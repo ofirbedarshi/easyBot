@@ -1,5 +1,5 @@
 /**
- * Unit table for ownerPhase. Pins the 6-phase derivation only.
+ * Unit table for ownerPhase. Pins phase derivation only.
  * No handleMessage walks — setup-flow owns those.
  */
 import assert from 'assert';
@@ -7,7 +7,7 @@ import { OWNER_PHASES, ownerPhase } from '../src/ownerPhase.js';
 
 assert.deepEqual(
   [...OWNER_PHASES],
-  ['wake', 'setup', 'ready', 'test', 'lead', 'lead_resume', 'chats']
+  ['wake', 'setup', 'ready', 'test', 'lead', 'lead_resume', 'chats', 'demo_offer']
 );
 
 const history = [{ role: 'assistant', content: 'hi' }];
@@ -110,6 +110,54 @@ const rows = [
     },
     profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
     expect: 'chats',
+  },
+  {
+    id: 13,
+    name: 'demo_origin + demo_start nav is demo_offer',
+    session: {
+      mode: 'BUILD',
+      buildHistory: [{ role: 'assistant', content: 'hi', nav: 'demo_start' }],
+      leadIntake: null,
+      demoOrigin: true,
+    },
+    profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
+    expect: 'demo_offer',
+  },
+  {
+    id: 14,
+    name: 'demo_origin + empty history is wake',
+    session: {
+      mode: 'BUILD',
+      buildHistory: [],
+      leadIntake: null,
+      demoOrigin: true,
+    },
+    profile: { approvedAt: null },
+    expect: 'wake',
+  },
+  {
+    id: 15,
+    name: 'demo_origin + menu nav is ready',
+    session: {
+      mode: 'BUILD',
+      buildHistory: [{ role: 'assistant', content: 'menu', nav: 'menu' }],
+      leadIntake: null,
+      demoOrigin: true,
+    },
+    profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
+    expect: 'ready',
+  },
+  {
+    id: 16,
+    name: 'TEST wins over demo_offer',
+    session: {
+      mode: 'TEST',
+      buildHistory: [{ role: 'assistant', content: 'hi', nav: 'demo_start' }],
+      leadIntake: null,
+      demoOrigin: true,
+    },
+    profile: { approvedAt: '2026-01-01T00:00:00.000Z' },
+    expect: 'test',
   },
 ];
 
@@ -271,6 +319,68 @@ const transitions = [
     apply: (s, p) => {
       s.buildHistory = [];
       s.leadIntake = null;
+      p.approvedAt = null;
+    },
+    expect: 'wake',
+  },
+  {
+    id: 'wake→demo_offer',
+    from: {
+      session: { mode: 'BUILD', buildHistory: [], leadIntake: null, demoOrigin: false },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.demoOrigin = true;
+      s.buildHistory = [{ role: 'assistant', content: 'opening', nav: 'demo_start' }];
+    },
+    expect: 'demo_offer',
+  },
+  {
+    id: 'demo_offer→test',
+    from: {
+      session: {
+        mode: 'BUILD',
+        buildHistory: [{ role: 'assistant', content: 'opening', nav: 'demo_start' }],
+        leadIntake: null,
+        demoOrigin: true,
+      },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.mode = 'TEST';
+    },
+    expect: 'test',
+  },
+  {
+    id: 'demo_offer→ready',
+    from: {
+      session: {
+        mode: 'BUILD',
+        buildHistory: [{ role: 'assistant', content: 'opening', nav: 'demo_start' }],
+        leadIntake: null,
+        demoOrigin: true,
+      },
+      profile: { approvedAt: TS },
+    },
+    apply: (s) => {
+      s.buildHistory = [{ role: 'assistant', content: 'menu', nav: 'menu' }];
+    },
+    expect: 'ready',
+  },
+  {
+    id: 'demo_offer→wake',
+    from: {
+      session: {
+        mode: 'BUILD',
+        buildHistory: [{ role: 'assistant', content: 'opening', nav: 'demo_start' }],
+        leadIntake: null,
+        demoOrigin: true,
+      },
+      profile: { approvedAt: TS },
+    },
+    apply: (s, p) => {
+      s.buildHistory = [];
+      s.ownerName = null;
       p.approvedAt = null;
     },
     expect: 'wake',

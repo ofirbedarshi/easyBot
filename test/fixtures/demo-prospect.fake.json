@@ -1,0 +1,45 @@
+{
+  "prospects": [
+    {
+      "id": "fake-harbor",
+      "name": "Fake Harbor Cuts",
+      "category": "barbershop",
+      "city": "Testville",
+      "country": "US",
+      "website": "https://fake-harbor.example",
+      "whatsapp_source_url": "https://fake-harbor.example/contact",
+      "whatsapp_e164": "+15125550100",
+      "owner_name": "Test Owner",
+      "services": "Haircut",
+      "prices": "Haircut $30",
+      "hours": "Mon-Fri 9-17",
+      "notes": "fake fixture only — not a real business",
+      "source_pages": [
+        {
+          "url": "https://fake-harbor.example/",
+          "text": "Fake Harbor Cuts is a test barbershop in Testville. Haircut $30. Open Monday to Friday 9 to 17."
+        },
+        {
+          "url": "https://fake-harbor.example/prices",
+          "text": "Men's cut $25. Beard trim $15."
+        }
+      ]
+    },
+    {
+      "id": "fake-no-phone",
+      "name": "Fake Hidden Number Cafe",
+      "category": "cafe",
+      "city": "Testville",
+      "country": "US",
+      "website": "https://fake-cafe.example",
+      "whatsapp_source_url": null,
+      "whatsapp_e164": "https://wa.me/shortlink",
+      "owner_name": null,
+      "services": "Latte, Espresso",
+      "prices": "Latte $4",
+      "hours": "Daily 7-15",
+      "notes": "fake fixture — number hidden behind a short link",
+      "source_pages": []
+    }
+  ]
+}

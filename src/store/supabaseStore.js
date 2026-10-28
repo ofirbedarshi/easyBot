@@ -43,6 +43,16 @@ export function createSupabaseStore() {
     kind: 'supabase',
     client: sb,
 
+    async hasSender(senderId) {
+      const { data, error } = await sb
+        .from('easybot_senders')
+        .select('id')
+        .eq('id', senderId)
+        .maybeSingle();
+      if (error) throw new Error(`hasSender: ${error.message}`);
+      return !!data;
+    },
+
     async ensureSender(senderId) {
       const phoneE164 = phoneE164FromSenderId(senderId);
       if (!phoneE164) {
@@ -154,6 +164,7 @@ export function createSupabaseStore() {
         leadIntake: data.lead_intake ?? null,
         reviewChats: data.review_chats ?? null,
         ownerName: data.owner_name ?? null,
+        demoOrigin: data.demo_origin === true,
       };
     },
 
@@ -167,6 +178,7 @@ export function createSupabaseStore() {
         lead_intake: session.leadIntake ?? null,
         review_chats: session.reviewChats ?? null,
         owner_name: session.ownerName ?? null,
+        demo_origin: session.demoOrigin === true,
         updated_at: new Date().toISOString(),
       };
       let { error } = await sb
@@ -461,6 +473,161 @@ export function createSupabaseStore() {
         })
         .eq('id', id);
       if (error) throw new Error(`markInboundSkipped: ${error.message}`);
+    },
+
+    async insertDemo(row) {
+      const payload = {
+        business_label: row.business_label,
+        prospect_id:
+          row.prospect_id == null || String(row.prospect_id).trim() === ''
+            ? null
+            : String(row.prospect_id).trim(),
+        business_phone: row.business_phone ?? null,
+        code: String(row.code || '').toUpperCase(),
+        profile: row.profile,
+        owner_name: row.owner_name ?? null,
+        source_url: row.source_url ?? null,
+        reviewed_at: row.reviewed_at ?? null,
+      };
+      if (row.id) payload.id = row.id;
+      if (row.expires_at) payload.expires_at = row.expires_at;
+      if (row.claimed_by != null) payload.claimed_by = row.claimed_by;
+      if (row.claimed_at != null) payload.claimed_at = row.claimed_at;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (error) throw new Error(`insertDemo: ${error.message}`);
+      return data;
+    },
+
+    async findClaimableDemoByPhone(phone) {
+      const now = new Date().toISOString();
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('business_phone', phone)
+        .is('claimed_by', null)
+        .not('reviewed_at', 'is', null)
+        .gt('expires_at', now)
+        .maybeSingle();
+      if (error) throw new Error(`findClaimableDemoByPhone: ${error.message}`);
+      return data || null;
+    },
+
+    async findClaimableDemoByCode(code) {
+      const now = new Date().toISOString();
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('code', String(code || '').toUpperCase())
+        .is('claimed_by', null)
+        .not('reviewed_at', 'is', null)
+        .gt('expires_at', now)
+        .maybeSingle();
+      if (error) throw new Error(`findClaimableDemoByCode: ${error.message}`);
+      return data || null;
+    },
+
+    async claimDemo(id, claimedBy) {
+      const now = new Date().toISOString();
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .update({ claimed_by: claimedBy, claimed_at: now })
+        .eq('id', id)
+        .is('claimed_by', null)
+        .not('reviewed_at', 'is', null)
+        .gt('expires_at', now)
+        .select('*')
+        .maybeSingle();
+      if (error) throw new Error(`claimDemo: ${error.message}`);
+      return data || null;
+    },
+
+    async findDemoByProspectId(prospectId) {
+      const needle = String(prospectId || '').trim();
+      if (!needle) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('prospect_id', needle)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByProspectId: ${error.message}`);
+      return data || null;
+    },
+
+    async findDemoByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('code', needle)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByCode: ${error.message}`);
+      return data || null;
+    },
+
+    async findDemoByPhone(phone) {
+      if (!phone) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('business_phone', phone)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByPhone: ${error.message}`);
+      return data || null;
+    },
+
+    async countSenderDelete(senderId) {
+      const tables = [
+        ['easybot_senders', 'id'],
+        ['easybot_business_profiles', 'sender_id'],
+        ['easybot_sessions', 'sender_id'],
+        ['easybot_messages', 'sender_id'],
+        ['easybot_inbound_messages', 'sender_id'],
+        ['easybot_leads', 'sender_id'],
+      ];
+      const counts = {};
+      for (const [table, col] of tables) {
+        const { count, error } = await sb
+          .from(table)
+          .select(col, { count: 'exact', head: true })
+          .eq(col, senderId);
+        if (error) throw new Error(`countSenderDelete ${table}: ${error.message}`);
+        counts[table] = count || 0;
+      }
+      return counts;
+    },
+
+    async deleteSenderData(senderId) {
+      // Children first, then senders. easybot_demo_profiles.claimed_by is not an FK.
+      const order = [
+        ['easybot_messages', 'sender_id'],
+        ['easybot_inbound_messages', 'sender_id'],
+        ['easybot_leads', 'sender_id'],
+        ['easybot_sessions', 'sender_id'],
+        ['easybot_business_profiles', 'sender_id'],
+        ['easybot_senders', 'id'],
+      ];
+      const counts = {};
+      for (const [table, col] of order) {
+        const { data, error } = await sb.from(table).delete().eq(col, senderId).select(col);
+        if (error) throw new Error(`deleteSenderData ${table}: ${error.message}`);
+        counts[table] = (data || []).length;
+      }
+      return counts;
+    },
+
+    async deleteDemo(id) {
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .delete()
+        .eq('id', id)
+        .select('id');
+      if (error) throw new Error(`deleteDemo: ${error.message}`);
+      return (data || []).length;
     },
 
     async countSenderMessagesSince(senderId, sinceIso) {
