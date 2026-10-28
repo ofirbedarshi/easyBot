@@ -579,6 +579,7 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   );
   assert.equal(savedRun.dryRun, false);
   assert.equal(savedRun.saved.business_phone, null);
+  assert.equal(savedRun.saved.prospect_id, 'fake-no-phone');
   assert.equal(inserted, 1);
   ok('createDemo --dry-run writes nothing; prospect without E.164 is code-only');
 }

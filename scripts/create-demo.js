@@ -287,6 +287,7 @@ export async function createDemo(args, deps = {}) {
     sourceUrl: input.sourceUrl,
     profile,
     code: generateDemoCode(),
+    prospectId: input.prospectId,
   });
   const saved = await store.insertDemo(record);
   const phoneNote = saved.business_phone || 'code link only';

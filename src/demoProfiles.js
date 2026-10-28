@@ -181,6 +181,7 @@ export function reviewedDemoRecord({
   sourceUrl,
   profile,
   code,
+  prospectId,
   now = new Date(),
 } = {}) {
   const phone =
@@ -190,8 +191,13 @@ export function reviewedDemoRecord({
   assertDemoReady(profile);
   const approved = withKnownProfileKeys(profile);
   if (!approved.approvedAt) approved.approvedAt = now.toISOString();
+  const trimmedProspect =
+    prospectId == null || String(prospectId).trim() === ''
+      ? null
+      : String(prospectId).trim();
   return {
     business_label: String(businessLabel || '').trim(),
+    prospect_id: trimmedProspect,
     business_phone: phone,
     code: String(code || generateDemoCode()).toUpperCase(),
     profile: approved,

@@ -80,6 +80,11 @@ Do **not** apply migrations from the app or an agent. Apply `supabase/migrations
 3. Read the printed profile. Type `y` to save, or pass `--yes` after you have already reviewed it.
 4. The script prints a fallback WhatsApp link `https://wa.me/17623205871?text=Hi%20Adam%20code-<CODE>`.
 5. When the business WhatsApp number (if stored) first texts the production number, Adam claims that demo and opens TEST. If they text from a different phone, or the demo has no phone, they send the fallback message exactly (`Hi Adam code-…`).
+6. To remove a demo, look it up by prospect id, code, or phone:
+
+   `node scripts/delete-demo.js --id <prospect id>`
+
+   or `--code <CODE>` / `--phone +E164`. `--dry-run` prints row counts per table plus local `demo-output/<id>/` paths and deletes nothing. Type `y` or pass `--yes` to delete. A claimed demo refuses until you pass `--include-claimed`, which also deletes that sender's profile, session, messages, inbound, and leads (children first, then `easybot_senders`, then the demo row). Prints counts only, never message bodies. A second run on a missing demo is a no-op. Do not commit `demo-output/`.
 
 Expired unclaimed rows are ignored. Optional cleanup (commented in the migration, not scheduled): delete unclaimed rows with `expires_at < now()`.
 

@@ -39,6 +39,7 @@ const SUITES = [
   { id: 'web-tester-prod', file: 'scripts/test-web-tester-prod.js' },
   { id: 'demo-playback', file: 'scripts/test-demo-playback.js' },
   { id: 'demo-profiles', file: 'scripts/test-demo-profiles.js' },
+  { id: 'delete-demo', file: 'scripts/test-delete-demo.js' },
 ];
 
 function runSuite(suite) {

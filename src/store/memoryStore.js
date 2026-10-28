@@ -303,6 +303,10 @@ export function createMemoryStore() {
       const id = row.id || crypto.randomUUID();
       const code = String(row.code || '').toUpperCase();
       if (!code) throw new Error('insertDemo: code required');
+      const prospectId =
+        row.prospect_id == null || String(row.prospect_id).trim() === ''
+          ? null
+          : String(row.prospect_id).trim();
       for (const existing of demos.values()) {
         if (existing.code === code) throw new Error('insertDemo: code already exists');
         if (
@@ -312,10 +316,14 @@ export function createMemoryStore() {
         ) {
           throw new Error('insertDemo: business_phone already exists');
         }
+        if (prospectId && existing.prospect_id && existing.prospect_id === prospectId) {
+          throw new Error('insertDemo: prospect_id already exists');
+        }
       }
       const rec = {
         id,
         business_label: row.business_label,
+        prospect_id: prospectId,
         business_phone: row.business_phone ?? null,
         code,
         profile: structuredClone(row.profile),
@@ -355,6 +363,78 @@ export function createMemoryStore() {
       row.claimed_by = claimedBy;
       row.claimed_at = new Date().toISOString();
       return structuredClone(row);
+    },
+
+    async findDemoByProspectId(prospectId) {
+      const needle = String(prospectId || '').trim();
+      if (!needle) return null;
+      for (const row of demos.values()) {
+        if (row.prospect_id === needle) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async findDemoByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      for (const row of demos.values()) {
+        if (row.code === needle) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async findDemoByPhone(phone) {
+      if (!phone) return null;
+      for (const row of demos.values()) {
+        if (row.business_phone === phone) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async countSenderDelete(senderId) {
+      return {
+        easybot_senders: senders.has(senderId) ? 1 : 0,
+        easybot_business_profiles: profiles.has(senderId) ? 1 : 0,
+        easybot_sessions: sessions.has(senderId) ? 1 : 0,
+        easybot_messages: messages.filter((m) => m.sender_id === senderId).length,
+        easybot_inbound_messages: inbound.filter((r) => r.sender_id === senderId).length,
+        easybot_leads: leads.has(senderId) ? 1 : 0,
+      };
+    },
+
+    async deleteSenderData(senderId) {
+      const counts = {
+        easybot_messages: 0,
+        easybot_inbound_messages: 0,
+        easybot_leads: 0,
+        easybot_sessions: 0,
+        easybot_business_profiles: 0,
+        easybot_senders: 0,
+      };
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].sender_id === senderId) {
+          messages.splice(i, 1);
+          counts.easybot_messages += 1;
+        }
+      }
+      for (let i = inbound.length - 1; i >= 0; i--) {
+        if (inbound[i].sender_id === senderId) {
+          bySid.delete(inbound[i].message_sid);
+          inbound.splice(i, 1);
+          counts.easybot_inbound_messages += 1;
+        }
+      }
+      if (leads.delete(senderId)) counts.easybot_leads = 1;
+      if (sessions.delete(senderId)) counts.easybot_sessions = 1;
+      if (profiles.delete(senderId)) counts.easybot_business_profiles = 1;
+      if (senders.delete(senderId)) counts.easybot_senders = 1;
+      return counts;
+    },
+
+    async deleteDemo(id) {
+      if (!demos.has(id)) return 0;
+      demos.delete(id);
+      return 1;
     },
 
     async countSenderMessagesSince(senderId, sinceIso) {

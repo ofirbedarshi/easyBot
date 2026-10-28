@@ -12,3 +12,6 @@ supabase/.temp/
 
 # graphify knowledge graph output (rebuild with: scripts/graphify-build.sh)
 graphify-out/
+
+# Local create-demo / delete-demo artifacts (not part of deploy).
+demo-output/

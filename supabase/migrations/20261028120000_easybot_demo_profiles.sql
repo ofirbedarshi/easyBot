@@ -4,6 +4,7 @@
 create table if not exists public.easybot_demo_profiles (
   id uuid primary key default gen_random_uuid(),
   business_label text not null,
+  prospect_id text unique null,
   business_phone text unique null, -- E.164 digits (leading +)
   code text unique not null,
   profile jsonb not null,

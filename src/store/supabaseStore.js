@@ -476,6 +476,10 @@ export function createSupabaseStore() {
     async insertDemo(row) {
       const payload = {
         business_label: row.business_label,
+        prospect_id:
+          row.prospect_id == null || String(row.prospect_id).trim() === ''
+            ? null
+            : String(row.prospect_id).trim(),
         business_phone: row.business_phone ?? null,
         code: String(row.code || '').toUpperCase(),
         profile: row.profile,
@@ -536,6 +540,91 @@ export function createSupabaseStore() {
         .maybeSingle();
       if (error) throw new Error(`claimDemo: ${error.message}`);
       return data || null;
+    },
+
+    async findDemoByProspectId(prospectId) {
+      const needle = String(prospectId || '').trim();
+      if (!needle) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('prospect_id', needle)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByProspectId: ${error.message}`);
+      return data || null;
+    },
+
+    async findDemoByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('code', needle)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByCode: ${error.message}`);
+      return data || null;
+    },
+
+    async findDemoByPhone(phone) {
+      if (!phone) return null;
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .select('*')
+        .eq('business_phone', phone)
+        .maybeSingle();
+      if (error) throw new Error(`findDemoByPhone: ${error.message}`);
+      return data || null;
+    },
+
+    async countSenderDelete(senderId) {
+      const tables = [
+        ['easybot_senders', 'id'],
+        ['easybot_business_profiles', 'sender_id'],
+        ['easybot_sessions', 'sender_id'],
+        ['easybot_messages', 'sender_id'],
+        ['easybot_inbound_messages', 'sender_id'],
+        ['easybot_leads', 'sender_id'],
+      ];
+      const counts = {};
+      for (const [table, col] of tables) {
+        const { count, error } = await sb
+          .from(table)
+          .select(col, { count: 'exact', head: true })
+          .eq(col, senderId);
+        if (error) throw new Error(`countSenderDelete ${table}: ${error.message}`);
+        counts[table] = count || 0;
+      }
+      return counts;
+    },
+
+    async deleteSenderData(senderId) {
+      // Children first, then senders. easybot_demo_profiles.claimed_by is not an FK.
+      const order = [
+        ['easybot_messages', 'sender_id'],
+        ['easybot_inbound_messages', 'sender_id'],
+        ['easybot_leads', 'sender_id'],
+        ['easybot_sessions', 'sender_id'],
+        ['easybot_business_profiles', 'sender_id'],
+        ['easybot_senders', 'id'],
+      ];
+      const counts = {};
+      for (const [table, col] of order) {
+        const { data, error } = await sb.from(table).delete().eq(col, senderId).select(col);
+        if (error) throw new Error(`deleteSenderData ${table}: ${error.message}`);
+        counts[table] = (data || []).length;
+      }
+      return counts;
+    },
+
+    async deleteDemo(id) {
+      const { data, error } = await sb
+        .from('easybot_demo_profiles')
+        .delete()
+        .eq('id', id)
+        .select('id');
+      if (error) throw new Error(`deleteDemo: ${error.message}`);
+      return (data || []).length;
     },
 
     async countSenderMessagesSince(senderId, sinceIso) {
