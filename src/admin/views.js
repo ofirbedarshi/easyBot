@@ -757,7 +757,7 @@ function threadHtml(user) {
 
 function listCards({ users, selectedId, q, stage, truncated }) {
   if (!users.length) {
-    return `<div class="empty">${MARK}<strong>No matching users</strong>WhatsApp owners will appear here after they message the Sandbox.</div>`;
+    return `<div class="empty">${MARK}<strong>No matching users</strong>WhatsApp owners will appear here after they message our WhatsApp number.</div>`;
   }
   const cards = users
     .map((u) => {

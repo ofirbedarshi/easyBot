@@ -40,7 +40,7 @@ Webhook: `POST /webhooks/twilio/whatsapp`
 3. Returns empty TwiML quickly; durable worker runs Builder / Business Bot and replies via Messages API.
 4. State isolated per WhatsApp `From` in Supabase (`easybot_*` tables).
 
-**Sandbox ≠ public number.** Do not advertise a Sandbox number. Live WhatsApp is ready only after a real end-to-end conversation on your number.
+Live sender is a production Twilio number. The Twilio Sandbox is only for local testing.
 
 ### Env you set yourself (never paste secrets in chat)
 
@@ -58,7 +58,7 @@ See [.env.example](.env.example) for the full name list.
 
 - Blueprint: [render.yaml](render.yaml) — free web service `easybot-app`.
 - Push to `main` triggers deploys via GitHub Actions + Render Deploy Hooks (path-filtered). Setup: [DEPLOY.md](DEPLOY.md) § **GitHub Actions → Render deploy**.
-- Free tier spins down after ~15 minutes idle; cold start ~1 minute. Hit `/api/health` before Sandbox tests.
+- Free tier spins down after ~15 minutes idle; cold start ~1 minute. Hit `/api/health` before WhatsApp tests.
 
 ## CTO agent workflow
 
@@ -85,8 +85,8 @@ npm run regress               # live gpt-6-luna replays (needs OPENAI_API_KEY; a
 | Label | Meaning |
 |---|---|
 | **Mocked** | `npm run test:twilio` — fake signatures, memory store |
-| **Sandbox** | Twilio WhatsApp Sandbox against deployed/tunneled URL |
-| **Live** | Real WhatsApp Business number — not done until you finish Twilio setup |
+| **Sandbox** | Twilio WhatsApp Sandbox — local testing only |
+| **Live** | Production Twilio WhatsApp number — configured; E2E not claimed here |
 
 ## Notes
 
