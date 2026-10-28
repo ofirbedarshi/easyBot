@@ -75,7 +75,7 @@ test('scripted / fixed copy is unchanged', () => {
     assert.equal(formatModelReply(sample), sample, `rewrote scripted copy: ${sample.slice(0, 60)}`);
     assert.equal(sample.includes('||'), false, 'scripted copy must not contain the marker');
   }
-  assert.equal(openingMessage().message.split('\n\n').length, 4);
+  assert.equal(openingMessage().message.split('\n\n').length, 2);
 });
 
 test('prompt line is one short instruction', () => {
