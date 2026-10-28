@@ -13,6 +13,7 @@ import {
   INTAKE_MENU_LABEL,
   CHATS_FOOTER,
   CHATS_MENU_LABEL,
+  businessDetailsAck,
   chatsEmptyLine,
   LEAD_ALREADY_SENT,
   LEAD_INTRO,
@@ -86,6 +87,7 @@ export const COMPOSE_KINDS = Object.freeze([
   'chats_empty',
   'chats_report',
   'chats_followup',
+  'chats_saved',
 ]);
 
 const REVIEW_FILLER =
@@ -581,6 +583,12 @@ export function composeReply(spec = {}) {
     case 'chats_report':
     case 'chats_followup':
       return done([modelText, CHATS_FOOTER].filter(Boolean).join('\n\n'));
+
+    case 'chats_saved': {
+      const ack = businessDetailsAck(ownerName);
+      const card = [REVIEW.changesIntro, ...changeLines(prior, profile)].join('\n');
+      return done([ack, card, CHATS_FOOTER].filter(Boolean).join('\n\n'));
+    }
 
     default:
       throw new Error(`unknown compose kind: ${kind}`);

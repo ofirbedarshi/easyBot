@@ -4,7 +4,7 @@
  */
 import { getClient } from './builder.js';
 import { recentHistory } from './businessBot.js';
-import { GENERIC_ERROR_REPLY } from './copy.js';
+import { GENERIC_ERROR_REPLY, PARSE_FALLBACK_MESSAGE } from './copy.js';
 import { formatModelReply, PARAGRAPH_PROMPT_LINE } from './formatReply.js';
 import {
   generateWithIdenticalRetry,
@@ -101,14 +101,48 @@ When writing the report:
 - For each chat, say what the customer wanted and which details you collected.
 - At the end, name anything you could not answer, and invite the owner to teach you so you will know it next time.
 
+Set teaching true only when the owner is giving business information for you to remember. Set teaching false when they are asking about these chats. Never say you remembered or saved a fact.
+
 ${PARAGRAPH_PROMPT_LINE}
 Do not add a menu footer. Do not say there were no chats — the app handles that.`;
 
-export function buildReviewChatsMessages({ snapshot, history, question }) {
+export const REVIEW_CHATS_RESPONSE_SCHEMA = {
+  name: 'review_chats_turn',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['message', 'teaching'],
+    properties: {
+      message: {
+        type: 'string',
+        description:
+          'First-person Adam reply about the chats. Never say you remembered or saved a fact.',
+      },
+      teaching: {
+        type: 'boolean',
+        description:
+          'True when the owner is giving business information to remember. False when they are asking about the chats.',
+      },
+    },
+  },
+};
+
+export function reviewChatsResponseFormat() {
+  return { type: 'json_schema', json_schema: REVIEW_CHATS_RESPONSE_SCHEMA };
+}
+
+export function buildReviewChatsMessages({ snapshot, history, question, learned }) {
   const messages = [
     { role: 'system', content: REVIEW_CHATS_SYSTEM },
     { role: 'system', content: `CUSTOMER CHATS:\n${formatChatsForPrompt(snapshot)}` },
   ];
+  if (learned?.length) {
+    messages.push({
+      role: 'system',
+      content: `Facts the owner taught you this session (already saved):\n${learned.join('\n')}`,
+    });
+  }
   messages.push(...recentHistory(history, REVIEW_CHATS_HISTORY_LIMIT));
   if (question) {
     messages.push({ role: 'user', content: question });
@@ -118,25 +152,65 @@ export function buildReviewChatsMessages({ snapshot, history, question }) {
   return messages;
 }
 
+function parseReviewChatsContent(content) {
+  const raw = String(content || '').trim();
+  try {
+    let text = raw;
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return {
+        message: formatModelReply(parsed.message || ''),
+        teaching: parsed.teaching === true,
+      };
+    }
+  } catch {
+    // fall through: treat as a plain-text chats answer, not teaching
+  }
+  return { message: formatModelReply(raw), teaching: false };
+}
+
+export function claimsRememberedOrSaved(text) {
+  return /\b(?:i(?:['’]ll| will)? remember|i(?:['’]ve| have) (?:remembered|saved|added|noted)|(?:i(?:['’]ll| will) )?(?:save|saved) that|i(?:['’]ll| will) (?:save|add|know))\b/i.test(
+    String(text || '')
+  );
+}
+
+/** Builder message if it is a usable clarify; else existing PARSE_FALLBACK_MESSAGE. */
+export function clarifyFromBuilderMessage(message) {
+  const text = String(message || '').trim();
+  if (!text || claimsRememberedOrSaved(text)) return PARSE_FALLBACK_MESSAGE;
+  return text;
+}
+
 /**
- * @param {{ snapshot: object[][], history?: object[], question?: string|null, client?: object }} args
- * @returns {Promise<string>}
+ * @param {{ snapshot: object[][], history?: object[], question?: string|null, learned?: string[], client?: object }} args
+ * @returns {Promise<{ message: string, teaching: boolean }>}
  */
-export async function reviewChatsReply({ snapshot, history = [], question = null, client }) {
+export async function reviewChatsReply({
+  snapshot,
+  history = [],
+  question = null,
+  learned = [],
+  client,
+}) {
   const openai = client || getClient();
-  const messages = buildReviewChatsMessages({ snapshot, history, question });
+  const messages = buildReviewChatsMessages({ snapshot, history, question, learned });
   const previousOutgoing = lastOutgoingMessage(history);
   const completeOnce = async (retryNote) => {
     const { completion } = await createChatCompletion(openai, {
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: retryNote ? messagesWithRetryNote(messages, retryNote) : messages,
+      response_format: reviewChatsResponseFormat(),
     });
-    return formatModelReply(completion.choices?.[0]?.message?.content || '');
+    return parseReviewChatsContent(completion.choices?.[0]?.message?.content || '');
   };
   try {
     return await generateWithIdenticalRetry({
       generate: completeOnce,
-      extractText: (text) => text,
+      extractText: (result) => result.message,
       previousOutgoing,
       label: 'review-chats',
     });
@@ -145,6 +219,6 @@ export async function reviewChatsReply({ snapshot, history = [], question = null
       'Review chats reply failed:',
       err?.status || err?.code || err?.name || 'error'
     );
-    return GENERIC_ERROR_REPLY;
+    return { message: GENERIC_ERROR_REPLY, teaching: false };
   }
 }

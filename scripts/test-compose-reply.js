@@ -4,11 +4,12 @@
  * not by calling composeReply twice.
  */
 import assert from 'assert';
-import { composeReply, reviewAck, withSingleQuestion } from '../src/composeReply.js';
+import { changeLines, composeReply, reviewAck, withSingleQuestion } from '../src/composeReply.js';
 import {
   BOT_ERROR_REPLY,
   BUILDER_ERROR_PREFIX,
   BUSINESS_DETAILS_ACK,
+  businessDetailsAck,
   GENERIC_ERROR_REPLY,
   IDENTITY_FALLBACK_QUESTION,
   INTAKE_MENU_LABEL,
@@ -522,6 +523,29 @@ test('chats_report and chats_followup append footer only', () => {
   assert.equal(report.nav, null);
   const follow = composeReply({ kind: 'chats_followup', modelText: 'He asked the price.' });
   assert.equal(follow.reply, `He asked the price.\n\n${CHATS_FOOTER}`);
+});
+
+test('chats_saved uses businessDetailsAck, change lines, footer, no menu', () => {
+  const prior = {
+    ...salon,
+    services: [{ name: 'Private lesson', price: '$80', notes: null }],
+  };
+  const profile = {
+    ...salon,
+    services: [{ name: 'Private lesson', price: '$8', notes: null }],
+  };
+  const card = [REVIEW.changesIntro, ...changeLines(prior, profile)].join('\n');
+  const named = composeReply({
+    kind: 'chats_saved',
+    prior,
+    profile,
+    ownerName: 'Dana',
+  });
+  assert.equal(named.reply, `${businessDetailsAck('Dana')}\n\n${card}\n\n${CHATS_FOOTER}`);
+  assert.equal(named.nav, null);
+  const unnamed = composeReply({ kind: 'chats_saved', prior, profile });
+  assert.equal(unnamed.reply, `${BUSINESS_DETAILS_ACK}\n\n${card}\n\n${CHATS_FOOTER}`);
+  assert.ok(!unnamed.reply.includes(REVIEW.changeAsk));
 });
 
 const failed = results.filter((r) => !r.pass);

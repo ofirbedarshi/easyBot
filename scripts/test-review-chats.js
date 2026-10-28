@@ -8,14 +8,21 @@ import { composeReply, menuItems } from '../src/composeReply.js';
 import {
   CHATS_FOOTER,
   CHATS_MENU_LABEL,
+  PARSE_FALLBACK_MESSAGE,
+  businessDetailsAck,
   chatsEmptyLine,
   INTAKE_MENU_LABEL,
+  REVIEW,
 } from '../src/copy.js';
 import { emptyProfile, saveProfile, testProfilePath } from '../src/profile.js';
 import { createSenderSession, createSession, handleMessage } from '../src/session.js';
 import { lastShownNav, menuActive, parseMenuItem, renderMenu } from '../src/ownerNav.js';
 import { ownerPhase } from '../src/ownerPhase.js';
-import { groupTestChats } from '../src/reviewChats.js';
+import {
+  clarifyFromBuilderMessage,
+  groupTestChats,
+  REVIEW_CHATS_SYSTEM,
+} from '../src/reviewChats.js';
 import { createMemoryStore } from '../src/store/memoryStore.js';
 
 const PROFILE = testProfilePath('review-chats');
@@ -180,7 +187,13 @@ await test('report footer and menu exit from chats mode', async () => {
   });
   const session = await createSenderSession(store, sender, {
     deps: {
-      reviewChatsReply: async () => 'I had 1 chat. She asked the private-lesson price.',
+      reviewChatsReply: async () => ({
+        message: 'I had 1 chat. She asked the private-lesson price.',
+        teaching: false,
+      }),
+      runBuilderTurn: async () => {
+        throw new Error('Builder should not run on a chats question');
+      },
     },
   });
   session.ownerName = 'Dana';
@@ -208,6 +221,183 @@ await test('report footer and menu exit from chats mode', async () => {
   assert.ok(back.reply.includes(`1. 🚀`));
   assert.ok(back.reply.includes(TELL_MORE));
   assert.ok(back.reply.includes(INTAKE_MENU_LABEL));
+});
+
+function taughtLessonDraft(profile, price) {
+  const draft = structuredClone(profile.draft);
+  draft.services = [{ name: 'Private lesson', price, notes: null }];
+  return draft;
+}
+
+async function seededChatsSession(deps) {
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15551230002';
+  const profile = tested();
+  await store.saveProfile(sender, profile);
+  const now = new Date().toISOString();
+  await store.appendMessage({
+    senderId: sender,
+    direction: 'inbound',
+    body: 'How much is a private lesson?',
+    mode: 'test',
+    createdAt: now,
+  });
+  await store.appendMessage({
+    senderId: sender,
+    direction: 'outbound',
+    body: 'I do not have the price.',
+    mode: 'test',
+    createdAt: now,
+  });
+  await store.saveSession(sender, {
+    mode: 'BUILD',
+    buildHistory: [{ role: 'assistant', content: renderMenu(afterTestMenu()), nav: 'menu' }],
+    testHistory: [],
+    testSessionId: 't',
+    ownerName: 'Dana',
+  });
+  const session = await createSenderSession(store, sender, { deps });
+  session.ownerName = 'Dana';
+  return { store, sender, session, profile };
+}
+
+test('clarifyFromBuilderMessage rejects remember-claims', () => {
+  assert.equal(
+    clarifyFromBuilderMessage("What's the new price for the haircut?"),
+    "What's the new price for the haircut?"
+  );
+  assert.equal(
+    clarifyFromBuilderMessage("I'll remember that the haircut price is $8."),
+    PARSE_FALLBACK_MESSAGE
+  );
+  assert.equal(clarifyFromBuilderMessage(''), PARSE_FALLBACK_MESSAGE);
+  assert.ok(REVIEW_CHATS_SYSTEM.includes('Set teaching true only when'));
+});
+
+await test('teaching false does not call the Builder', async () => {
+  let builderCalls = 0;
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) =>
+      question
+        ? { message: 'She asked how much a private lesson is.', teaching: false }
+        : { message: 'I had 1 chat. I could not answer the private-lesson price.', teaching: false },
+    runBuilderTurn: async () => {
+      builderCalls += 1;
+      throw new Error('Builder should not run when teaching is false');
+    },
+  });
+  await handleMessage(session, '3');
+  assert.equal(builderCalls, 0);
+  const before = await store.loadProfile(sender);
+  const follow = await handleMessage(session, 'what exactly did she ask about the price?');
+  assert.equal(follow.event, 'chats_turn');
+  assert.equal(ownerPhase(session), 'chats');
+  assert.equal(builderCalls, 0);
+  assert.ok(follow.reply.includes('She asked how much a private lesson is.'), follow.reply);
+  assert.ok(!/remember|saved/i.test(follow.reply), follow.reply);
+  const after = await store.loadProfile(sender);
+  assert.equal(after.services[0].price, before.services[0].price);
+  assert.equal(after.services[0].price, '$80');
+});
+
+await test('teach in chats mode updates the live service price', async () => {
+  const builderCalls = [];
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) => {
+      if (!question) {
+        return { message: 'I had 1 chat. I could not answer the private-lesson price.', teaching: false };
+      }
+      return {
+        message: "I'll remember that the private lesson is $8.",
+        teaching: true,
+      };
+    },
+    runBuilderTurn: async ({ profile: p, userMessage, buildHistory }) => {
+      builderCalls.push({ userMessage, historyLen: buildHistory?.length || 0 });
+      return {
+        message: "I'll remember that the private lesson is $8.",
+        draft: taughtLessonDraft(p, '$8'),
+        onPurpose: true,
+        ownerName: null,
+        configRequests: [],
+      };
+    },
+  });
+  const report = await handleMessage(session, '3');
+  assert.equal(report.event, 'enter_chats');
+  const teach = await handleMessage(session, 'The price is 8 dollar');
+  assert.equal(teach.event, 'chats_turn');
+  assert.equal(ownerPhase(session), 'chats');
+  assert.equal(session.reviewChats?.active, true);
+  assert.ok(teach.reply.endsWith(CHATS_FOOTER), teach.reply);
+  assert.ok(teach.reply.startsWith(businessDetailsAck('Dana')), teach.reply);
+  assert.ok(teach.reply.includes(REVIEW.changesIntro), teach.reply);
+  assert.ok(teach.reply.includes('$8'), teach.reply);
+  assert.ok(!/I'll remember that the private lesson is \$8/.test(teach.reply), teach.reply);
+  const saved = await store.loadProfile(sender);
+  assert.equal(saved.services[0].price, '$8');
+  assert.equal(saved.draft.services[0].price, '$8');
+  assert.ok(session.reviewChats.learned?.length > 0);
+  assert.equal(builderCalls.length, 1);
+  assert.ok(builderCalls[0].historyLen > 0);
+  assert.ok(session.reviewChats.snapshot.flat().some((m) => /do not have the price/.test(m.body)));
+});
+
+await test('teach with no save uses Builder question, not remember-claim', async () => {
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) => {
+      if (!question) {
+        return { message: 'I had 1 chat. I could not answer the private-lesson price.', teaching: false };
+      }
+      return {
+        message: "Thanks for letting me know. I'll remember that the haircut price is $8.",
+        teaching: true,
+      };
+    },
+    runBuilderTurn: async ({ profile: p }) => ({
+      message: "What's the new price for the haircut?",
+      draft: structuredClone(p.draft),
+      onPurpose: true,
+      ownerName: null,
+      configRequests: [],
+    }),
+  });
+  await handleMessage(session, '3');
+  const before = await store.loadProfile(sender);
+  const clarify = await handleMessage(session, 'The price is 8 dollar');
+  assert.equal(clarify.event, 'chats_turn');
+  assert.equal(ownerPhase(session), 'chats');
+  assert.ok(clarify.reply.startsWith("What's the new price for the haircut?"), clarify.reply);
+  assert.ok(clarify.reply.endsWith(CHATS_FOOTER), clarify.reply);
+  assert.ok(!/remember/i.test(clarify.reply), clarify.reply);
+  assert.ok(!clarify.reply.includes(REVIEW.changesIntro));
+  const after = await store.loadProfile(sender);
+  assert.equal(after.services[0].price, before.services[0].price);
+});
+
+await test('teach with no usable Builder question uses parse fallback', async () => {
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) =>
+      question
+        ? { message: "I'll remember that.", teaching: true }
+        : { message: 'I had 1 chat.', teaching: false },
+    runBuilderTurn: async ({ profile: p }) => ({
+      message: "Thanks, I'll remember that the haircut price is $8.",
+      draft: structuredClone(p.draft),
+      onPurpose: true,
+      ownerName: null,
+      configRequests: [],
+    }),
+  });
+  await handleMessage(session, '3');
+  const before = await store.loadProfile(sender);
+  const out = await handleMessage(session, 'The price is 8 dollar');
+  assert.ok(out.reply.startsWith(PARSE_FALLBACK_MESSAGE), out.reply);
+  assert.ok(out.reply.endsWith(CHATS_FOOTER), out.reply);
+  assert.ok(!/remember/i.test(out.reply), out.reply);
+  assert.equal(ownerPhase(session), 'chats');
+  const after = await store.loadProfile(sender);
+  assert.equal(after.services[0].price, before.services[0].price);
 });
 
 await test('hidden before first TEST: 3 is not chats', async () => {
