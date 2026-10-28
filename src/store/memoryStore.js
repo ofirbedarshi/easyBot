@@ -121,7 +121,7 @@ export function createMemoryStore() {
       for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i].sender_id === senderId) messages.splice(i, 1);
       }
-    },,
+    },
 
     async appendMessage({
       senderId,
