@@ -189,7 +189,7 @@ await test('report footer and menu exit from chats mode', async () => {
   assert.equal(ownerPhase(session), 'chats');
   assert.ok(report.reply.endsWith(CHATS_FOOTER), report.reply);
   assert.ok(report.reply.includes('I had 1 chat.'));
-  assert.ok(!menuActive(session.buildHistory));
+  assert.equal(session.reviewChats?.active, true);
 
   const follow = await handleMessage(session, 'what exactly did she ask about the price?');
   assert.equal(follow.event, 'chats_turn');

@@ -165,8 +165,8 @@ async function testSectionRoutingReadOnly() {
   const before = readRaw();
   const m = await handleMessage(session, 'menu');
   assert.equal(m.event, 'menu');
-  assert.ok(m.reply.includes(`3. ${TELL_MORE}`), m.reply);
-  const talks = await handleMessage(session, '6');
+  assert.ok(m.reply.includes(`4. ${TELL_MORE}`), m.reply);
+  const talks = await handleMessage(session, '7');
   assert.equal(talks.event, 'menu_section');
   assert.ok(talks.reply.startsWith('💬 This is how I talk to your customers right now:\n\n'), talks.reply);
   assert.ok(talks.reply.includes('*Style:* warm'), talks.reply);
@@ -185,7 +185,7 @@ async function testSectionRoutingReadOnly() {
   const back = await handleMessage(session, '*menu*');
   assert.equal(back.event, 'menu');
   assert.ok(back.reply.startsWith('What should we do next?'), back.reply);
-  assert.ok(back.reply.includes(`3. ${TELL_MORE}`), back.reply);
+  assert.ok(back.reply.includes(`4. ${TELL_MORE}`), back.reply);
   assert.equal(calls.builder, 0, '*menu* must not reach the Builder');
   const please = await handleMessage(session, 'please menu');
   assert.equal(please.event, 'build_turn');
@@ -193,16 +193,16 @@ async function testSectionRoutingReadOnly() {
 
   // A number right after a section view is an answer, not a menu choice.
   await handleMessage(session, 'menu');
-  await handleMessage(session, '6');
+  await handleMessage(session, '7');
   await handleMessage(session, '3');
   assert.equal(calls.builder, 2, 'number after section view must reach the Builder');
 
   // Other sections render their own fields.
   await handleMessage(session, 'menu');
-  const s1 = await handleMessage(session, '3');
+  const s1 = await handleMessage(session, '4');
   assert.ok(s1.reply.includes('Studio Yoga') && s1.reply.includes('200 ILS'), s1.reply);
   await handleMessage(session, 'menu');
-  const s2 = await handleMessage(session, '4');
+  const s2 = await handleMessage(session, '5');
   assert.ok(s2.reply.includes('Yes, beginners welcome.'), s2.reply);
 }
 
@@ -424,11 +424,11 @@ async function testSixAndEnd() {
   assert.equal(end.reply, exitBanner);
   assert.equal(end.replies[0], exitBanner);
   assert.ok(end.replies[1].startsWith("I'm back! What should I learn next?"), end.replies[1]);
-  assert.ok(end.replies[1].includes(`3. ${TELL_MORE}`), end.replies[1]);
+  assert.ok(end.replies[1].includes(`4. ${TELL_MORE}`), end.replies[1]);
   assert.ok(end.replies[1].includes('1. 🚀 Get me working for your business'), end.replies[1]);
   assert.ok(!/BUILD mode/.test(end.replies.join('\n')));
   assert.ok(lastAssistant(session).content.startsWith("I'm back! What should I learn next?"));
-  const talks = await handleMessage(session, '6');
+  const talks = await handleMessage(session, '7');
   assert.equal(talks.event, 'menu_section');
 }
 

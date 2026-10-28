@@ -590,7 +590,7 @@ await playJourney([
       event: 'menu',
       mode: 'BUILD',
       phase: 'ready',
-      reply: expectedMenu(false),
+      reply: renderChangeMenu({ leadOption: false, chatsOption: true }, OWNER),
       nav: 'menu',
     },
   },
