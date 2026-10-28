@@ -79,7 +79,7 @@ Do **not** apply migrations from the app or an agent. Apply `supabase/migrations
    `--phone` / `whatsapp_e164` is optional. Only a value that normalizes to E.164 is stored; otherwise the demo is code-link only and the script warns. Short links are not resolved. `--owner-name` / prospect `owner_name` is optional. The extracted business name is required; the script refuses to save without it. `--dry-run` extracts and prints the profile and writes nothing (no Supabase). Saving still needs Supabase env.
 3. Read the printed profile. Type `y` to save, or pass `--yes` after you have already reviewed it.
 4. The script prints a fallback WhatsApp link `https://wa.me/17623205871?text=Hi%20Adam%20code-<CODE>`.
-5. When the business WhatsApp number (if stored) first texts the production number, Adam claims that demo, skips detail collection, and sends the flow-2 opening (owner name when stored, plus the business name, and `1️⃣ Let's start`). They pick `1` to enter TEST. If they text from a different phone, or the demo has no phone, they send the fallback message exactly (`Hi Adam code-…`).
+5. When the business WhatsApp number (if stored) first texts the production number, Adam claims that demo, skips detail collection, and sends the flow-2 opening (owner name when stored, plus the business name, and `1️⃣ Let's start (reply 1)`). They pick `1` to enter TEST. If they text from a different phone, or the demo has no phone, they send the fallback message exactly (`Hi Adam code-…`).
 6. To remove a demo, look it up by prospect id, code, or phone:
 
    `node scripts/delete-demo.js --id <prospect id>`

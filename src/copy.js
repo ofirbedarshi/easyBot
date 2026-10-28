@@ -180,14 +180,12 @@ export const BURST_LIMIT_REPLY =
 export const FALLBACK_BUSINESS_NAME = 'this business';
 
 export const DEMO_OPENING_WITH_NAME =
-  "Hi {name}, I'm Adam 👋 I'm going to be the one talking with {business}'s customers. I already learned about {business} online. Want to try me out like one of your customers would?";
+  "Hi {name}, I'm Adam 👋\nI'm going to be the one talking with {business}'s customers. I already learned about {business} online.\nWant to try me out like one of your customers would? 🎉";
 
 export const DEMO_OPENING_NO_NAME =
-  "Hi, I'm Adam 👋 I'm going to be the one talking with {business}'s customers. I already learned about {business} online. Want to try me out like one of your customers would?";
+  "Hi, I'm Adam 👋\nI'm going to be the one talking with {business}'s customers. I already learned about {business} online.\nWant to try me out like one of your customers would? 🎉";
 
-export const DEMO_START_OPTION = "1️⃣ Let's start";
-
-export const DEMO_TEST_HINT = 'Got something wrong? Type stop and teach me.';
+export const DEMO_START_OPTION = "1️⃣ Let's start (reply 1)";
 
 export function demoOpeningText(ownerName, business) {
   const biz = String(business || '').trim();

@@ -298,13 +298,13 @@ test('demo_opening', () => {
   });
   assert.equal(
     withName.reply,
-    `Hi Dana, I'm Adam 👋 I'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online. Want to try me out like one of your customers would?\n\n${DEMO_START_OPTION}`
+    `Hi Dana, I'm Adam 👋\nI'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online.\nWant to try me out like one of your customers would? 🎉\n\n${DEMO_START_OPTION}`
   );
   assert.equal(withName.nav, 'demo_start');
   const noName = composeReply({ kind: 'demo_opening', profile: salon });
   assert.equal(
     noName.reply,
-    `Hi, I'm Adam 👋 I'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online. Want to try me out like one of your customers would?\n\n${DEMO_START_OPTION}`
+    `Hi, I'm Adam 👋\nI'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online.\nWant to try me out like one of your customers would? 🎉\n\n${DEMO_START_OPTION}`
   );
   assert.equal(noName.nav, 'demo_start');
 });
