@@ -11,7 +11,6 @@ import {
 } from './profile.js';
 import {
   applyReviewGate,
-  hasUnresolvedConfig,
   runBuilderTurn as defaultRunBuilderTurn,
 } from './builder.js';
 import { topicJustAsked } from './builderTopics.js';
@@ -418,6 +417,13 @@ function ownerMenuOpts(session, profile) {
       !leadSubmitted(session.leadIntake),
     chatsOption: !!profile?.firstTestedAt,
   };
+}
+
+/** Menu chrome: unresolved config blocks the menu only when a request names a field. */
+function hasNamedUnresolvedConfig(turn) {
+  const requests = turn?.configRequests;
+  if (!Array.isArray(requests) || !requests.length) return false;
+  return requests.some((r) => r && r.status !== 'supported' && r.field);
 }
 
 function clearReviewChats(session) {
@@ -846,13 +852,13 @@ async function handleBuild(session, userMessage) {
 
   const ready = ownerPhase(session, profile) === 'ready';
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;
-  const unresolved = hasUnresolvedConfig(result);
+  const unresolvedNamed = hasNamedUnresolvedConfig(result);
 
   const menuOpts = ownerMenuOpts(session, profile);
   let composed;
   if (firstApproval) {
     composed = composeReply({ kind: 'ready_first', menuOpts, ownerName });
-  } else if (ready && unresolved) {
+  } else if (ready && unresolvedNamed) {
     composed = composeReply({
       kind: 'model_only',
       modelText: result.message,

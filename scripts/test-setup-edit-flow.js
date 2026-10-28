@@ -594,6 +594,91 @@ await test('remove one informationToCollect item (ownerEdits remove)', async () 
   ]);
 });
 
+await test('shorter informationToCollect without ownerEdits replaces the list', async () => {
+  await playApprovedFlow([
+    {
+      name: 'stop asking for phone → name only from the provided list',
+      in: 'stop asking for the phone number',
+      model: modelTurn(
+        { informationToCollect: ['name'] },
+        { message: 'Ready for review.' }
+      ),
+      expect: {
+        ...saveCardExpect({
+          reply: undefined,
+          includes: [CHANGED_ACK, "*I'll ask customers for:* name"],
+          excludes: [LEGACY_CARD],
+        }),
+        live: { informationToCollect: ['name'] },
+        draft: { informationToCollect: ['name'] },
+      },
+    },
+  ]);
+});
+
+await test('field-less unsupported config after ready still shows the menu', async () => {
+  await playApprovedFlow([
+    {
+      name: 'show-bot classified unsupported with no field → model_plus_menu',
+      in: 'please show the current bot',
+      model: modelTurn(
+        {},
+        {
+          message: 'I cannot display a live preview here, but I can help with the current setup.',
+          configRequests: [
+            {
+              request: 'please show the current bot',
+              status: 'unsupported',
+              field: null,
+              alternative: null,
+            },
+          ],
+        }
+      ),
+      expect: {
+        event: 'build_turn',
+        mode: 'BUILD',
+        approvedAt: APPROVED_AT,
+        nav: 'menu',
+        includes: ['Pick a number', '1. 🤖 Chat with me like a customer'],
+        excludes: [LEGACY_CARD],
+      },
+    },
+  ]);
+});
+
+await test('named-field unresolved config after ready stays model_only', async () => {
+  await playApprovedFlow([
+    {
+      name: 'unsupported price policy with field → no menu',
+      in: 'Put the price in every reply.',
+      model: modelTurn(
+        {},
+        {
+          message:
+            'That every-reply policy is not supported. Closest is relevant — want that?',
+          configRequests: [
+            {
+              request: 'Put the price in every reply.',
+              status: 'unsupported',
+              field: 'priceDisclosure',
+              alternative: 'relevant',
+            },
+          ],
+        }
+      ),
+      expect: {
+        event: 'build_turn',
+        mode: 'BUILD',
+        approvedAt: APPROVED_AT,
+        nav: null,
+        includes: ['not supported'],
+        excludes: ['Pick a number', LEGACY_CARD],
+      },
+    },
+  ]);
+});
+
 await test('no-change summary turn keeps otherFacts and shows the menu', async () => {
   const fact = 'We only work on cars';
   await playApprovedFlow(

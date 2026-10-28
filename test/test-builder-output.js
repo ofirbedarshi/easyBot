@@ -122,27 +122,29 @@ test('applyDraftDelta: informationToCollect null keeps; [] settles empty', () =>
   );
 });
 
-test('applyDraftDelta: partial informationToCollect unions omitted items', () => {
+test('applyDraftDelta: non-empty informationToCollect replaces the stored list', () => {
   const settled = ['name', 'phone', 'preferred time'];
   assert.deepEqual(
     applyDraftDelta({ informationToCollect: ['name'] }, { informationToCollect: settled })
       .informationToCollect,
-    settled
+    ['name']
   );
   assert.deepEqual(
-    applyDraftDelta({ informationToCollect: ['email'] }, { informationToCollect: settled })
-      .informationToCollect,
+    applyDraftDelta(
+      { informationToCollect: ['name', 'phone', 'preferred time', 'email'] },
+      { informationToCollect: settled }
+    ).informationToCollect,
     ['name', 'phone', 'preferred time', 'email']
   );
 });
 
-test('applyBuilderModelOutput: ownerEdits remove drops one intake item', () => {
+test('applyBuilderModelOutput: shorter intake list without ownerEdits replaces', () => {
   const current = { informationToCollect: ['name', 'phone'], otherFacts: [], unknowns: [] };
   const kept = applyBuilderModelOutput(
     { draft: { informationToCollect: ['name'] }, ownerEdits: [] },
     current
   );
-  assert.deepEqual(kept.informationToCollect, ['name', 'phone']);
+  assert.deepEqual(kept.informationToCollect, ['name']);
   const removed = applyBuilderModelOutput(
     {
       draft: { informationToCollect: ['name'] },
@@ -256,7 +258,6 @@ test('correction of one overlapping service name keeps siblings and order', () =
       draft: {
         services: [svc('Men\'s cut', '$30')],
         locationOrArea: 'Columbus, Ohio',
-        informationToCollect: ['name'],
       },
       newFacts: ['The salon does not offer nail services.'],
       ownerEdits: [{ field: 'services', item: 'Men\'s cut', action: 'change' }],
