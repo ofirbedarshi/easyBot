@@ -6,7 +6,6 @@ import assert from 'assert';
 import { applyBuilderModelOutput } from '../src/applyExtraction.js';
 import {
   DEMO_START_OPTION,
-  DEMO_TEST_HINT,
   OPENING_MESSAGE,
   RESET_REPLY,
   returnedIntro,
@@ -96,8 +95,8 @@ function demoRow(overrides = {}) {
 
 function expectedOpening(ownerName, business = 'Harbor Cuts') {
   const body = ownerName
-    ? `Hi ${ownerName}, I'm Adam 👋 I'm going to be the one talking with ${business}'s customers. I already learned about ${business} online. Want to try me out like one of your customers would?`
-    : `Hi, I'm Adam 👋 I'm going to be the one talking with ${business}'s customers. I already learned about ${business} online. Want to try me out like one of your customers would?`;
+    ? `Hi ${ownerName}, I'm Adam 👋\nI'm going to be the one talking with ${business}'s customers. I already learned about ${business} online.\nWant to try me out like one of your customers would? 🎉`
+    : `Hi, I'm Adam 👋\nI'm going to be the one talking with ${business}'s customers. I already learned about ${business} online.\nWant to try me out like one of your customers would? 🎉`;
   return `${body}\n\n${DEMO_START_OPTION}`;
 }
 
@@ -146,10 +145,11 @@ function assertDemoOpening(result, ownerName = null, business = 'Harbor Cuts') {
 function assertDemoEnterTest(result, profile) {
   assert.equal(result.ok, true);
   assert.equal(result.event, 'enter_test');
-  assert.equal(result.replies[0], DEMO_TEST_HINT);
-  assert.equal(result.replies[1], enterTestBanner(profile.name));
-  assert.equal(result.replies[2], customerOpeningText(profile));
-  assert.equal(result.reply.startsWith(DEMO_TEST_HINT), true);
+  assert.deepEqual(result.replies, [
+    enterTestBanner(profile.name),
+    customerOpeningText(profile),
+  ]);
+  assert.equal(result.reply, enterTestBanner(profile.name));
 }
 
 let passed = 0;

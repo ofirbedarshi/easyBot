@@ -26,7 +26,6 @@ import {
   findClaimableDemo,
   isDemoBindEligible,
   isFreshOwnerProfile,
-  prefixDemoTestHint,
 } from './demoProfiles.js';
 import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
@@ -405,9 +404,7 @@ async function sendDemoOpening(session, profile) {
 /** Flow-2 wait: only a menu `1` enters TEST. Any other reply re-shows the opening. */
 async function handleDemoOffer(session, text) {
   if (parseMenuChoice(text, 1) === 1) {
-    const entered = await enterTest(session);
-    if (!entered.ok) return entered;
-    return prefixDemoTestHint(entered);
+    return enterTest(session);
   }
   const profile = await loadAsync(session);
   const composed = composeReply({

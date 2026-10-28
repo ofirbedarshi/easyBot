@@ -6,7 +6,7 @@
 
 import crypto from 'crypto';
 import { applyBuilderModelOutput } from './applyExtraction.js';
-import { DEMO_TEST_HINT, normalizeOwnerName } from './copy.js';
+import { normalizeOwnerName } from './copy.js';
 import { E164_RE, phoneE164FromSenderId } from './phone.js';
 import {
   applyDraftToLive,
@@ -106,18 +106,6 @@ export async function findClaimableDemo(store, senderId, text) {
     return store.findClaimableDemoByCode(code);
   }
   return null;
-}
-
-export function prefixDemoTestHint(enterTestResult) {
-  const chrome = enterTestResult.replies?.length
-    ? enterTestResult.replies
-    : [enterTestResult.reply].filter(Boolean);
-  const replies = [DEMO_TEST_HINT, ...chrome];
-  return {
-    ...enterTestResult,
-    reply: replies.join('\n\n'),
-    replies,
-  };
 }
 
 export function profileFromBuilderTurn(turn, live = emptyProfile()) {
