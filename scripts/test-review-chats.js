@@ -8,6 +8,7 @@ import { composeReply, menuItems } from '../src/composeReply.js';
 import {
   CHATS_FOOTER,
   CHATS_MENU_LABEL,
+  CHATS_PRICE_UPDATE_FAILED,
   PARSE_FALLBACK_MESSAGE,
   businessDetailsAck,
   chatsEmptyLine,
@@ -375,7 +376,7 @@ await test('teach with no save uses Builder question, not remember-claim', async
   assert.equal(after.services[0].price, before.services[0].price);
 });
 
-await test('pending teach: digit fallback saves owner text; unknowns-only unclear has no save card', async () => {
+await test('pending teach: unknowns-only unclear has no save card; no-save uses fixed line', async () => {
   const builderCalls = [];
   const chatsQuestions = [];
   const { store, sender, session } = await seededChatsSession({
@@ -392,7 +393,7 @@ await test('pending teach: digit fallback saves owner text; unknowns-only unclea
         historyLen: buildHistory?.length || 0,
         historyRoles: (buildHistory || []).map((m) => m.role),
       });
-      if (userMessage === "it's cheaper now") {
+      if (userMessage === "it's cheaper now" || userMessage === '6') {
         const draft = structuredClone(p.draft);
         draft.unknowns = [
           ...(Array.isArray(draft.unknowns) ? draft.unknowns : []),
@@ -401,15 +402,6 @@ await test('pending teach: digit fallback saves owner text; unknowns-only unclea
         return {
           message: "What's the new price?",
           draft,
-          onPurpose: true,
-          ownerName: null,
-          configRequests: [],
-        };
-      }
-      if (userMessage === '6') {
-        return {
-          message: 'What currency is 6 in?',
-          draft: structuredClone(p.draft),
           onPurpose: true,
           ownerName: null,
           configRequests: [],
@@ -446,32 +438,51 @@ await test('pending teach: digit fallback saves owner text; unknowns-only unclea
   assert.equal(builderCalls.at(-1).userMessage, '6');
   assert.equal(builderCalls.at(-1).historyLen, 1);
   assert.deepEqual(builderCalls.at(-1).historyRoles, ['assistant']);
-  assert.ok(teachSix.reply.startsWith(businessDetailsAck('Dana')), teachSix.reply);
-  assert.ok(teachSix.reply.includes(REVIEW.changesIntro), teachSix.reply);
-  assert.ok(teachSix.reply.includes('6'), teachSix.reply);
-  assert.ok(!teachSix.reply.includes('$6'), teachSix.reply);
+  assert.equal(teachSix.reply, `${CHATS_PRICE_UPDATE_FAILED}\n\n${CHATS_FOOTER}`);
+  assert.ok(!teachSix.reply.includes(REVIEW.changesIntro), teachSix.reply);
   const afterSix = await store.loadProfile(sender);
-  assert.equal(afterSix.services[0].price, '6');
-  assert.equal(afterSix.draft.services[0].price, '6');
+  assert.equal(afterSix.services[0].price, '$8');
+  assert.deepEqual(afterSix.unknowns || [], afterA.unknowns || []);
   assert.equal(session.reviewChats.awaitingTeachAnswer, false);
+  assert.equal(ownerPhase(session), 'chats');
+
+  const stopped = await handleMessage(session, 'stop');
+  assert.equal(stopped.event, 'enter_build');
+  assert.equal(session.reviewChats, null);
+  const afterStop = await store.loadProfile(sender);
+  assert.equal(afterStop.services[0].price, '$8');
 });
 
-await test('pending teach: no-digit reply does not overwrite; stop still exits', async () => {
+await test('pending teach: Builder save still applies with last-assistant history', async () => {
+  const builderCalls = [];
+  const chatsQuestions = [];
   const { store, sender, session } = await seededChatsSession({
-    reviewChatsReply: async ({ question }) =>
-      question
-        ? { message: 'Chats paraphrase.', teaching: true }
-        : { message: 'I had 1 chat.', teaching: false },
-    runBuilderTurn: async ({ profile: p, userMessage }) => {
-      if (userMessage === "it's cheaper now" || userMessage === 'not sure') {
-        const draft = structuredClone(p.draft);
-        draft.unknowns = [
-          ...(Array.isArray(draft.unknowns) ? draft.unknowns : []),
-          'The new amount is unknown',
-        ];
+    reviewChatsReply: async ({ question }) => {
+      chatsQuestions.push(question);
+      if (!question) {
+        return { message: 'I had 1 chat.', teaching: false };
+      }
+      return { message: 'Chats paraphrase.', teaching: true };
+    },
+    runBuilderTurn: async ({ profile: p, userMessage, buildHistory }) => {
+      builderCalls.push({
+        userMessage,
+        historyLen: buildHistory?.length || 0,
+        historyRoles: (buildHistory || []).map((m) => m.role),
+      });
+      if (userMessage === "it's cheaper now") {
         return {
           message: "What's the new price?",
-          draft,
+          draft: structuredClone(p.draft),
+          onPurpose: true,
+          ownerName: null,
+          configRequests: [],
+        };
+      }
+      if (userMessage === '6') {
+        return {
+          message: 'Saved.',
+          draft: taughtLessonDraft(p, '6'),
           onPurpose: true,
           ownerName: null,
           configRequests: [],
@@ -490,24 +501,17 @@ await test('pending teach: no-digit reply does not overwrite; stop still exits',
   await handleMessage(session, 'The price is 8 dollar');
   await handleMessage(session, "it's cheaper now");
   assert.equal(session.reviewChats.awaitingTeachAnswer, true);
-  const before = await store.loadProfile(sender);
-  assert.equal(before.services[0].price, '$8');
-
-  const noDigit = await handleMessage(session, 'not sure');
-  assert.equal(noDigit.event, 'chats_turn');
-  assert.ok(!noDigit.reply.includes(REVIEW.changesIntro), noDigit.reply);
-  assert.ok(!noDigit.reply.includes(businessDetailsAck('Dana')), noDigit.reply);
-  const afterNoDigit = await store.loadProfile(sender);
-  assert.equal(afterNoDigit.services[0].price, '$8');
-  assert.deepEqual(afterNoDigit.unknowns || [], before.unknowns || []);
+  const chatsBeforeSix = chatsQuestions.length;
+  const teachSix = await handleMessage(session, '6');
+  assert.equal(chatsQuestions.length, chatsBeforeSix);
+  assert.equal(builderCalls.at(-1).userMessage, '6');
+  assert.equal(builderCalls.at(-1).historyLen, 1);
+  assert.deepEqual(builderCalls.at(-1).historyRoles, ['assistant']);
+  assert.ok(teachSix.reply.startsWith(businessDetailsAck('Dana')), teachSix.reply);
+  assert.ok(teachSix.reply.includes(REVIEW.changesIntro), teachSix.reply);
+  const after = await store.loadProfile(sender);
+  assert.equal(after.services[0].price, '6');
   assert.equal(session.reviewChats.awaitingTeachAnswer, false);
-  assert.equal(ownerPhase(session), 'chats');
-
-  const stopped = await handleMessage(session, 'stop');
-  assert.equal(stopped.event, 'enter_build');
-  assert.equal(session.reviewChats, null);
-  const afterStop = await store.loadProfile(sender);
-  assert.equal(afterStop.services[0].price, '$8');
 });
 
 await test('teach with no usable Builder question uses parse fallback', async () => {

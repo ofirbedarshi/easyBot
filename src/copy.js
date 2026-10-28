@@ -82,6 +82,8 @@ export function chatsEmptyLine(name) {
 export const CHATS_FOOTER =
   'Ask me anything about these chats 💬, or type *menu* to go back.';
 
+export const CHATS_PRICE_UPDATE_FAILED = "I couldn't update the price.";
+
 export const PRICE_POLICY_OWNER_LABELS = {
   relevant: "I mention prices when they're relevant",
   on_request: 'I share prices only when a customer asks',
