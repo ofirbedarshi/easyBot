@@ -36,6 +36,7 @@ const SUITES = [
   { id: 'apply-extraction', file: 'test/test-apply-extraction.js' },
   { id: 'validate-cto-state', file: 'scripts/validate-cto-state.js' },
   { id: 'admin-dashboard', file: 'scripts/test-admin-dashboard.js' },
+  { id: 'web-tester-prod', file: 'scripts/test-web-tester-prod.js' },
   { id: 'demo-playback', file: 'scripts/test-demo-playback.js' },
 ];
 
