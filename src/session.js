@@ -16,7 +16,7 @@ import {
 } from './builder.js';
 import { topicJustAsked } from './builderTopics.js';
 import { changeLines, composeReply } from './composeReply.js';
-import { EMPTY_MESSAGE_ERROR, normalizeOwnerName } from './copy.js';
+import { CHATS_FOOTER, EMPTY_MESSAGE_ERROR, normalizeOwnerName } from './copy.js';
 import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
   businessBotReply as defaultBusinessBotReply,
@@ -38,6 +38,7 @@ import {
 } from './leadIntake.js';
 import { ownerPhase } from './ownerPhase.js';
 import {
+  clarifyFromBuilderMessage,
   groupTestChats,
   loadLoggedMessages,
   reviewChatsReply as defaultReviewChatsReply,
@@ -423,6 +424,60 @@ function clearReviewChats(session) {
   session.reviewChats = null;
 }
 
+function asReviewChatsTurn(out) {
+  if (out && typeof out === 'object' && !Array.isArray(out)) {
+    return {
+      message: String(out.message || ''),
+      teaching: out.teaching === true,
+    };
+  }
+  return { message: String(out || ''), teaching: false };
+}
+
+/**
+ * Same owner-name + gate + live apply that handleBuild uses.
+ * Caller composes the owner-facing reply.
+ */
+async function applyBuilderTurnSave(session, profile, result, userMessage) {
+  const priorOwnerName = session.ownerName || null;
+  const extractedOwnerName = normalizeOwnerName(result.ownerName);
+  if (extractedOwnerName) {
+    result = {
+      ...result,
+      draft: applyOwnerNameCollisionGuard(result.draft, extractedOwnerName, priorOwnerName),
+    };
+    session.ownerName = extractedOwnerName;
+  }
+  const ownerName = session.ownerName || null;
+
+  result = applyReviewGate(profile, result, userMessage, {
+    justAsked: topicJustAsked(session.buildHistory),
+    ownerName,
+  });
+  const prior = structuredClone(profile);
+  profile.draft = result.draft;
+  const nextView = mergeDraft(prior, result.draft);
+  const differs = draftDiffersFromLive(prior, result.draft);
+  const visible = changeLines(prior, nextView).length > 0;
+  const changed = differs && visible;
+  if (differs && !visible) {
+    profile.draft = {
+      ...(prior.draft || result.draft),
+      askedTopics: result.draft?.askedTopics ?? prior.draft?.askedTopics,
+    };
+  }
+  if (changed || result.presentReview) applyDraftToLive(profile);
+  if (
+    result.presentReview &&
+    hasEnoughForFirstBot(profile) &&
+    !prior.approvedAt
+  ) {
+    profile.approvedAt = new Date().toISOString();
+  }
+  await saveAsync(session, profile);
+  return { prior, profile, changed, result, ownerName };
+}
+
 function logLocalMessage(session, { direction, body, mode }) {
   if (session.store && session.senderId) return;
   session.loggedTestMessages = session.loggedTestMessages || [];
@@ -466,15 +521,20 @@ async function beginReviewChats(session, text) {
     active: true,
     snapshot: chats,
     history: [],
+    learned: [],
     startedAt: new Date().toISOString(),
   };
   let modelText;
   try {
-    modelText = await reviewChatsReplyFn(session)({
-      snapshot: chats,
-      history: [],
-      question: null,
-    });
+    const turn = asReviewChatsTurn(
+      await reviewChatsReplyFn(session)({
+        snapshot: chats,
+        history: [],
+        question: null,
+        learned: [],
+      })
+    );
+    modelText = turn.message;
   } catch (err) {
     console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
     modelText = composeReply({ kind: 'error_generic' }).reply;
@@ -516,22 +576,35 @@ async function handleReviewChats(session, text) {
 
   const snapshot = session.reviewChats?.snapshot || [];
   const history = session.reviewChats?.history || [];
-  let modelText;
+  const learned = session.reviewChats?.learned || [];
+  let turn;
   try {
-    modelText = await reviewChatsReplyFn(session)({
-      snapshot,
-      history,
-      question: text,
-    });
+    turn = asReviewChatsTurn(
+      await reviewChatsReplyFn(session)({
+        snapshot,
+        history,
+        question: text,
+        learned,
+      })
+    );
   } catch (err) {
     console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
-    modelText = composeReply({ kind: 'error_generic' }).reply;
+    turn = { message: composeReply({ kind: 'error_generic' }).reply, teaching: false };
   }
-  const composed = composeReply({ kind: 'chats_followup', modelText });
+
+  let composed;
+  let historyText = turn.message;
+  if (turn.teaching) {
+    const taught = await teachFromChats(session, text);
+    composed = taught.composed;
+    historyText = taught.historyText;
+  } else {
+    composed = composeReply({ kind: 'chats_followup', modelText: turn.message });
+  }
   session.reviewChats.history = [
     ...history,
     { role: 'user', content: text },
-    { role: 'assistant', content: modelText },
+    { role: 'assistant', content: historyText },
   ].slice(-20);
   return {
     ok: true,
@@ -539,6 +612,58 @@ async function handleReviewChats(session, text) {
     source: 'real-llm',
     event: 'chats_turn',
     ...(await getStateAsync(session)),
+  };
+}
+
+async function teachFromChats(session, text) {
+  const profile = await loadAsync(session);
+  let result;
+  try {
+    result = await runBuilderTurnFn(session)({
+      buildHistory: session.reviewChats?.history || [],
+      profile,
+      userMessage: text,
+    });
+  } catch (err) {
+    const modelText = composeReply({
+      kind: 'error_builder',
+      parts: { errorMessage: err.message },
+    }).reply;
+    return {
+      composed: composeReply({ kind: 'chats_followup', modelText }),
+      historyText: modelText,
+    };
+  }
+
+  if (result.onPurpose === false) {
+    const modelText = clarifyFromBuilderMessage(result.message);
+    return {
+      composed: composeReply({ kind: 'chats_followup', modelText }),
+      historyText: modelText,
+    };
+  }
+
+  const applied = await applyBuilderTurnSave(session, profile, result, text);
+  if (applied.changed) {
+    const lines = changeLines(applied.prior, applied.profile);
+    session.reviewChats.learned = [...(session.reviewChats.learned || []), ...lines].slice(-20);
+    const composed = composeReply({
+      kind: 'chats_saved',
+      prior: applied.prior,
+      profile: applied.profile,
+      ownerName: applied.ownerName,
+    });
+    const suffix = `\n\n${CHATS_FOOTER}`;
+    const historyText = composed.reply.endsWith(suffix)
+      ? composed.reply.slice(0, -suffix.length)
+      : composed.reply;
+    return { composed, historyText };
+  }
+
+  const modelText = clarifyFromBuilderMessage(applied.result.message);
+  return {
+    composed: composeReply({ kind: 'chats_followup', modelText }),
+    historyText: modelText,
   };
 }
 
@@ -715,42 +840,9 @@ async function handleBuild(session, userMessage) {
     };
   }
 
-  const priorOwnerName = session.ownerName || null;
-  const extractedOwnerName = normalizeOwnerName(result.ownerName);
-  if (extractedOwnerName) {
-    result = {
-      ...result,
-      draft: applyOwnerNameCollisionGuard(result.draft, extractedOwnerName, priorOwnerName),
-    };
-    session.ownerName = extractedOwnerName;
-  }
-  const ownerName = session.ownerName || null;
-
-  result = applyReviewGate(profile, result, userMessage, {
-    justAsked: topicJustAsked(session.buildHistory),
-    ownerName,
-  });
-  const prior = structuredClone(profile);
-  profile.draft = result.draft;
-  const nextView = mergeDraft(prior, result.draft);
-  const differs = draftDiffersFromLive(prior, result.draft);
-  const visible = changeLines(prior, nextView).length > 0;
-  const changed = differs && visible;
-  if (differs && !visible) {
-    profile.draft = {
-      ...(prior.draft || result.draft),
-      askedTopics: result.draft?.askedTopics ?? prior.draft?.askedTopics,
-    };
-  }
-  if (changed || result.presentReview) applyDraftToLive(profile);
-  if (
-    result.presentReview &&
-    hasEnoughForFirstBot(profile) &&
-    !prior.approvedAt
-  ) {
-    profile.approvedAt = new Date().toISOString();
-  }
-  await saveAsync(session, profile);
+  const applied = await applyBuilderTurnSave(session, profile, result, userMessage);
+  result = applied.result;
+  const { prior, changed, ownerName } = applied;
 
   const ready = ownerPhase(session, profile) === 'ready';
   const firstApproval = !prior.approvedAt && !!profile.approvedAt;

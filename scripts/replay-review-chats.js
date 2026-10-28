@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Live handleMessage replay of the owner review-chats report + one follow-up.
- * Uses the real review-chats model. Not part of the default test suite.
+ * Live handleMessage replay of the owner review-chats report, a follow-up,
+ * and a teach step that must save a service price. Uses the real review-chats
+ * and Builder models. Not part of the default test suite.
  *
  *   OPENAI_MODEL=gpt-6-luna node scripts/replay-review-chats.js
  *
@@ -9,7 +10,7 @@
  */
 import 'dotenv/config';
 import { attachCostTracker } from './lib/modelCost.js';
-import { CHATS_FOOTER } from '../src/copy.js';
+import { CHATS_FOOTER, REVIEW, businessDetailsAck } from '../src/copy.js';
 import { emptyProfile } from '../src/profile.js';
 import { createSenderSession, handleMessage } from '../src/session.js';
 import { menuActive, renderMenu } from '../src/ownerNav.js';
@@ -23,6 +24,7 @@ const MODEL = process.env.OPENAI_MODEL;
 const SENDER = 'whatsapp:+15551239999';
 const UNANSWERED = 'keratin treatments';
 const FOLLOW_UP = 'what exactly did she ask about the keratin?';
+const TEACH = "The women's cut is $8.";
 
 const cost = attachCostTracker(MODEL);
 
@@ -205,6 +207,34 @@ async function main() {
     fail('follow-up missing footer', followRes.reply);
   }
 
+  const teachRes = await handleMessage(session, TEACH);
+  if (teachRes.event !== 'chats_turn') {
+    fail(`expected chats_turn on teach, got ${teachRes.event}`, teachRes.reply);
+  }
+  if (ownerPhase(session) !== 'chats') {
+    fail(`expected chats phase after teach, got ${ownerPhase(session)}`);
+  }
+  if (!teachRes.reply?.includes(CHATS_FOOTER)) {
+    fail('teach reply missing footer', teachRes.reply);
+  }
+  if (!teachRes.reply?.includes(businessDetailsAck('Dana'))) {
+    fail('teach reply missing save ack', teachRes.reply);
+  }
+  if (!teachRes.reply?.includes(REVIEW.changesIntro)) {
+    fail('teach reply missing change card', teachRes.reply);
+  }
+  const taught = await store.loadProfile(SENDER);
+  const womens = (taught.services || []).find((s) => /women/i.test(s.name || ''));
+  if (!womens || !/\$8/.test(String(womens.price || ''))) {
+    fail(`expected women's cut price $8, got ${JSON.stringify(taught.services)}`);
+  }
+  const keratinStillMissing = session.reviewChats?.snapshot
+    ?.flat()
+    .some((m) => /don't have information about keratin/i.test(m.body || ''));
+  if (!keratinStillMissing) {
+    fail('snapshot was rewritten; keratin gap should stay in the historical chats');
+  }
+
   const menuRes = await handleMessage(session, 'menu');
   if (menuRes.event !== 'menu' || !menuActive(session.buildHistory)) {
     fail('menu did not exit review-chats', menuRes.reply);
@@ -215,6 +245,10 @@ async function main() {
   console.log('\n======== FOLLOW-UP ========');
   console.log(`Q: ${FOLLOW_UP}`);
   console.log(`A:\n${followRes.reply}`);
+  console.log('\n======== TEACH ========');
+  console.log(`Q: ${TEACH}`);
+  console.log(`A:\n${teachRes.reply}`);
+  console.log(`saved women's cut: ${womens.price}`);
   console.log('\nPASS review-chats replay');
   console.log(`unanswered=${UNANSWERED}`);
   cost.print();

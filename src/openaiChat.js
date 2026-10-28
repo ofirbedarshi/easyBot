@@ -36,18 +36,22 @@ async function tryCreate(client, req) {
 
 /**
  * @param {object} client
- * @param {{ model: string, messages: object[], maxCompletionTokens?: number }} args
+ * @param {{ model: string, messages: object[], maxCompletionTokens?: number, response_format?: object }} args
  * @returns {Promise<{ completion: object, request: object }>}
  */
-export async function createChatCompletion(client, { model, messages, maxCompletionTokens }) {
+export async function createChatCompletion(
+  client,
+  { model, messages, maxCompletionTokens, response_format }
+) {
   const maxTokens = maxCompletionTokens || DEFAULT_MAX_COMPLETION_TOKENS;
+  const format = response_format ? { response_format } : {};
   const cached = shapeByModel.get(model);
   if (cached) {
-    return tryCreate(client, { model, messages, ...cached });
+    return tryCreate(client, { model, messages, ...cached, ...format });
   }
 
   try {
-    const result = await tryCreate(client, { model, messages, temperature: 0 });
+    const result = await tryCreate(client, { model, messages, temperature: 0, ...format });
     shapeByModel.set(model, { temperature: 0 });
     return result;
   } catch (err) {
@@ -61,7 +65,7 @@ export async function createChatCompletion(client, { model, messages, maxComplet
         max_completion_tokens: maxTokens,
         reasoning_effort: effort,
       };
-      const result = await tryCreate(client, { model, messages, ...extras });
+      const result = await tryCreate(client, { model, messages, ...extras, ...format });
       shapeByModel.set(model, extras);
       return result;
     } catch (err) {
@@ -72,7 +76,7 @@ export async function createChatCompletion(client, { model, messages, maxComplet
 
   try {
     const extras = { max_completion_tokens: maxTokens };
-    const result = await tryCreate(client, { model, messages, ...extras });
+    const result = await tryCreate(client, { model, messages, ...extras, ...format });
     shapeByModel.set(model, extras);
     return result;
   } catch (err) {
