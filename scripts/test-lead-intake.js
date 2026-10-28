@@ -382,4 +382,36 @@ const noLead = await handleMessage(sNoTest, '1');
 assert.notEqual(noLead.event, 'lead_question');
 assert.equal(sNoTest.leadIntake, null);
 
+// /reset deletes this sender's messages, inbound, session, profile, lead, and row
+const wipeSender = 'whatsapp:+15550000009';
+await store.saveProfile(wipeSender, {
+  ...emptyProfile(),
+  name: 'Wipe Studio',
+  approvedAt: new Date().toISOString(),
+});
+await store.saveLead(wipeSender, {
+  senderId: wipeSender,
+  businessName: 'Wipe Studio',
+  answers: { contactConsent: 'Yes, sure' },
+  createdAt: '2026-01-01T00:00:00.000Z',
+});
+await store.enqueueInbound({
+  messageSid: 'SMwipe1',
+  senderId: wipeSender,
+  body: 'hello',
+});
+const wipeSession = await createSenderSession(store, wipeSender);
+const wiped = await handleMessage(wipeSession, '/reset');
+assert.equal(wiped.event, 'reset');
+assert.equal(wipeSession.purged, true);
+const afterWipe = store._dump();
+assert.equal(afterWipe.senders[wipeSender], undefined);
+assert.equal(afterWipe.profiles[wipeSender], undefined);
+assert.equal(afterWipe.sessions[wipeSender], undefined);
+assert.equal(afterWipe.leads[wipeSender], undefined);
+assert.ok(!afterWipe.messages.some((m) => m.sender_id === wipeSender));
+assert.ok(!afterWipe.inbound.some((r) => r.sender_id === wipeSender));
+assert.ok(afterWipe.leads[otherSender], 'other sender lead stays after full wipe');
+assert.ok(afterWipe.senders[otherSender], 'other sender row stays');
+
 console.log('test-lead-intake: all passed');

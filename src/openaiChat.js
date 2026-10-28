@@ -30,8 +30,9 @@ function isUnsupportedParamError(err) {
 }
 
 async function tryCreate(client, req) {
-  const completion = await client.chat.completions.create(req);
-  return { completion, request: req };
+  const body = { ...req, store: false };
+  const completion = await client.chat.completions.create(body);
+  return { completion, request: body };
 }
 
 /**

@@ -29,7 +29,7 @@ Open http://localhost:3080
 
 - `/test` — Business Bot; requires approved facts (live as soon as you pick **Try my bot** on the review)
 - `stop` — back to Builder (the word alone)
-- `/reset` — clear profile for this session
+- `/reset` — delete all of this sender's data and start fresh
 
 ## WhatsApp (Twilio) — personal demo
 

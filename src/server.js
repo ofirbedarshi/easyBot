@@ -14,6 +14,7 @@ import { createStore, isSupabaseConfigured } from './store/index.js';
 import { createTwilioWhatsAppRouter } from './twilio/webhook.js';
 import { startInboundWorker } from './twilio/worker.js';
 import { createAdminRouter } from './admin/router.js';
+import { requireWebTester } from './webTester.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CTO_STATE_PATH = path.join(__dirname, '..', 'cto-workflow', 'state.json');
@@ -48,7 +49,7 @@ function resolveSession(sessionKey) {
 }
 
 /** Read-only CTO workflow progress (persisted handoffs). */
-app.get('/api/cto-progress', (_req, res) => {
+app.get('/api/cto-progress', requireWebTester, (_req, res) => {
   if (!fs.existsSync(CTO_STATE_PATH)) {
     return res.status(404).json({
       ok: false,
@@ -74,7 +75,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/state', (req, res) => {
+app.get('/api/state', requireWebTester, (req, res) => {
   const raw = req.query.sessionKey;
   if (raw != null && raw !== '' && !SESSION_KEY_RE.test(String(raw))) {
     return res.status(400).json({ ok: false, error: 'Invalid sessionKey' });
@@ -83,11 +84,11 @@ app.get('/api/state', (req, res) => {
   res.json(getState(session));
 });
 
-app.post('/api/start', (_req, res) => {
+app.post('/api/start', requireWebTester, (_req, res) => {
   res.json(bootstrapSession(defaultSession));
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', requireWebTester, async (req, res) => {
   try {
     const sessionKey = req.body?.sessionKey;
     if (

@@ -30,11 +30,11 @@ test('openingMessage keeps paragraph breaks and Adam welcome copy', () => {
   assert.equal(open.source, 'app');
   assert.equal(
     open.message,
-    "Hi, I'm Adam 👋 Tell me about your business, then try chatting with me as one of your customers.\n\nBefore we start, what would you like me to call you?"
+    "Hi, I'm Adam 👋 Tell me about your business, then try chatting with me as one of your customers.\n\nWe never sell your data or use it for ads.\n\nBefore we start, what would you like me to call you?"
   );
   assert.match(open.message, /\n\n/);
   assert.equal(open.message.includes('\n\n'), true);
-  assert.equal(open.message.split('\n\n').length, 2);
+  assert.equal(open.message.split('\n\n').length, 3);
   assert.equal(formatModelReply(open.message), open.message);
 });
 
@@ -445,8 +445,10 @@ test('chat params start with temperature; drop it and try lowest effort on 400',
     response_format: { type: 'json_object' },
   });
   assert.equal(start.temperature, 0.4);
+  assert.equal(start.store, false);
   const next = adjustChatParamsOnError(start, { message: "Unsupported parameter: 'temperature'" });
   assert.ok(next);
+  assert.equal(next.store, false);
   assert.equal(next.temperature, undefined);
   assert.equal(next.reasoning_effort, 'none');
   assert.equal(next.max_completion_tokens, 4000);

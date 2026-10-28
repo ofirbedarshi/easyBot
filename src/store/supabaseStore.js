@@ -207,6 +207,11 @@ export function createSupabaseStore() {
       if (error) throw new Error(`deleteLead: ${error.message}`);
     },
 
+    async deleteSender(senderId) {
+      const { error } = await sb.from('easybot_senders').delete().eq('id', senderId);
+      if (error) throw new Error(`deleteSender: ${error.message}`);
+    },
+
     async appendMessage({
       senderId,
       direction,

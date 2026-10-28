@@ -37,6 +37,7 @@ const SUITES = [
   { id: 'validate-cto-state', file: 'scripts/validate-cto-state.js' },
   { id: 'admin-dashboard', file: 'scripts/test-admin-dashboard.js' },
   { id: 'demo-playback', file: 'scripts/test-demo-playback.js' },
+  { id: 'web-tester-gate', file: 'scripts/test-web-tester-gate.js' },
 ];
 
 function runSuite(suite) {

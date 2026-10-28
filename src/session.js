@@ -111,6 +111,7 @@ export async function createSenderSession(store, senderId, options = {}) {
 }
 
 export async function persistSenderSession(session) {
+  if (session.purged) return;
   if (!session.store || !session.senderId) return;
   await session.store.saveSession(session.senderId, session);
 }
@@ -218,7 +219,6 @@ export async function handleMessage(session, text) {
     return enterBuild(session);
   }
   if (trimmed === '/reset') {
-    await saveAsync(session, emptyProfile());
     session.buildHistory = [];
     session.testHistory = [];
     session.mode = 'BUILD';
@@ -227,11 +227,25 @@ export async function handleMessage(session, text) {
     session.reviewChats = null;
     session.loggedTestMessages = [];
     session.ownerName = null;
-    if (session.store && session.senderId && typeof session.store.deleteLead === 'function') {
-      await session.store.deleteLead(session.senderId);
-    } else {
-      session.lead = null;
+    session.lead = null;
+
+    if (session.store && session.senderId) {
+      session.purged = true;
+      if (typeof session.store.deleteSender === 'function') {
+        await session.store.deleteSender(session.senderId);
+      } else if (typeof session.store.deleteLead === 'function') {
+        await session.store.deleteLead(session.senderId);
+      }
+      return {
+        ok: true,
+        reply: composeReply({ kind: 'reset' }).reply,
+        source: 'app',
+        event: 'reset',
+        ...stateFrom(session, emptyProfile()),
+      };
     }
+
+    await saveAsync(session, emptyProfile());
     return {
       ok: true,
       reply: composeReply({ kind: 'reset' }).reply,
@@ -277,8 +291,8 @@ export async function handleMessage(session, text) {
  * once (`firstTestedAt`) and has not submitted a lead. Completing the
  * questionnaire does not append a menu; the next BUILD message shows
  * "What should we do next?" plus the current menu (without the lead
- * item). `/reset` clears this sender's lead so the item can be offered
- * again after the next TEST.
+ * item). `/reset` deletes this sender (including the lead) so the item
+ * can be offered again after a new first setup and TEST.
  * @returns {Promise<object|null>} null → not navigation, continue to the Builder
  */
 async function handleNavigation(session, text) {
