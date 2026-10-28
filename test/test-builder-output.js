@@ -258,7 +258,6 @@ test('correction of one overlapping service name keeps siblings and order', () =
       draft: {
         services: [svc('Men\'s cut', '$30')],
         locationOrArea: 'Columbus, Ohio',
-        informationToCollect: ['name'],
       },
       newFacts: ['The salon does not offer nail services.'],
       ownerEdits: [{ field: 'services', item: 'Men\'s cut', action: 'change' }],
