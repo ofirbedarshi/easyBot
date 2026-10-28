@@ -66,7 +66,7 @@ export function returnedIntro(name) {
 }
 
 export const INTAKE_MENU_LABEL = '📝 Choose details to collect from customers';
-export const CHATS_MENU_LABEL = "Tell me about today's customer chats";
+export const CHATS_MENU_LABEL = 'See what customers asked me today';
 
 export const CHATS_EMPTY_NO_NAME =
   "I haven't talked with any customers today yet 🙂\nPick 🤖 Chat with me like a customer and I'll tell you all about it after!";
