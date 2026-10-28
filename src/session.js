@@ -15,7 +15,12 @@ import {
 } from './builder.js';
 import { topicJustAsked } from './builderTopics.js';
 import { changeLines, composeReply } from './composeReply.js';
-import { CHATS_FOOTER, EMPTY_MESSAGE_ERROR, normalizeOwnerName } from './copy.js';
+import {
+  CHATS_FOOTER,
+  CHATS_PRICE_UPDATE_FAILED,
+  EMPTY_MESSAGE_ERROR,
+  normalizeOwnerName,
+} from './copy.js';
 import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
   businessBotReply as defaultBusinessBotReply,
@@ -528,6 +533,7 @@ async function beginReviewChats(session, text) {
     snapshot: chats,
     history: [],
     learned: [],
+    awaitingTeachAnswer: false,
     startedAt: new Date().toISOString(),
   };
   let modelText;
@@ -554,6 +560,39 @@ async function beginReviewChats(session, text) {
     event: 'enter_chats',
     ...(await getStateAsync(session)),
   };
+}
+
+function lastAssistantTeachHistory(history) {
+  const list = Array.isArray(history) ? history : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i]?.role === 'assistant') {
+      return [{ role: 'assistant', content: list[i].content }];
+    }
+  }
+  return [];
+}
+
+/** True when merging `draft` would change live only by adding/changing unknowns. */
+function onlyUnknownsChanged(profile, draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (!draftDiffersFromLive(profile, draft)) return false;
+  return !draftDiffersFromLive(profile, { ...draft, unknowns: profile.unknowns });
+}
+
+function chatsClarifyReply(result) {
+  const modelText = clarifyFromBuilderMessage(result?.message);
+  return {
+    composed: composeReply({ kind: 'chats_followup', modelText }),
+    historyText: modelText,
+  };
+}
+
+function chatsPriceUpdateFailedReply() {
+  const composed = composeReply({
+    kind: 'chats_followup',
+    modelText: CHATS_PRICE_UPDATE_FAILED,
+  });
+  return { composed, historyText: CHATS_PRICE_UPDATE_FAILED };
 }
 
 async function handleReviewChats(session, text) {
@@ -583,19 +622,24 @@ async function handleReviewChats(session, text) {
   const snapshot = session.reviewChats?.snapshot || [];
   const history = session.reviewChats?.history || [];
   const learned = session.reviewChats?.learned || [];
+  const forceTeach = session.reviewChats?.awaitingTeachAnswer === true;
   let turn;
-  try {
-    turn = asReviewChatsTurn(
-      await reviewChatsReplyFn(session)({
-        snapshot,
-        history,
-        question: text,
-        learned,
-      })
-    );
-  } catch (err) {
-    console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
-    turn = { message: composeReply({ kind: 'error_generic' }).reply, teaching: false };
+  if (forceTeach) {
+    turn = { message: '', teaching: true };
+  } else {
+    try {
+      turn = asReviewChatsTurn(
+        await reviewChatsReplyFn(session)({
+          snapshot,
+          history,
+          question: text,
+          learned,
+        })
+      );
+    } catch (err) {
+      console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
+      turn = { message: composeReply({ kind: 'error_generic' }).reply, teaching: false };
+    }
   }
 
   let composed;
@@ -622,11 +666,12 @@ async function handleReviewChats(session, text) {
 }
 
 async function teachFromChats(session, text) {
+  const awaiting = session.reviewChats?.awaitingTeachAnswer === true;
   const profile = await loadAsync(session);
   let result;
   try {
     result = await runBuilderTurnFn(session)({
-      buildHistory: session.reviewChats?.history || [],
+      buildHistory: lastAssistantTeachHistory(session.reviewChats?.history),
       profile,
       userMessage: text,
     });
@@ -642,15 +687,25 @@ async function teachFromChats(session, text) {
   }
 
   if (result.onPurpose === false) {
-    const modelText = clarifyFromBuilderMessage(result.message);
-    return {
-      composed: composeReply({ kind: 'chats_followup', modelText }),
-      historyText: modelText,
-    };
+    if (awaiting) {
+      session.reviewChats.awaitingTeachAnswer = false;
+      return chatsPriceUpdateFailedReply();
+    }
+    return chatsClarifyReply(result);
+  }
+
+  if (onlyUnknownsChanged(profile, result.draft)) {
+    if (awaiting) {
+      session.reviewChats.awaitingTeachAnswer = false;
+      return chatsPriceUpdateFailedReply();
+    }
+    session.reviewChats.awaitingTeachAnswer = true;
+    return chatsClarifyReply(result);
   }
 
   const applied = await applyBuilderTurnSave(session, profile, result, text);
   if (applied.changed) {
+    session.reviewChats.awaitingTeachAnswer = false;
     const lines = changeLines(applied.prior, applied.profile);
     session.reviewChats.learned = [...(session.reviewChats.learned || []), ...lines].slice(-20);
     const composed = composeReply({
@@ -666,11 +721,12 @@ async function teachFromChats(session, text) {
     return { composed, historyText };
   }
 
-  const modelText = clarifyFromBuilderMessage(applied.result.message);
-  return {
-    composed: composeReply({ kind: 'chats_followup', modelText }),
-    historyText: modelText,
-  };
+  if (awaiting) {
+    session.reviewChats.awaitingTeachAnswer = false;
+    return chatsPriceUpdateFailedReply();
+  }
+  session.reviewChats.awaitingTeachAnswer = true;
+  return chatsClarifyReply(applied.result);
 }
 
 /** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */
