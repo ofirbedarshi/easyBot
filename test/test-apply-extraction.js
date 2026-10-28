@@ -79,12 +79,12 @@ test('intake: omitted field keeps the list', () => {
   assert.deepEqual(next.informationToCollect, ['name', 'phone']);
 });
 
-test('intake: shorter list without ownerEdits keeps omitted items', () => {
+test('intake: shorter list without ownerEdits replaces the list', () => {
   const next = applyExtraction(stored(), {
     draft: { informationToCollect: ['name'] },
     ownerEdits: [],
   });
-  assert.deepEqual(next.informationToCollect, ['name', 'phone']);
+  assert.deepEqual(next.informationToCollect, ['name']);
 });
 
 test('intake: ownerEdits remove drops one item', () => {
@@ -108,17 +108,17 @@ test('intake: [] means collect nothing', () => {
   assert.deepEqual(next.informationToCollect, []);
 });
 
-test('intake: add unions onto stored', () => {
+test('intake: provided list is the complete new list', () => {
   const next = applyExtraction(stored(), {
-    draft: { informationToCollect: ['car model'] },
+    draft: { informationToCollect: ['name', 'phone', 'car model'] },
   });
   assert.deepEqual(next.informationToCollect, ['name', 'phone', 'car model']);
 });
 
-test('applyDraftDelta write-phase still unions intake without dropping', () => {
+test('applyDraftDelta write-phase replaces intake when a non-empty list is provided', () => {
   assert.deepEqual(
     applyDraftDelta({ informationToCollect: ['name'] }, stored()).informationToCollect,
-    ['name', 'phone']
+    ['name']
   );
 });
 

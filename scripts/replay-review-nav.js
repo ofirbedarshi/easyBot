@@ -151,10 +151,10 @@ async function main() {
       : 'FAIL courtesy/answer then Try my bot did not enter TEST'
   );
 
-  // Case B: after ready, a clarifying question attaches the menu; 1 is chrome.
+  // Case B: after ready, a Builder turn attaches the menu; 1 is Chat.
   const question = seedSession();
   transcript.push('');
-  transcript.push('--- real question (1 is a menu pick, not Try my bot) ---');
+  transcript.push('--- real question (1 is Chat with me like a customer) ---');
   const staffQ =
     'I have not given you our stylist count. Ask me how many stylists we have before you store anything about staffing — I will answer with a number next.';
   transcript.push(line('OWNER', staffQ));
@@ -170,11 +170,12 @@ async function main() {
     asked.event === 'build_turn' &&
     lastShownNav(question.session.buildHistory) !== 'review' &&
     !questionFlag &&
-    oneB.event !== 'enter_test' &&
-    question.session.mode === 'BUILD';
+    oneB.event === 'enter_test' &&
+    question.session.mode === 'TEST' &&
+    /\*Test mode is on\*/.test(oneB.reply);
   results.push(
     okQuestionTurn
-      ? `PASS real question then 1 stayed in BUILD (event=${oneB.event}, not Try my bot)`
+      ? 'PASS real question then 1 entered TEST (Chat is menu item 1)'
       : `FAIL real question then 1 event=${oneB.event} mode=${question.session.mode} asksQuestion=${questionFlag}`
   );
 

@@ -85,20 +85,6 @@ function upsertKeyedList(prevList, incoming, key) {
   return result;
 }
 
-/** Union string lists: keep previous items, append new ones. Does not drop. */
-function unionStrings(prevList, incoming) {
-  const prev = Array.isArray(prevList)
-    ? prevList.filter((x) => typeof x === 'string' && x.trim())
-    : [];
-  if (!Array.isArray(incoming)) return prev;
-  const result = [...prev];
-  for (const item of incoming) {
-    const text = typeof item === 'string' ? item.trim() : '';
-    if (text && !result.some((x) => sameKey(x, text))) result.push(item);
-  }
-  return result;
-}
-
 const DELTA_TEXT_KEYS = [
   'name',
   'whatWeDo',
@@ -130,8 +116,8 @@ export function seedStoredDraft(storedDraft, live) {
 
 /**
  * Write phase: null / omitted scalars mean unchanged. services / FAQ upsert.
- * informationToCollect: [] = collect nothing; a non-empty array unions onto stored
- * (omitted items stay until ownerEdits remove). unknowns append.
+ * informationToCollect: [] = collect nothing; a non-empty array is the complete
+ * new list (replaces stored items). unknowns append.
  */
 export function applyDraftDelta(delta, currentDraft) {
   const d = delta && typeof delta === 'object' ? delta : {};
@@ -149,7 +135,9 @@ export function applyDraftDelta(delta, currentDraft) {
     if (d.informationToCollect.length === 0) {
       next.informationToCollect = [];
     } else {
-      next.informationToCollect = unionStrings(prev.informationToCollect, d.informationToCollect);
+      next.informationToCollect = d.informationToCollect
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
     }
   }
   if (Array.isArray(d.unknowns)) {
