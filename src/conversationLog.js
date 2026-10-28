@@ -16,6 +16,7 @@ export const MESSAGE_MODES = [
 
 const EVENT_MODE = {
   opening: 'opening',
+  demo_opening: 'opening',
   enter_test: 'command',
   enter_build: 'command',
   reset: 'command',

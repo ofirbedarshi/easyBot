@@ -179,8 +179,28 @@ export const BURST_LIMIT_REPLY =
   "You're sending a bit fast. Wait a few minutes and try again.";
 export const FALLBACK_BUSINESS_NAME = 'this business';
 
-export const DEMO_INTRO =
-  'I already learned your business from your website. Text me like a customer would. Got something wrong? Type stop and teach me.';
+export const DEMO_OPENING_WITH_NAME =
+  "Hi {name}, I'm Adam 👋 I'm going to be the one talking with {business}'s customers. I already learned about {business} online. Want to try me out like one of your customers would?";
+
+export const DEMO_OPENING_NO_NAME =
+  "Hi, I'm Adam 👋 I'm going to be the one talking with {business}'s customers. I already learned about {business} online. Want to try me out like one of your customers would?";
+
+export const DEMO_START_OPTION = "1️⃣ Let's start";
+
+export const DEMO_TEST_HINT = 'Got something wrong? Type stop and teach me.';
+
+export function demoOpeningText(ownerName, business) {
+  const biz = String(business || '').trim();
+  const n = displayOwnerName(ownerName);
+  if (n) {
+    return DEMO_OPENING_WITH_NAME.replaceAll('{name}', n).replaceAll('{business}', biz);
+  }
+  return DEMO_OPENING_NO_NAME.replaceAll('{business}', biz);
+}
+
+export function demoOpeningReply(ownerName, business) {
+  return `${demoOpeningText(ownerName, business)}\n\n${DEMO_START_OPTION}`;
+}
 
 export function enterTestBannerText(business) {
   return [

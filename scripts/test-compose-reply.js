@@ -39,6 +39,7 @@ import {
   REVIEW,
   TEST_REFUSE,
   defaultCustomerOpeningText,
+  DEMO_START_OPTION,
   enterTestBannerText,
   exitTestBannerText,
 } from '../src/copy.js';
@@ -287,6 +288,25 @@ test('model_plus_menu and model_only', () => {
     `${model}\n\n${menuText(menuNoLead)}`
   );
   assert.equal(composeReply({ kind: 'model_only', modelText: model }).reply, model);
+});
+
+test('demo_opening', () => {
+  const withName = composeReply({
+    kind: 'demo_opening',
+    profile: salon,
+    ownerName: 'Dana',
+  });
+  assert.equal(
+    withName.reply,
+    `Hi Dana, I'm Adam 👋 I'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online. Want to try me out like one of your customers would?\n\n${DEMO_START_OPTION}`
+  );
+  assert.equal(withName.nav, 'demo_start');
+  const noName = composeReply({ kind: 'demo_opening', profile: salon });
+  assert.equal(
+    noName.reply,
+    `Hi, I'm Adam 👋 I'm going to be the one talking with ${NAME}'s customers. I already learned about ${NAME} online. Want to try me out like one of your customers would?\n\n${DEMO_START_OPTION}`
+  );
+  assert.equal(noName.nav, 'demo_start');
 });
 
 test('off_purpose reset test_refuse parse_fallback errors', () => {

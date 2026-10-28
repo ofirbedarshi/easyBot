@@ -26,7 +26,7 @@ import {
   findClaimableDemo,
   isDemoBindEligible,
   isFreshOwnerProfile,
-  prefixDemoIntro,
+  prefixDemoTestHint,
 } from './demoProfiles.js';
 import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
@@ -94,6 +94,7 @@ export function createSession(profilePathOrOpts) {
     reviewChats: null,
     loggedTestMessages: [],
     ownerName: null,
+    demoOrigin: false,
     store: null,
     senderId: null,
     deps: opts.deps || null,
@@ -116,6 +117,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     reviewChats: saved.reviewChats || null,
     loggedTestMessages: [],
     ownerName: saved.ownerName ?? null,
+    demoOrigin: saved.demoOrigin === true,
     profilePath: null,
     store,
     senderId,
@@ -218,20 +220,12 @@ export async function handleMessage(session, text) {
     return { ok: false, error: EMPTY_MESSAGE_ERROR, ...(await getStateAsync(session)) };
   }
 
-  // Commands handled in app code — never by the LLM
-  const exitTest = isExitTestCommand(trimmed);
-  if (trimmed === '/test' || trimmed === '/reset' || exitTest) {
+  // Commands handled in app code — never by the LLM.
+  // /reset is first so a flow-2 offer does not swallow it.
+  if (trimmed === '/reset') {
     cancelLeadIntake(session);
     clearLeadResume(session);
     clearReviewChats(session);
-  }
-  if (trimmed === '/test') {
-    return enterTest(session);
-  }
-  if (exitTest) {
-    return enterBuild(session);
-  }
-  if (trimmed === '/reset') {
     await saveAsync(session, emptyProfile());
     session.buildHistory = [];
     session.testHistory = [];
@@ -255,13 +249,30 @@ export async function handleMessage(session, text) {
     };
   }
 
+  if (ownerPhase(session) === 'demo_offer') {
+    return handleDemoOffer(session, trimmed);
+  }
+
+  const exitTest = isExitTestCommand(trimmed);
+  if (trimmed === '/test' || exitTest) {
+    cancelLeadIntake(session);
+    clearLeadResume(session);
+    clearReviewChats(session);
+  }
+  if (trimmed === '/test') {
+    return enterTest(session);
+  }
+  if (exitTest) {
+    return enterBuild(session);
+  }
+
   const phase = ownerPhase(session);
   if (phase === 'test') {
     return handleTest(session, trimmed);
   }
 
   // First inbound in BUILD only wakes the bot — discard content, send opening.
-  // Brand-new senders may claim a pre-built demo and skip straight into TEST.
+  // Brand-new senders may claim a pre-built demo and skip detail collection.
   if (phase === 'wake') {
     const bound = await tryBindPrebuiltDemo(session, trimmed);
     if (bound) return bound;
@@ -343,8 +354,8 @@ async function handleNavigation(session, text) {
 
 /**
  * First-wake only: claim a reviewed, unexpired, unclaimed demo by phone or
- * exact code and enter TEST. Invalid/expired codes fall through (no error).
- * Never overwrites an existing sender or profile.
+ * exact code and show the flow-2 opening. Invalid/expired codes fall through
+ * (no error). Never overwrites an existing sender or profile.
  */
 async function tryBindPrebuiltDemo(session, text) {
   if (!session.store || !session.senderId) return null;
@@ -364,12 +375,53 @@ async function tryBindPrebuiltDemo(session, text) {
 
   const profile = withKnownProfileKeys(claimed.profile);
   if (!profile.approvedAt) profile.approvedAt = new Date().toISOString();
-  session.ownerName = null;
+  session.ownerName = normalizeOwnerName(claimed.owner_name);
+  session.demoOrigin = true;
   await saveAsync(session, profile);
 
-  const entered = await enterTest(session);
-  if (!entered.ok) return entered;
-  return prefixDemoIntro(entered);
+  return sendDemoOpening(session, profile);
+}
+
+async function sendDemoOpening(session, profile) {
+  const composed = composeReply({
+    kind: 'demo_opening',
+    profile,
+    ownerName: session.ownerName,
+  });
+  session.buildHistory.push({
+    role: 'assistant',
+    content: composed.reply,
+    nav: composed.nav,
+  });
+  return {
+    ok: true,
+    reply: composed.reply,
+    source: 'app',
+    event: 'demo_opening',
+    ...(await getStateAsync(session)),
+  };
+}
+
+/** Flow-2 wait: only a menu `1` enters TEST. Any other reply re-shows the opening. */
+async function handleDemoOffer(session, text) {
+  if (parseMenuChoice(text, 1) === 1) {
+    const entered = await enterTest(session);
+    if (!entered.ok) return entered;
+    return prefixDemoTestHint(entered);
+  }
+  const profile = await loadAsync(session);
+  const composed = composeReply({
+    kind: 'demo_opening',
+    profile,
+    ownerName: session.ownerName,
+  });
+  return {
+    ok: true,
+    reply: composed.reply,
+    source: 'app',
+    event: 'demo_opening',
+    ...(await getStateAsync(session)),
+  };
 }
 
 /** "Chat with me like a customer": enter TEST when the profile has enough to answer. */

@@ -72,6 +72,7 @@ export function createMemoryStore() {
           leadIntake: null,
           reviewChats: null,
           ownerName: null,
+          demoOrigin: false,
         });
       }
     },
@@ -102,6 +103,7 @@ export function createMemoryStore() {
         leadIntake: structuredClone(session.leadIntake ?? null),
         reviewChats: structuredClone(session.reviewChats ?? null),
         ownerName: session.ownerName ?? null,
+        demoOrigin: session.demoOrigin === true,
       });
     },
 
@@ -327,6 +329,7 @@ export function createMemoryStore() {
         business_phone: row.business_phone ?? null,
         code,
         profile: structuredClone(row.profile),
+        owner_name: row.owner_name ?? null,
         source_url: row.source_url ?? null,
         reviewed_at: row.reviewed_at ?? null,
         created_at: row.created_at || new Date().toISOString(),

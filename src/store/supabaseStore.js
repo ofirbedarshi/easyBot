@@ -164,6 +164,7 @@ export function createSupabaseStore() {
         leadIntake: data.lead_intake ?? null,
         reviewChats: data.review_chats ?? null,
         ownerName: data.owner_name ?? null,
+        demoOrigin: data.demo_origin === true,
       };
     },
 
@@ -177,6 +178,7 @@ export function createSupabaseStore() {
         lead_intake: session.leadIntake ?? null,
         review_chats: session.reviewChats ?? null,
         owner_name: session.ownerName ?? null,
+        demo_origin: session.demoOrigin === true,
         updated_at: new Date().toISOString(),
       };
       let { error } = await sb
@@ -483,6 +485,7 @@ export function createSupabaseStore() {
         business_phone: row.business_phone ?? null,
         code: String(row.code || '').toUpperCase(),
         profile: row.profile,
+        owner_name: row.owner_name ?? null,
         source_url: row.source_url ?? null,
         reviewed_at: row.reviewed_at ?? null,
       };

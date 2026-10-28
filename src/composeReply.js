@@ -36,6 +36,7 @@ import {
   readyOpener,
   returnedIntro,
   defaultCustomerOpeningText,
+  demoOpeningReply,
   enterTestBannerText,
   exitTestBannerText,
 } from './copy.js';
@@ -53,6 +54,7 @@ import {
 
 export const COMPOSE_KINDS = Object.freeze([
   'opening',
+  'demo_opening',
   'ask_owner_name',
   'ask_identity',
   'ask_topic',
@@ -407,6 +409,11 @@ export function composeReply(spec = {}) {
   switch (kind) {
     case 'opening':
       return done(OPENING_MESSAGE);
+
+    case 'demo_opening': {
+      const business = typeof profile?.name === 'string' ? profile.name.trim() : '';
+      return done(demoOpeningReply(ownerName, business), { nav: 'demo_start' });
+    }
 
     case 'ask_owner_name': {
       const question = OWNER_NAME_QUESTION;

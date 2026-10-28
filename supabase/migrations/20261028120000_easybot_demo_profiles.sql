@@ -5,6 +5,7 @@ create table if not exists public.easybot_demo_profiles (
   id uuid primary key default gen_random_uuid(),
   business_label text not null,
   prospect_id text unique null,
+  owner_name text,
   business_phone text unique null, -- E.164 digits (leading +)
   code text unique not null,
   profile jsonb not null,
@@ -31,6 +32,9 @@ alter table public.easybot_demo_profiles enable row level security;
 revoke all on table public.easybot_demo_profiles from anon, authenticated;
 
 grant all on table public.easybot_demo_profiles to service_role, postgres;
+
+alter table public.easybot_sessions
+  add column if not exists demo_origin boolean not null default false;
 
 -- Suggested cleanup (do not schedule here). After enabling pg_cron:
 -- SELECT cron.schedule(

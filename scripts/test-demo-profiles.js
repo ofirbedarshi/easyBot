@@ -1,12 +1,14 @@
 /**
- * Pre-built demo profiles: first-wake bind, TEST chrome, stop, correction.
+ * Pre-built demo profiles: first-wake bind, opening, pick 1, TEST, stop.
  * Deterministic. No network.
  */
 import assert from 'assert';
 import { applyBuilderModelOutput } from '../src/applyExtraction.js';
 import {
-  DEMO_INTRO,
+  DEMO_START_OPTION,
+  DEMO_TEST_HINT,
   OPENING_MESSAGE,
+  RESET_REPLY,
   returnedIntro,
 } from '../src/copy.js';
 import {
@@ -82,6 +84,7 @@ function demoRow(overrides = {}) {
     business_phone: PHONE,
     code: CODE,
     profile: demoProfile(),
+    owner_name: null,
     source_url: 'https://harborcuts.example',
     reviewed_at: APPROVED_AT,
     expires_at: '2027-01-01T00:00:00.000Z',
@@ -89,6 +92,13 @@ function demoRow(overrides = {}) {
     claimed_at: null,
     ...overrides,
   };
+}
+
+function expectedOpening(ownerName, business = 'Harbor Cuts') {
+  const body = ownerName
+    ? `Hi ${ownerName}, I'm Adam 👋 I'm going to be the one talking with ${business}'s customers. I already learned about ${business} online. Want to try me out like one of your customers would?`
+    : `Hi, I'm Adam 👋 I'm going to be the one talking with ${business}'s customers. I already learned about ${business} online. Want to try me out like one of your customers would?`;
+  return `${body}\n\n${DEMO_START_OPTION}`;
 }
 
 function stubDeps({ hours } = {}) {
@@ -127,13 +137,19 @@ async function firstTurn(store, senderId, text, deps) {
   return { session, result };
 }
 
-function assertDemoEnter(result, profile) {
+function assertDemoOpening(result, ownerName = null, business = 'Harbor Cuts') {
+  assert.equal(result.ok, true);
+  assert.equal(result.event, 'demo_opening');
+  assert.equal(result.reply, expectedOpening(ownerName, business));
+}
+
+function assertDemoEnterTest(result, profile) {
   assert.equal(result.ok, true);
   assert.equal(result.event, 'enter_test');
-  assert.equal(result.replies[0], DEMO_INTRO);
+  assert.equal(result.replies[0], DEMO_TEST_HINT);
   assert.equal(result.replies[1], enterTestBanner(profile.name));
   assert.equal(result.replies[2], customerOpeningText(profile));
-  assert.equal(result.reply.startsWith(DEMO_INTRO), true);
+  assert.equal(result.reply.startsWith(DEMO_TEST_HINT), true);
 }
 
 let passed = 0;
@@ -169,17 +185,22 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   const store = createMemoryStore();
   await store.insertDemo(demoRow());
   const { session, result } = await firstTurn(store, SENDER, 'hello there', stubDeps().deps);
-  assertDemoEnter(result, demoProfile());
-  assert.equal(session.mode, 'TEST');
+  assertDemoOpening(result);
+  assert.equal(session.mode, 'BUILD');
   assert.equal(session.ownerName, null);
+  assert.equal(session.demoOrigin, true);
   const saved = await store.loadProfile(SENDER);
   assert.equal(saved.name, 'Harbor Cuts');
   assert.equal(saved.approvedAt, APPROVED_AT);
+  assert.equal(saved.firstTestedAt, null);
   const dump = store._dump();
   const demo = Object.values(dump.demos)[0];
   assert.equal(demo.claimed_by, SENDER);
   assert.ok(demo.claimed_at);
-  ok('phone-match binds and enters TEST');
+  const reloaded = await createSenderSession(store, SENDER, { deps: stubDeps().deps });
+  assert.equal(reloaded.demoOrigin, true);
+  assert.equal(reloaded.ownerName, null);
+  ok('phone-match binds and shows the opening');
 }
 
 {
@@ -191,8 +212,9 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
     `Hi Adam code-${CODE}`,
     stubDeps().deps
   );
-  assertDemoEnter(result, demoProfile());
-  assert.equal(session.mode, 'TEST');
+  assertDemoOpening(result);
+  assert.equal(session.mode, 'BUILD');
+  assert.equal(session.demoOrigin, true);
   const dump = store._dump();
   assert.equal(Object.values(dump.demos)[0].claimed_by, OTHER);
   ok('code-match binds');
@@ -257,6 +279,7 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(session2.demoBindEligible, false);
   const again = await handleMessage(session2, 'hi');
   await persistSenderSession(session2);
+  assert.notEqual(again.event, 'demo_opening');
   assert.notEqual(again.event, 'enter_test');
   assert.equal(session2.mode, 'BUILD');
   const profile = await store.loadProfile(SENDER);
@@ -283,7 +306,9 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   await store.insertDemo(demoRow());
   const { deps, customerQ } = stubDeps();
   const { session, result } = await firstTurn(store, SENDER, 'hello', deps);
-  assertDemoEnter(result, demoProfile());
+  assertDemoOpening(result);
+  const started = await handleMessage(session, '1');
+  assertDemoEnterTest(started, demoProfile());
   customerQ.push('A haircut is $30.');
   const second = await handleMessage(session, 'How much is a haircut?');
   await persistSenderSession(session);
@@ -293,13 +318,22 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   const profile = await store.loadProfile(SENDER);
   assert.equal(profile.name, 'Harbor Cuts');
   assert.equal(profile.hours, 'Mon–Fri 9–17');
-  ok('second message from a bound sender behaves normally');
+  ok('1 enters TEST; a customer turn then behaves normally');
 }
 
 {
   const store = createMemoryStore();
   await store.insertDemo(demoRow());
   const { session } = await firstTurn(store, SENDER, 'hello', stubDeps().deps);
+  const other = await handleMessage(session, 'stop');
+  assertDemoOpening(other);
+  const alsoTest = await handleMessage(session, '/test');
+  assertDemoOpening(alsoTest);
+  const two = await handleMessage(session, '2');
+  assertDemoOpening(two);
+  assert.equal(session.mode, 'BUILD');
+  const started = await handleMessage(session, '1');
+  assertDemoEnterTest(started, demoProfile());
   const stopped = await handleMessage(session, 'stop');
   await persistSenderSession(session);
   assert.equal(stopped.event, 'enter_build');
@@ -311,7 +345,9 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(profile.name, 'Harbor Cuts');
   assert.equal(profile.hours, 'Mon–Fri 9–17');
   assert.equal(profile.approvedAt, APPROVED_AT);
-  ok('stop leaves TEST to the builder with the demo profile intact');
+  assert.ok(profile.firstTestedAt);
+  assert.equal(session.demoOrigin, true);
+  ok('other replies re-show opening; 1 then stop leaves TEST with the demo profile');
 }
 
 {
@@ -319,6 +355,7 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   await store.insertDemo(demoRow());
   const newHours = 'Tue–Sat 10–18';
   const { session } = await firstTurn(store, SENDER, 'hello', stubDeps({ hours: newHours }).deps);
+  await handleMessage(session, '1');
   const stopped = await handleMessage(session, 'stop');
   assert.equal(stopped.event, 'enter_build');
   const corrected = await handleMessage(session, 'We are actually open Tuesday to Saturday 10 to 18.');
@@ -346,7 +383,7 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(session.demoBindEligible, false);
   const result = await handleMessage(session, 'hi from the shop');
   await persistSenderSession(session);
-  assertDemoEnter(result, demoProfile());
+  assertDemoOpening(result);
   ok('first inbound after enqueue still binds (production path)');
 }
 
@@ -376,8 +413,10 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
     sourceUrl: 'https://sitesalon.example',
     profile,
     code: 'SITECODE1',
+    ownerName: 'Maya',
   });
   assert.equal(record.business_phone, '+16145550132');
+  assert.equal(record.owner_name, 'Maya');
   assert.ok(record.reviewed_at);
   assert.ok(record.profile.approvedAt);
   const store = createMemoryStore();
@@ -393,6 +432,18 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
       businessPhone: PHONE,
       profile: emptyProfile(),
     })
+  );
+  assert.throws(
+    () =>
+      reviewedDemoRecord({
+        businessLabel: 'X',
+        businessPhone: PHONE,
+        profile: {
+          ...emptyProfile(),
+          whatWeDo: 'Cafe',
+        },
+      }),
+    /business name/
   );
   ok('refuses to save a profile that cannot enter TEST');
 }
@@ -443,6 +494,8 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   ]);
   assert.equal(flags.yes, true);
   assert.equal(flags.phone, undefined);
+  const named = parseCreateDemoArgs(['--label', 'X', '--owner-name', 'Dana']);
+  assert.equal(named.ownerName, 'Dana');
   ok('create-demo parseArgs: --prospect/--id/--dry-run and optional --phone');
 }
 
@@ -453,11 +506,13 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   );
   const withPhone = loadProspectById(fixture, 'fake-harbor');
   assert.equal(withPhone.businessLabel, 'Fake Harbor Cuts');
+  assert.equal(withPhone.ownerName, 'Test Owner');
   assert.equal(withPhone.businessPhone, '+15125550100');
   assert.equal(withPhone.sourceUrl, 'https://fake-harbor.example/contact');
   assert.match(withPhone.siteText, /^https:\/\/fake-harbor\.example\/\nFake Harbor Cuts/);
   assert.match(withPhone.siteText, /https:\/\/fake-harbor\.example\/prices\nMen's cut \$25/);
   const noPhone = loadProspectById(fixture, 'fake-no-phone');
+  assert.equal(noPhone.ownerName, null);
   assert.equal(noPhone.businessPhone, null);
   assert.match(noPhone.phoneWarning, /code link only/);
   assert.equal(noPhone.sourceUrl, 'https://fake-cafe.example');
@@ -565,6 +620,7 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(dry.saved, null);
   assert.equal(inserted, 0);
   assert.equal(dry.input.businessPhone, '+15125550100');
+  assert.equal(dry.input.ownerName, 'Test Owner');
 
   const savedRun = await createDemo(
     { prospect: fixture, id: 'fake-no-phone', yes: true },
@@ -580,8 +636,48 @@ console.log('=== pre-built demo profiles (deterministic) ===\n');
   assert.equal(savedRun.dryRun, false);
   assert.equal(savedRun.saved.business_phone, null);
   assert.equal(savedRun.saved.prospect_id, 'fake-no-phone');
+  assert.equal(savedRun.saved.owner_name, null);
   assert.equal(inserted, 1);
   ok('createDemo --dry-run writes nothing; prospect without E.164 is code-only');
+}
+
+{
+  const store = createMemoryStore();
+  await store.insertDemo(demoRow({ owner_name: 'Dana' }));
+  const { session, result } = await firstTurn(store, SENDER, 'hi', stubDeps().deps);
+  assertDemoOpening(result, 'Dana');
+  assert.equal(session.ownerName, 'Dana');
+  assert.equal(session.demoOrigin, true);
+  const started = await handleMessage(session, '1.');
+  assertDemoEnterTest(started, demoProfile());
+  const stopped = await handleMessage(session, 'stop');
+  const menu = `${returnedIntro('Dana')}\n\n${renderMenu({ leadOption: true, chatsOption: true })}`;
+  assert.equal(stopped.replies[1], menu);
+  ok('owner name on claim, 1. enters TEST, stop menu includes chats');
+}
+
+{
+  const store = createMemoryStore();
+  await store.insertDemo(demoRow());
+  const { session } = await firstTurn(store, SENDER, 'hi', stubDeps().deps);
+  const reset = await handleMessage(session, '/reset');
+  await persistSenderSession(session);
+  assert.equal(reset.reply, RESET_REPLY);
+  assert.equal(session.demoOrigin, true);
+  assert.equal(session.ownerName, null);
+  const again = await handleMessage(session, 'hello');
+  assert.equal(again.event, 'opening');
+  assert.equal(again.reply, OPENING_MESSAGE);
+  assert.equal(session.mode, 'BUILD');
+  ok('/reset keeps demo_origin and goes to flow 1');
+}
+
+{
+  const store = createMemoryStore();
+  const { result } = await firstTurn(store, SENDER, 'hello', stubDeps().deps);
+  assert.equal(result.event, 'opening');
+  assert.equal(result.reply, OPENING_MESSAGE);
+  ok('flow 1 opening is unchanged when no demo exists');
 }
 
 console.log(`\n${passed} passed`);

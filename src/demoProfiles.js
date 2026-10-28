@@ -1,12 +1,12 @@
 /**
  * Pre-built demo profiles: lookup, claim, and create-demo helpers.
- * Binding is first-wake only. No keyword matching of owner free text
- * except DEMO_CODE_RE.
+ * Binding is first-wake only (opening, then menu 1 enters TEST).
+ * No keyword matching of owner free text except DEMO_CODE_RE.
  */
 
 import crypto from 'crypto';
 import { applyBuilderModelOutput } from './applyExtraction.js';
-import { DEMO_INTRO } from './copy.js';
+import { DEMO_TEST_HINT, normalizeOwnerName } from './copy.js';
 import { E164_RE, phoneE164FromSenderId } from './phone.js';
 import {
   applyDraftToLive,
@@ -108,11 +108,11 @@ export async function findClaimableDemo(store, senderId, text) {
   return null;
 }
 
-export function prefixDemoIntro(enterTestResult) {
+export function prefixDemoTestHint(enterTestResult) {
   const chrome = enterTestResult.replies?.length
     ? enterTestResult.replies
     : [enterTestResult.reply].filter(Boolean);
-  const replies = [DEMO_INTRO, ...chrome];
+  const replies = [DEMO_TEST_HINT, ...chrome];
   return {
     ...enterTestResult,
     reply: replies.join('\n\n'),
@@ -168,6 +168,9 @@ export async function extractDemoProfile({
 }
 
 export function assertDemoReady(profile) {
+  if (!String(profile?.name || '').trim()) {
+    throw new Error('Demo profile needs a business name before it can be saved');
+  }
   if (!hasEnoughForFirstBot(profile)) {
     throw new Error(
       'Demo profile needs a business name and what you do (or a service) before it can enter TEST'
@@ -182,6 +185,7 @@ export function reviewedDemoRecord({
   profile,
   code,
   prospectId,
+  ownerName,
   now = new Date(),
 } = {}) {
   const phone =
@@ -198,6 +202,7 @@ export function reviewedDemoRecord({
   return {
     business_label: String(businessLabel || '').trim(),
     prospect_id: trimmedProspect,
+    owner_name: normalizeOwnerName(ownerName),
     business_phone: phone,
     code: String(code || generateDemoCode()).toUpperCase(),
     profile: approved,

@@ -8,7 +8,7 @@
  *     --phone +15125550100 \
  *     --source https://harborcuts.example \
  *     --text ./harbor-cuts.txt
- *     [--yes] [--dry-run]
+ *     [--owner-name "Dana"] [--yes] [--dry-run]
  *
  *   node scripts/create-demo.js --prospect ./prospects.json --id fake-harbor [--yes] [--dry-run]
  *
@@ -28,6 +28,7 @@ import {
   normalizeBusinessPhone,
   reviewedDemoRecord,
 } from '../src/demoProfiles.js';
+import { normalizeOwnerName } from '../src/copy.js';
 import { formatSummary } from '../src/profile.js';
 import { createStore } from '../src/store/index.js';
 
@@ -46,6 +47,14 @@ export function parseArgs(argv) {
     }
     if (a === '--dry-run') {
       out.dryRun = true;
+      continue;
+    }
+    if (a === '--owner-name') {
+      const val = argv[++i];
+      if (val == null || val.startsWith('--')) {
+        throw new Error(`Missing value for ${a}`);
+      }
+      out.ownerName = val;
       continue;
     }
     if (
@@ -159,6 +168,7 @@ export function mapProspect(prospect) {
     sourceUrl,
     siteText,
     prospectId: prospect.id ?? null,
+    ownerName: normalizeOwnerName(prospect.owner_name),
   };
 }
 
@@ -215,6 +225,7 @@ export function resolveCreateDemoInput(args, opts = {}) {
       sourceUrl: args.source,
       siteText: String(siteText),
       prospectId: null,
+      ownerName: normalizeOwnerName(args.ownerName),
     };
   }
   throw new Error('Need --label/--source/--text or --prospect/--id');
@@ -236,7 +247,7 @@ async function confirmSave(yes) {
 function usage() {
   return [
     'Usage:',
-    '  node scripts/create-demo.js --label <name> [--phone <e164>] --source <url> --text <file> [--yes] [--dry-run]',
+    '  node scripts/create-demo.js --label <name> [--owner-name <name>] [--phone <e164>] --source <url> --text <file> [--yes] [--dry-run]',
     '  node scripts/create-demo.js --prospect <file.json> --id <id> [--yes] [--dry-run]',
     'Paste public text from the business website into <file>, or pass cleaned source_pages via --prospect.',
     'The script does not scrape and does not resolve short links.',
@@ -288,6 +299,7 @@ export async function createDemo(args, deps = {}) {
     profile,
     code: generateDemoCode(),
     prospectId: input.prospectId,
+    ownerName: input.ownerName,
   });
   const saved = await store.insertDemo(record);
   const phoneNote = saved.business_phone || 'code link only';

@@ -1,4 +1,5 @@
 import { leadInProgress, leadResumePending } from './leadIntake.js';
+import { lastShownNav } from './ownerNav.js';
 import { reviewChatsActive } from './reviewChats.js';
 
 /**
@@ -17,18 +18,22 @@ export const OWNER_PHASES = Object.freeze([
   'lead',
   'lead_resume',
   'chats',
+  'demo_offer',
 ]);
 
 /**
  * @param {{ mode?: string, buildHistory?: object[], leadIntake?: object, reviewChats?: object }|null|undefined} session
  * @param {object|null|undefined} profile
- * @returns {'wake'|'setup'|'ready'|'test'|'lead'|'lead_resume'|'chats'}
+ * @returns {'wake'|'setup'|'ready'|'test'|'lead'|'lead_resume'|'chats'|'demo_offer'}
  */
 export function ownerPhase(session, profile) {
   if (session?.mode === 'TEST') return 'test';
   if (leadInProgress(session?.leadIntake)) return 'lead';
   if (leadResumePending(session?.leadIntake)) return 'lead_resume';
   if (reviewChatsActive(session?.reviewChats)) return 'chats';
+  if (session?.demoOrigin === true && lastShownNav(session.buildHistory) === 'demo_start') {
+    return 'demo_offer';
+  }
   if (session && Array.isArray(session.buildHistory) && session.buildHistory.length === 0) {
     return 'wake';
   }
