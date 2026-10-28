@@ -17,6 +17,7 @@ Do **not** paste secrets into chat. Set them in Render Dashboard → Environment
    - **easybot-app** — Node, `npm install` / `npm start`, health `/api/health`
 3. Set env on **easybot-app** (names only listed in `.env.example`):
    - `NODE_ENV=production`
+   - Web tester (`/api/chat`, `/api/state`, `/api/start`, `/api/cto-progress`) is off in production unless `ENABLE_WEB_TESTER=1`
    - `PUBLIC_BASE_URL=https://<your-easybot-app>.onrender.com` (exact, no trailing slash)
    - `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
    - Twilio vars when ready

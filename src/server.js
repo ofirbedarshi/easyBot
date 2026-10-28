@@ -31,6 +31,29 @@ app.use('/admin', createAdminRouter(store));
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+/** Local web tester APIs — off in production unless ENABLE_WEB_TESTER=1. */
+const WEB_TESTER_API_PATHS = new Set([
+  '/api/chat',
+  '/api/state',
+  '/api/start',
+  '/api/cto-progress',
+]);
+
+function webTesterDisabled() {
+  return (
+    process.env.NODE_ENV === 'production' &&
+    process.env.ENABLE_WEB_TESTER !== '1'
+  );
+}
+
+app.use((req, res, next) => {
+  const pathname = req.path.replace(/\/+$/, '') || '/';
+  if (webTesterDisabled() && WEB_TESTER_API_PATHS.has(pathname)) {
+    return res.status(404).json({ ok: false, error: 'Not found' });
+  }
+  next();
+});
+
 /** Default UI session → data/business-profile.json */
 const defaultSession = createSession();
 /** Optional keyed sessions → data/test-profiles/<key>.json */
@@ -131,22 +154,28 @@ const worker = shouldStartInboundWorker()
   ? startInboundWorker(store)
   : null;
 
-app.listen(PORT, () => {
-  console.log(`easyBot UI → http://localhost:${PORT}`);
-  console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
-  if (worker) {
-    console.log('Inbound worker: ON');
-  } else {
-    console.log(
-      'Inbound worker: OFF (no TWILIO_AUTH_TOKEN / disabled) — safe for local UI; Render handles WhatsApp'
-    );
-  }
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn('WARNING: OPENAI_API_KEY not set');
-  }
-  if (isProd && !process.env.PUBLIC_BASE_URL) {
-    console.warn('WARNING: PUBLIC_BASE_URL not set — Twilio signature validation will fail');
-  }
-});
+const isMainModule =
+  Boolean(process.argv[1]) &&
+  path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
+
+if (isMainModule) {
+  app.listen(PORT, () => {
+    console.log(`easyBot UI → http://localhost:${PORT}`);
+    console.log(`WhatsApp webhook → POST /webhooks/twilio/whatsapp (store=${store.kind})`);
+    if (worker) {
+      console.log('Inbound worker: ON');
+    } else {
+      console.log(
+        'Inbound worker: OFF (no TWILIO_AUTH_TOKEN / disabled) — safe for local UI; Render handles WhatsApp'
+      );
+    }
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('WARNING: OPENAI_API_KEY not set');
+    }
+    if (isProd && !process.env.PUBLIC_BASE_URL) {
+      console.warn('WARNING: PUBLIC_BASE_URL not set — Twilio signature validation will fail');
+    }
+  });
+}
 
 export { app, store, worker };
