@@ -8,6 +8,7 @@ import {
   draftDiffersFromLive,
   hasEnoughForFirstBot,
   mergeDraft,
+  withKnownProfileKeys,
 } from './profile.js';
 import {
   applyReviewGate,
@@ -21,6 +22,12 @@ import {
   EMPTY_MESSAGE_ERROR,
   normalizeOwnerName,
 } from './copy.js';
+import {
+  findClaimableDemo,
+  isDemoBindEligible,
+  isFreshOwnerProfile,
+  prefixDemoIntro,
+} from './demoProfiles.js';
 import { applyOwnerNameCollisionGuard } from './setupAgenda.js';
 import {
   businessBotReply as defaultBusinessBotReply,
@@ -97,6 +104,8 @@ export function createSession(profilePathOrOpts) {
  * Load WhatsApp / store-backed session for one sender (isolated).
  */
 export async function createSenderSession(store, senderId, options = {}) {
+  const existed =
+    typeof store.hasSender === 'function' ? await store.hasSender(senderId) : true;
   const saved = await store.loadSession(senderId);
   return {
     mode: saved.mode || 'BUILD',
@@ -110,6 +119,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     profilePath: null,
     store,
     senderId,
+    demoBindEligible: !existed,
     deps: options.deps || null,
   };
 }
@@ -251,7 +261,10 @@ export async function handleMessage(session, text) {
   }
 
   // First inbound in BUILD only wakes the bot — discard content, send opening.
+  // Brand-new senders may claim a pre-built demo and skip straight into TEST.
   if (phase === 'wake') {
+    const bound = await tryBindPrebuiltDemo(session, trimmed);
+    if (bound) return bound;
     const open = composeReply({ kind: 'opening' });
     session.buildHistory.push({ role: 'assistant', content: open.reply });
     return {
@@ -326,6 +339,37 @@ async function handleNavigation(session, text) {
     event: wantsMenu ? 'menu' : 'menu_section',
     ...(await getStateAsync(session)),
   };
+}
+
+/**
+ * First-wake only: claim a reviewed, unexpired, unclaimed demo by phone or
+ * exact code and enter TEST. Invalid/expired codes fall through (no error).
+ * Never overwrites an existing sender or profile.
+ */
+async function tryBindPrebuiltDemo(session, text) {
+  if (!session.store || !session.senderId) return null;
+  if (session.mode !== 'BUILD') return null;
+  if ((session.buildHistory || []).length) return null;
+  if ((session.testHistory || []).length) return null;
+  if (!(await isDemoBindEligible(session))) return null;
+
+  const current = await loadAsync(session);
+  if (!isFreshOwnerProfile(current)) return null;
+
+  const match = await findClaimableDemo(session.store, session.senderId, text);
+  if (!match) return null;
+
+  const claimed = await session.store.claimDemo(match.id, session.senderId);
+  if (!claimed) return null;
+
+  const profile = withKnownProfileKeys(claimed.profile);
+  if (!profile.approvedAt) profile.approvedAt = new Date().toISOString();
+  session.ownerName = null;
+  await saveAsync(session, profile);
+
+  const entered = await enterTest(session);
+  if (!entered.ok) return entered;
+  return prefixDemoIntro(entered);
 }
 
 /** "Chat with me like a customer": enter TEST when the profile has enough to answer. */

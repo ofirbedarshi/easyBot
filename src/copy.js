@@ -179,6 +179,9 @@ export const BURST_LIMIT_REPLY =
   "You're sending a bit fast. Wait a few minutes and try again.";
 export const FALLBACK_BUSINESS_NAME = 'this business';
 
+export const DEMO_INTRO =
+  'I already learned your business from your website. Text me like a customer would. Got something wrong? Type stop and teach me.';
+
 export function enterTestBannerText(business) {
   return [
     '🎭 ━━━━━━━━━━━━ 🎭',

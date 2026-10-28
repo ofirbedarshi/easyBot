@@ -65,6 +65,24 @@ Each hook call appends `&ref=<commit-sha>` so Render deploys that push.
 
 Optional: set the service’s **Auto Deploy** to **No** so only this Action triggers deploys (avoids double deploys if native auto-deploy starts working again).
 
+## Pre-built demo profiles (operator)
+
+Do **not** apply migrations from the app or an agent. Apply `supabase/migrations/20261028120000_easybot_demo_profiles.sql` yourself after you approve it.
+
+1. Copy public text from the business's own website into a local file, or use a local prospects JSON. The script does not scrape. Do not commit real prospect files.
+2. With `OPENAI_API_KEY` set (never print those values):
+
+   `node scripts/create-demo.js --label "Business" --phone +E164 --source https://their.site --text ./paste.txt`
+
+   or `node scripts/create-demo.js --prospect ./prospects.json --id <id>`
+
+   `--phone` / `whatsapp_e164` is optional. Only a value that normalizes to E.164 is stored; otherwise the demo is code-link only and the script warns. Short links are not resolved. `--dry-run` extracts and prints the profile and writes nothing (no Supabase). Saving still needs Supabase env.
+3. Read the printed profile. Type `y` to save, or pass `--yes` after you have already reviewed it.
+4. The script prints a fallback WhatsApp link `https://wa.me/17623205871?text=Hi%20Adam%20code-<CODE>`.
+5. When the business WhatsApp number (if stored) first texts the production number, Adam claims that demo and opens TEST. If they text from a different phone, or the demo has no phone, they send the fallback message exactly (`Hi Adam code-…`).
+
+Expired unclaimed rows are ignored. Optional cleanup (commented in the migration, not scheduled): delete unclaimed rows with `expires_at < now()`.
+
 ## You: Twilio (production WhatsApp sender)
 
 | Setting | Where |
