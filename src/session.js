@@ -9,6 +9,7 @@ import {
   hasEnoughForFirstBot,
   mergeDraft,
 } from './profile.js';
+import { applyBuilderModelOutput, sameKey } from './applyExtraction.js';
 import {
   applyReviewGate,
   runBuilderTurn as defaultRunBuilderTurn,
@@ -528,6 +529,8 @@ async function beginReviewChats(session, text) {
     snapshot: chats,
     history: [],
     learned: [],
+    awaitingTeachAnswer: false,
+    lastTaughtService: null,
     startedAt: new Date().toISOString(),
   };
   let modelText;
@@ -553,6 +556,76 @@ async function beginReviewChats(session, text) {
     source: 'real-llm',
     event: 'enter_chats',
     ...(await getStateAsync(session)),
+  };
+}
+
+function lastAssistantTeachHistory(history) {
+  const list = Array.isArray(history) ? history : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i]?.role === 'assistant') {
+      return [{ role: 'assistant', content: list[i].content }];
+    }
+  }
+  return [];
+}
+
+function serviceByName(services, name) {
+  return (Array.isArray(services) ? services : []).find((s) => s && sameKey(s.name, name)) || null;
+}
+
+function changedServicePriceNames(prior, next) {
+  const names = [];
+  for (const row of next?.services || []) {
+    if (!row?.name) continue;
+    const old = serviceByName(prior?.services, row.name);
+    if ((old?.price ?? null) !== (row.price ?? null)) names.push(row.name);
+  }
+  return names;
+}
+
+function rememberTaughtService(session, prior, next) {
+  const names = changedServicePriceNames(prior, next);
+  if (names.length === 1) {
+    session.reviewChats.lastTaughtService = names[0];
+    return;
+  }
+  if (names.length > 1) {
+    const keep = names.find((n) => sameKey(n, session.reviewChats.lastTaughtService));
+    session.reviewChats.lastTaughtService = keep || names[names.length - 1];
+  }
+}
+
+/** True when merging `draft` would change live only by adding/changing unknowns. */
+function onlyUnknownsChanged(profile, draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (!draftDiffersFromLive(profile, draft)) return false;
+  return !draftDiffersFromLive(profile, { ...draft, unknowns: profile.unknowns });
+}
+
+function ownerTextHasDigit(text) {
+  return /\d/.test(String(text || ''));
+}
+
+function applyOwnerTextAsPrice(profile, draft, serviceName, ownerText) {
+  const current = serviceByName(draft?.services || profile.services, serviceName);
+  const name = current?.name || serviceName;
+  return applyBuilderModelOutput(
+    {
+      draft: {
+        services: [{ name, price: ownerText, notes: current?.notes ?? null }],
+      },
+      ownerEdits: [{ field: 'services', item: name, action: 'change' }],
+    },
+    draft,
+    { live: profile }
+  );
+}
+
+function chatsClarifyReply(result) {
+  const modelText = clarifyFromBuilderMessage(result?.message);
+  return {
+    composed: composeReply({ kind: 'chats_followup', modelText }),
+    historyText: modelText,
   };
 }
 
@@ -583,19 +656,24 @@ async function handleReviewChats(session, text) {
   const snapshot = session.reviewChats?.snapshot || [];
   const history = session.reviewChats?.history || [];
   const learned = session.reviewChats?.learned || [];
+  const forceTeach = session.reviewChats?.awaitingTeachAnswer === true;
   let turn;
-  try {
-    turn = asReviewChatsTurn(
-      await reviewChatsReplyFn(session)({
-        snapshot,
-        history,
-        question: text,
-        learned,
-      })
-    );
-  } catch (err) {
-    console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
-    turn = { message: composeReply({ kind: 'error_generic' }).reply, teaching: false };
+  if (forceTeach) {
+    turn = { message: '', teaching: true };
+  } else {
+    try {
+      turn = asReviewChatsTurn(
+        await reviewChatsReplyFn(session)({
+          snapshot,
+          history,
+          question: text,
+          learned,
+        })
+      );
+    } catch (err) {
+      console.error('Review chats reply failed:', err?.status || err?.code || err?.name || 'error');
+      turn = { message: composeReply({ kind: 'error_generic' }).reply, teaching: false };
+    }
   }
 
   let composed;
@@ -622,11 +700,13 @@ async function handleReviewChats(session, text) {
 }
 
 async function teachFromChats(session, text) {
+  const awaiting = session.reviewChats?.awaitingTeachAnswer === true;
+  const lastService = session.reviewChats?.lastTaughtService || null;
   const profile = await loadAsync(session);
   let result;
   try {
     result = await runBuilderTurnFn(session)({
-      buildHistory: session.reviewChats?.history || [],
+      buildHistory: lastAssistantTeachHistory(session.reviewChats?.history),
       profile,
       userMessage: text,
     });
@@ -641,16 +721,36 @@ async function teachFromChats(session, text) {
     };
   }
 
-  if (result.onPurpose === false) {
-    const modelText = clarifyFromBuilderMessage(result.message);
-    return {
-      composed: composeReply({ kind: 'chats_followup', modelText }),
-      historyText: modelText,
-    };
+  let appliedFallback = false;
+  if (awaiting && lastService && ownerTextHasDigit(text)) {
+    const priorPrice = serviceByName(profile.services, lastService)?.price ?? null;
+    const nextPrice = serviceByName(result.draft?.services, lastService)?.price ?? null;
+    if (priorPrice === nextPrice) {
+      result = {
+        ...result,
+        onPurpose: true,
+        draft: applyOwnerTextAsPrice(profile, result.draft, lastService, text),
+      };
+      appliedFallback = true;
+    }
+  }
+  if (awaiting && !ownerTextHasDigit(text)) {
+    session.reviewChats.awaitingTeachAnswer = false;
+  }
+
+  if (result.onPurpose === false && !appliedFallback) {
+    return chatsClarifyReply(result);
+  }
+
+  if (onlyUnknownsChanged(profile, result.draft)) {
+    if (!awaiting) session.reviewChats.awaitingTeachAnswer = true;
+    return chatsClarifyReply(result);
   }
 
   const applied = await applyBuilderTurnSave(session, profile, result, text);
   if (applied.changed) {
+    rememberTaughtService(session, applied.prior, applied.profile);
+    session.reviewChats.awaitingTeachAnswer = false;
     const lines = changeLines(applied.prior, applied.profile);
     session.reviewChats.learned = [...(session.reviewChats.learned || []), ...lines].slice(-20);
     const composed = composeReply({
@@ -666,11 +766,8 @@ async function teachFromChats(session, text) {
     return { composed, historyText };
   }
 
-  const modelText = clarifyFromBuilderMessage(applied.result.message);
-  return {
-    composed: composeReply({ kind: 'chats_followup', modelText }),
-    historyText: modelText,
-  };
+  if (!awaiting) session.reviewChats.awaitingTeachAnswer = true;
+  return chatsClarifyReply(applied.result);
 }
 
 /** Drop an unfinished questionnaire (nothing saved); a submitted marker stays. */

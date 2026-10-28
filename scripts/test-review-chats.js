@@ -375,6 +375,141 @@ await test('teach with no save uses Builder question, not remember-claim', async
   assert.equal(after.services[0].price, before.services[0].price);
 });
 
+await test('pending teach: digit fallback saves owner text; unknowns-only unclear has no save card', async () => {
+  const builderCalls = [];
+  const chatsQuestions = [];
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) => {
+      chatsQuestions.push(question);
+      if (!question) {
+        return { message: 'I had 1 chat. I could not answer the private-lesson price.', teaching: false };
+      }
+      return { message: 'Chats-model paraphrase should not be shown.', teaching: true };
+    },
+    runBuilderTurn: async ({ profile: p, userMessage, buildHistory }) => {
+      builderCalls.push({
+        userMessage,
+        historyLen: buildHistory?.length || 0,
+        historyRoles: (buildHistory || []).map((m) => m.role),
+      });
+      if (userMessage === "it's cheaper now") {
+        const draft = structuredClone(p.draft);
+        draft.unknowns = [
+          ...(Array.isArray(draft.unknowns) ? draft.unknowns : []),
+          'The current private lesson price is lower, but the new amount is unknown',
+        ];
+        return {
+          message: "What's the new price?",
+          draft,
+          onPurpose: true,
+          ownerName: null,
+          configRequests: [],
+        };
+      }
+      if (userMessage === '6') {
+        return {
+          message: 'What currency is 6 in?',
+          draft: structuredClone(p.draft),
+          onPurpose: true,
+          ownerName: null,
+          configRequests: [],
+        };
+      }
+      return {
+        message: "I'll remember that the private lesson is $8.",
+        draft: taughtLessonDraft(p, '$8'),
+        onPurpose: true,
+        ownerName: null,
+        configRequests: [],
+      };
+    },
+  });
+  await handleMessage(session, '3');
+  const teachA = await handleMessage(session, 'The price is 8 dollar');
+  assert.ok(teachA.reply.startsWith(businessDetailsAck('Dana')), teachA.reply);
+  const afterA = await store.loadProfile(sender);
+  assert.equal(afterA.services[0].price, '$8');
+
+  const unclear = await handleMessage(session, "it's cheaper now");
+  assert.equal(unclear.event, 'chats_turn');
+  assert.ok(unclear.reply.startsWith("What's the new price?"), unclear.reply);
+  assert.ok(!unclear.reply.includes(REVIEW.changesIntro), unclear.reply);
+  assert.ok(!unclear.reply.includes(businessDetailsAck('Dana')), unclear.reply);
+  const afterUnclear = await store.loadProfile(sender);
+  assert.equal(afterUnclear.services[0].price, '$8');
+  assert.deepEqual(afterUnclear.unknowns || [], afterA.unknowns || []);
+  assert.equal(session.reviewChats.awaitingTeachAnswer, true);
+
+  const chatsBeforeSix = chatsQuestions.length;
+  const teachSix = await handleMessage(session, '6');
+  assert.equal(chatsQuestions.length, chatsBeforeSix, 'pending teach must skip the chats classifier');
+  assert.equal(builderCalls.at(-1).userMessage, '6');
+  assert.equal(builderCalls.at(-1).historyLen, 1);
+  assert.deepEqual(builderCalls.at(-1).historyRoles, ['assistant']);
+  assert.ok(teachSix.reply.startsWith(businessDetailsAck('Dana')), teachSix.reply);
+  assert.ok(teachSix.reply.includes(REVIEW.changesIntro), teachSix.reply);
+  assert.ok(teachSix.reply.includes('6'), teachSix.reply);
+  assert.ok(!teachSix.reply.includes('$6'), teachSix.reply);
+  const afterSix = await store.loadProfile(sender);
+  assert.equal(afterSix.services[0].price, '6');
+  assert.equal(afterSix.draft.services[0].price, '6');
+  assert.equal(session.reviewChats.awaitingTeachAnswer, false);
+});
+
+await test('pending teach: no-digit reply does not overwrite; stop still exits', async () => {
+  const { store, sender, session } = await seededChatsSession({
+    reviewChatsReply: async ({ question }) =>
+      question
+        ? { message: 'Chats paraphrase.', teaching: true }
+        : { message: 'I had 1 chat.', teaching: false },
+    runBuilderTurn: async ({ profile: p, userMessage }) => {
+      if (userMessage === "it's cheaper now" || userMessage === 'not sure') {
+        const draft = structuredClone(p.draft);
+        draft.unknowns = [
+          ...(Array.isArray(draft.unknowns) ? draft.unknowns : []),
+          'The new amount is unknown',
+        ];
+        return {
+          message: "What's the new price?",
+          draft,
+          onPurpose: true,
+          ownerName: null,
+          configRequests: [],
+        };
+      }
+      return {
+        message: 'Saved.',
+        draft: taughtLessonDraft(p, '$8'),
+        onPurpose: true,
+        ownerName: null,
+        configRequests: [],
+      };
+    },
+  });
+  await handleMessage(session, '3');
+  await handleMessage(session, 'The price is 8 dollar');
+  await handleMessage(session, "it's cheaper now");
+  assert.equal(session.reviewChats.awaitingTeachAnswer, true);
+  const before = await store.loadProfile(sender);
+  assert.equal(before.services[0].price, '$8');
+
+  const noDigit = await handleMessage(session, 'not sure');
+  assert.equal(noDigit.event, 'chats_turn');
+  assert.ok(!noDigit.reply.includes(REVIEW.changesIntro), noDigit.reply);
+  assert.ok(!noDigit.reply.includes(businessDetailsAck('Dana')), noDigit.reply);
+  const afterNoDigit = await store.loadProfile(sender);
+  assert.equal(afterNoDigit.services[0].price, '$8');
+  assert.deepEqual(afterNoDigit.unknowns || [], before.unknowns || []);
+  assert.equal(session.reviewChats.awaitingTeachAnswer, false);
+  assert.equal(ownerPhase(session), 'chats');
+
+  const stopped = await handleMessage(session, 'stop');
+  assert.equal(stopped.event, 'enter_build');
+  assert.equal(session.reviewChats, null);
+  const afterStop = await store.loadProfile(sender);
+  assert.equal(afterStop.services[0].price, '$8');
+});
+
 await test('teach with no usable Builder question uses parse fallback', async () => {
   const { store, sender, session } = await seededChatsSession({
     reviewChatsReply: async ({ question }) =>
