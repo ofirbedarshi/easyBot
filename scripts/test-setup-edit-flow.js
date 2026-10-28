@@ -1130,7 +1130,7 @@ await test('lead form from the menu after first TEST, then menu header', async (
           reply: expectedMenu(false, true),
           approvedAt: APPROVED_AT,
           nav: 'menu',
-          includes: [MENU_HEAD, '1. 🤖 Chat with me like a customer', "2. 📋 Tell me about today's customer chats"],
+          includes: [MENU_HEAD, '1. 🤖 Chat with me like a customer', '2. 📋 See what customers asked me today'],
           excludes: [LEGACY_CARD, '🚀 Get me working for your business'],
         },
       },

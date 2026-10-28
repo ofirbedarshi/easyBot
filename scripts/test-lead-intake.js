@@ -218,7 +218,7 @@ assert.equal(
     'What should we do next?',
     '',
     '1. 🤖 Chat with me like a customer',
-    "2. 📋 Tell me about today's customer chats",
+    '2. 📋 See what customers asked me today',
     '3. 🏪 Tell me more about your business',
     '4. ❓ Teach me more questions and answers',
     '5. 📝 Choose details to collect from customers',

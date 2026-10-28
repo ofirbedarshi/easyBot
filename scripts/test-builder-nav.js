@@ -495,7 +495,7 @@ async function testMenuLabels() {
       [
         '1. 🚀 Get me working for your business',
         '2. 🤖 Chat with me like a customer',
-        "3. 📋 Tell me about today's customer chats",
+        '3. 📋 See what customers asked me today',
         `4. ${TELL_MORE}`,
         '5. ❓ Teach me more questions and answers',
         `6. ${INTAKE_MENU_LABEL}`,
@@ -795,7 +795,7 @@ async function testMenuLayoutStates() {
   const withLead = renderMenu(afterTest).split('\n');
   assert.equal(withLead[0], '1. 🚀 Get me working for your business');
   assert.equal(withLead[1], '2. 🤖 Chat with me like a customer');
-  assert.equal(withLead[2], "3. 📋 Tell me about today's customer chats");
+  assert.equal(withLead[2], '3. 📋 See what customers asked me today');
   assert.equal(withLead[3], `4. ${TELL_MORE}`);
   assert.equal(withLead[5], `6. ${INTAKE_MENU_LABEL}`);
   assert.equal(withLead[6], '7. 💬 Tell me how to talk to your customers');
