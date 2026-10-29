@@ -38,6 +38,7 @@ import {
   RESET_REPLY,
   REVIEW,
   TEST_REFUSE,
+  DEFAULT_CUSTOMER_HELP_LINE,
   defaultCustomerOpeningText,
   DEMO_START_OPTION,
   enterTestBannerText,
@@ -472,7 +473,7 @@ test('customer_turn', () => {
       profile: salon,
       parts: { prependOpening: true },
     }).reply,
-    `${defaultCustomerOpeningText(NAME)}\n\n${model}`
+    `${defaultCustomerOpeningText(NAME).replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '')}\n\n${model}`
   );
 });
 

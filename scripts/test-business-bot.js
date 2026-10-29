@@ -18,6 +18,7 @@ import { resetChatCompletionShapeCache } from '../src/openaiChat.js';
 import { buildCustomerSystemPrompt } from '../src/customerPrompt.js';
 import {
   customerOpeningText,
+  DEFAULT_CUSTOMER_HELP_LINE,
   emptyProfile,
   withKnownProfileKeys,
 } from '../src/profile.js';
@@ -149,7 +150,7 @@ async function testReasoningModelFallback() {
   });
   assert.equal(
     reply,
-    `${customerOpeningText(approvedProfile())}\n\nreasoned`
+    `${customerOpeningText(approvedProfile()).replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '')}\n\nreasoned`
   );
   assert.equal(client.requests[0].temperature, 0);
   const ok = [...client.requests].reverse().find((r) => r.temperature == null);
@@ -185,7 +186,9 @@ async function testFirstTurnOpeningPrefixed() {
     client,
   });
   const open = customerOpeningText(profile);
-  assert.ok(reply.startsWith(`${open}\n\n`), reply);
+  const prepended = open.replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '');
+  assert.ok(reply.startsWith(`${prepended}\n\n`), reply);
+  assert.ok(!reply.includes(DEFAULT_CUSTOMER_HELP_LINE), reply);
   assert.ok(reply.includes("A men's haircut is 100 shekel."));
   assert.ok(
     client.requests[0].messages.some(
