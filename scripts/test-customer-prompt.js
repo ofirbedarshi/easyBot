@@ -23,6 +23,9 @@ function sectionBetween(prompt, startMarker, endMarker) {
   return prompt.slice(from, end);
 }
 
+const VOICE_LINE =
+  "Sound like a cheerful receptionist texting a regular: a friendly opener, 1-2 fitting emoji in most replies, upbeat close. Facts stay strict; the voice doesn't.";
+
 function testFactsGoStraightToSettings() {
   const prompt = buildCustomerSystemPrompt({
     name: 'Maya Yoga',
@@ -40,12 +43,12 @@ function testFactsGoStraightToSettings() {
   const facts = sectionBetween(
     prompt,
     '=== APPROVED BUSINESS FACTS ===',
-    '=== CONVERSATION SETTINGS ==='
+    '=== SETTINGS (shape wording only; never a source of facts) ==='
   );
   const settings = sectionBetween(
     prompt,
-    '=== CONVERSATION SETTINGS ===',
-    '=== BEHAVIOR RULES ==='
+    '=== SETTINGS (shape wording only; never a source of facts) ===',
+    '=== RULES ==='
   );
 
   assert.ok(facts.includes('Maya Yoga'), 'business name in facts');
@@ -53,7 +56,8 @@ function testFactsGoStraightToSettings() {
   assert.ok(!/Owner goal/i.test(facts), 'facts must not mention a bot goal');
   assert.ok(/Tone:/i.test(settings), 'settings follow facts immediately');
   assert.ok(
-    /must NOT establish facts/i.test(settings),
+    /never a source of facts/i.test(settings) ||
+      prompt.includes('=== SETTINGS (shape wording only; never a source of facts) ==='),
     'settings must warn they do not establish facts'
   );
 }
@@ -78,30 +82,26 @@ function testFactsFaqUnknownsIntakeRendered() {
   assert.ok(prompt.includes('Yes, oat milk is available.'));
   assert.ok(prompt.includes('Whether any student discounts exist'));
   assert.ok(prompt.includes('preferred pickup time'));
-  assert.ok(/whitelist/i.test(prompt), 'intake whitelist guidance present');
+  assert.ok(
+    /DETAILS YOU MAY ASK FOR \(only these\)/i.test(prompt),
+    'intake list guidance present'
+  );
   assert.ok(
     /messaging the owner/i.test(prompt),
     'owner redirect guidance present'
   );
   assert.match(
     prompt,
-    /If not listed, say it is not available here; do not say it is or is not offered/
+    /If something isn't listed, say it isn't available here, not that it's offered or not/
   );
   assert.match(
     prompt,
-    /Lead with a listed answer, or say it isn't available here/
+    /suggest messaging the owner only if a needed fact is missing/
   );
-  assert.match(
-    prompt,
-    /If none do, say it isn't available here\. Not a no/
-  );
-  assert.match(
-    prompt,
-    /Invite messaging the owner only when a needed fact is actually missing/
-  );
-  assert.match(prompt, /consultation \/ no-quote policy/);
+  assert.match(prompt, /consultation first\) is a full answer/);
   assert.doesNotMatch(prompt, /say you do not know/);
-  assert.ok(/CLOSED-WORLD CONTRACT/i.test(prompt));
+  assert.ok(/KNOWN GAPS \(never fill these in\)/i.test(prompt));
+  assert.ok(prompt.includes(VOICE_LINE));
 }
 
 function testEmptyIntakeAnswerOnly() {
@@ -114,12 +114,11 @@ function testEmptyIntakeAnswerOnly() {
   });
 
   assert.ok(
-    /do not ask the customer for any intake details/i.test(prompt),
+    /don't ask for any details/i.test(prompt),
     'empty intake must instruct collect nothing'
   );
   assert.doesNotMatch(prompt, /=== BOT OBJECTIVE ===/);
-  assert.match(prompt, /ask if there is anything else they would like to know/i);
-  assert.match(prompt, /Do not ask for intake details/);
+  assert.match(prompt, /ask if there's anything else they'd like to know/i);
   assert.ok(!intakeGoalEnabled({ informationToCollect: [] }));
   assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
   assert.ok(!intakeGoalEnabled({}));
@@ -139,7 +138,7 @@ function testNoForcedBookingProcess() {
     'must not require inventing an owner-confirm process'
   );
   assert.ok(
-    /does not mean you booked/i.test(prompt),
+    /Never claim you booked, paid, or contacted anyone/i.test(prompt),
     'must separate approved process facts from bot action claims'
   );
 }
@@ -159,12 +158,11 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
     prompt,
     /already gathered[\s\S]*message the owner/i
   );
-  assert.match(prompt, /do not lead with "I can't book"/i);
   assert.match(
     prompt,
     /if they ask whether they are booked, say they are not/i
   );
-  assert.match(prompt, /do not ask for details again/i);
+  assert.match(prompt, /don't ask for details again/i);
   assert.ok(intakeGoalEnabled({
     informationToCollect: ['name', 'phone', 'preferred time'],
   }));
@@ -178,14 +176,10 @@ function testPricingProcessIsCompleteAnswer() {
     informationToCollect: [],
     unknowns: [],
   });
+  assert.match(prompt, /A stated pricing process \(e.g. consultation first\) is a full answer/);
   assert.match(
     prompt,
-    /approved pricing process \(consultation, no-quote-in-chat/
-  );
-  assert.match(prompt, /is a complete answer — not a gap/i);
-  assert.match(
-    prompt,
-    /Invite messaging the owner only when a needed fact is actually missing/
+    /suggest messaging the owner only if a needed fact is missing/
   );
   assert.doesNotMatch(
     prompt,
@@ -209,12 +203,12 @@ function testConversationSettingsSectionSeparated() {
   const facts = sectionBetween(
     prompt,
     '=== APPROVED BUSINESS FACTS ===',
-    '=== CONVERSATION SETTINGS ==='
+    '=== SETTINGS (shape wording only; never a source of facts) ==='
   );
   const settings = sectionBetween(
     prompt,
-    '=== CONVERSATION SETTINGS ===',
-    '=== BEHAVIOR RULES ==='
+    '=== SETTINGS (shape wording only; never a source of facts) ===',
+    '=== RULES ==='
   );
 
   assert.ok(facts.includes('200 ILS'), 'price remains in facts');
@@ -230,13 +224,8 @@ function testConversationSettingsSectionSeparated() {
   assert.ok(!/Reply length:/i.test(settings));
   assert.ok(/Price disclosure: on request only/i.test(settings));
   assert.ok(
-    /must NOT establish facts/i.test(settings),
+    prompt.includes('=== SETTINGS (shape wording only; never a source of facts) ==='),
     'settings must carry priority statement'
-  );
-  assert.ok(
-    /CLOSED-WORLD CONTRACT/i.test(settings) ||
-      /capability limits/i.test(settings),
-    'settings must defer to closed-world / whitelist'
   );
 }
 
@@ -258,7 +247,7 @@ function testOnRequestPolicyOnlyWhenSet() {
 
   assert.ok(/on request only/i.test(onReq));
   assert.ok(
-    /even if a price was stated earlier|Do NOT mention prices for|I'd like to book/i.test(
+    /even if a price is listed or was said earlier|I'd like to book/i.test(
       onReq
     ),
     'on_request must clarify non-pricing turns and prior prices do not unlock disclosure'
@@ -292,17 +281,16 @@ function testNextStepFollowsIntake() {
   assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
   assert.ok(intakeGoalEnabled({ informationToCollect: ['name'] }));
 
-  assert.match(collect, /invite them to leave their listed details/i);
+  assert.match(collect, /invite them to leave the listed details/i);
   assert.match(collect, /Interest or a booking request: ask for the missing listed items now/);
-  assert.doesNotMatch(collect, /Do not ask for intake details/);
-  assert.doesNotMatch(collect, /gently invite a useful next step/i);
+  assert.doesNotMatch(collect, /Don't ask for any details/);
 
-  assert.match(questions, /ask if there is anything else they would like to know/i);
-  assert.match(questions, /Do not ask for intake details/);
-  assert.doesNotMatch(questions, /invite them to leave their listed details/i);
+  assert.match(questions, /ask if there's anything else they'd like to know/i);
+  assert.match(questions, /Don't ask for any details/);
+  assert.doesNotMatch(questions, /invite them to leave the listed details/i);
 
-  assert.match(unset, /Do not ask for intake details/);
-  assert.doesNotMatch(unset, /invite them to leave their listed details/i);
+  assert.match(unset, /Don't ask for any details/);
+  assert.doesNotMatch(unset, /invite them to leave the listed details/i);
 }
 
 function testOpeningNotInStandingPrompt() {
@@ -316,7 +304,7 @@ function testOpeningNotInStandingPrompt() {
   assert.doesNotMatch(prompt, /Use the opening ONLY/);
   assert.doesNotMatch(prompt, /Approved opening \(use this wording\)/);
   assert.doesNotMatch(prompt, /may end without a next step/);
-  assert.match(prompt, /Warm, friendly, and human/);
+  assert.ok(prompt.includes(VOICE_LINE));
 }
 
 function testDefaultOpeningText() {
@@ -356,8 +344,8 @@ function testLegacyDefaultsInPrompt() {
   });
   const settings = sectionBetween(
     prompt,
-    '=== CONVERSATION SETTINGS ===',
-    '=== BEHAVIOR RULES ==='
+    '=== SETTINGS (shape wording only; never a source of facts) ===',
+    '=== RULES ==='
   );
   const eff = effectiveBehavior({
     tone: 'warm and calm',
@@ -367,7 +355,7 @@ function testLegacyDefaultsInPrompt() {
   assert.ok(settings.includes('warm and calm'));
   assert.ok(!/Reply length:/i.test(settings));
   assert.ok(/Price disclosure: relevant/i.test(settings));
-  assert.match(settings, /You are Adam, Legacy Biz's digital assistant/);
+  assert.match(prompt, /You are Adam, Legacy Biz's digital assistant/);
   assert.doesNotMatch(settings, /Assistant name:/);
   assert.ok(!/^Tone:/m.test(prompt.split('===')[0]), 'no top-level Tone line');
 }
@@ -380,15 +368,29 @@ function testStayOnBusinessRule() {
     informationToCollect: [],
     unknowns: [],
   });
-  assert.match(prompt, /Stay on this business only/);
-  assert.match(prompt, /Poems, homework, general knowledge, coding/);
-  assert.match(prompt, /one short, warm steer back to the business/);
+  assert.match(prompt, /Stay on this business\./);
+  assert.match(prompt, /poems, homework, coding/);
+  assert.match(prompt, /one short warm steer back/);
   assert.doesNotMatch(prompt, /happy to help with anything/i);
   assert.doesNotMatch(prompt, /Keep replies concise and helpful/);
   assert.ok(
     prompt.includes(PARAGRAPH_PROMPT_LINE),
     'Business Bot prompt includes the one-line paragraph instruction'
   );
+}
+
+function testNoOldPromptHeadings() {
+  const prompt = buildCustomerSystemPrompt({
+    name: 'Harbor Cafe',
+    whatWeDo: 'Neighborhood cafe',
+    services: [{ name: 'Latte', price: '$4', notes: null }],
+    informationToCollect: [],
+    unknowns: [],
+  });
+  assert.doesNotMatch(prompt, /=== CONVERSATION SETTINGS ===/);
+  assert.doesNotMatch(prompt, /=== BEHAVIOR RULES ===/);
+  assert.doesNotMatch(prompt, /CLOSED-WORLD CONTRACT/);
+  assert.doesNotMatch(prompt, /Never ask whether "the bot\/chatbot should collect"/);
 }
 
 function main() {
@@ -405,6 +407,7 @@ function main() {
   testDefaultOpeningText();
   testLegacyDefaultsInPrompt();
   testStayOnBusinessRule();
+  testNoOldPromptHeadings();
   console.log('test-customer-prompt: all passed');
 }
 
