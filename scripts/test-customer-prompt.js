@@ -24,7 +24,7 @@ function sectionBetween(prompt, startMarker, endMarker) {
 }
 
 const VOICE_LINE =
-  'Friendly receptionist texting a customer; speak as the business ("we"). Greet only once. Short lines, blank line between ideas, max one emoji (none when you can\'t help). If you don\'t know, say so; never redirect them to the business. End with a next step. Facts stay strict. Broad price/services: 3–4 categories with lowest from-price, then which service; never the full list. No ** markdown or headings. Don\'t repeat a given caveat; one short line.';
+  'Friendly receptionist texting a customer; speak as the business ("we"). Greet only once. Max one emoji (none when you can\'t help). Never redirect them to the business. Facts stay strict. Over 6 services: 3–4 category from-prices, then which. No ** or headings. Don\'t repeat a given caveat; one short line.';
 
 function testFactsGoStraightToSettings() {
   const prompt = buildCustomerSystemPrompt({
@@ -86,18 +86,12 @@ function testFactsFaqUnknownsIntakeRendered() {
     /DETAILS YOU MAY ASK FOR \(only these\)/i.test(prompt),
     'intake list guidance present'
   );
-  assert.ok(
-    /messaging the owner/i.test(prompt),
-    'owner redirect guidance present'
-  );
+  assert.doesNotMatch(prompt, /messaging the owner/i);
   assert.match(
     prompt,
     /If something isn't listed, say it isn't available here, not that it's offered or not/
   );
-  assert.match(
-    prompt,
-    /suggest messaging the owner only if a needed fact is missing/
-  );
+  assert.match(prompt, /Partial answers: give what's listed and name the gap/);
   assert.match(prompt, /consultation first\) is a full answer/);
   assert.doesNotMatch(prompt, /say you do not know/);
   assert.ok(/KNOWN GAPS \(never fill these in\)/i.test(prompt));
@@ -138,6 +132,10 @@ function testNoForcedBookingProcess() {
     'must not require inventing an owner-confirm process'
   );
   assert.ok(
+    /Never imply you can confirm or make a booking/i.test(prompt),
+    'must not imply the bot can confirm a booking'
+  );
+  assert.ok(
     /Never claim you booked, paid, or contacted anyone/i.test(prompt),
     'must separate approved process facts from bot action claims'
   );
@@ -151,7 +149,7 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
     informationToCollect: ['name', 'phone', 'preferred time'],
     unknowns: [],
   });
-  assert.match(prompt, /thank them, confirm the details/i);
+  assert.match(prompt, /thank them, restate the details/i);
   assert.doesNotMatch(prompt, /this chat has no save\/send\/handoff/i);
   assert.doesNotMatch(prompt, /never imply collected information was saved/i);
   assert.doesNotMatch(
@@ -162,7 +160,8 @@ function testIntakeConfirmDoesNotRefuseKeepingDetails() {
     prompt,
     /if they ask whether they are booked, say they are not/i
   );
-  assert.match(prompt, /don't ask for details again/i);
+  assert.match(prompt, /don't ask again/i);
+  assert.match(prompt, /Ask for listed details only on interest or a booking request/);
   assert.ok(intakeGoalEnabled({
     informationToCollect: ['name', 'phone', 'preferred time'],
   }));
@@ -177,10 +176,7 @@ function testPricingProcessIsCompleteAnswer() {
     unknowns: [],
   });
   assert.match(prompt, /A stated pricing process \(e.g. consultation first\) is a full answer/);
-  assert.match(
-    prompt,
-    /suggest messaging the owner only if a needed fact is missing/
-  );
+  assert.doesNotMatch(prompt, /suggest messaging the owner/i);
   assert.doesNotMatch(
     prompt,
     /optional suggestion to message the owner for booking/i
@@ -281,16 +277,17 @@ function testNextStepFollowsIntake() {
   assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
   assert.ok(intakeGoalEnabled({ informationToCollect: ['name'] }));
 
-  assert.match(collect, /invite them to leave the listed details/i);
-  assert.match(collect, /Interest or a booking request: ask for the missing listed items now/);
+  assert.match(collect, /Ask for listed details only on interest or a booking request/);
+  assert.match(collect, /After other answers, don't/);
   assert.doesNotMatch(collect, /Don't ask for any details/);
+  assert.doesNotMatch(collect, /After answering, invite them to leave the listed details/i);
 
   assert.match(questions, /ask if there's anything else they'd like to know/i);
   assert.match(questions, /Don't ask for any details/);
-  assert.doesNotMatch(questions, /invite them to leave the listed details/i);
+  assert.doesNotMatch(questions, /Ask for listed details only on interest/i);
 
   assert.match(unset, /Don't ask for any details/);
-  assert.doesNotMatch(unset, /invite them to leave the listed details/i);
+  assert.doesNotMatch(unset, /Ask for listed details only on interest/i);
 }
 
 function testOpeningNotInStandingPrompt() {
