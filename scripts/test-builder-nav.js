@@ -411,7 +411,7 @@ async function testSixAndEnd() {
   assert.deepEqual(tryIt.replies, [entryBanner, open]);
   assert.equal(tryIt.reply, entryBanner);
   assert.doesNotMatch(tryIt.reply, /\/end/);
-  assert.ok(formatBody(entryBanner).includes('<strong>Test mode is on</strong>'));
+  assert.ok(formatBody(entryBanner).includes("From here on, I'll answer just like I would for Studio Yoga's customers"));
   assert.ok(formatBody(entryBanner).includes('<strong>stop</strong>'));
   assert.ok(formatBody(exitTestBanner()).includes('<strong>Test mode is off</strong>'));
   assert.equal(session.mode, 'TEST');
@@ -565,7 +565,7 @@ async function testFirstReviewTryApprovesAndTests() {
   const tryIt = await handleMessage(session, '1');
   assert.equal(tryIt.event, 'enter_test');
   assert.equal(session.mode, 'TEST');
-  assert.ok(tryIt.reply.includes('*Test mode is on*'), tryIt.reply);
+  assert.ok(tryIt.reply.includes("From here on, I'll answer just like I would for"), tryIt.reply);
   assert.ok(tryIt.replies[1].includes("How can I help you?"), tryIt.replies[1]);
   assert.ok(loadProfile(PROFILE).approvedAt);
   assert.ok(loadProfile(PROFILE).firstTestedAt);

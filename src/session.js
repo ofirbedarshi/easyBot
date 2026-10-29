@@ -75,6 +75,9 @@ function reviewChatsReplyFn(session) {
   return deps(session).reviewChatsReply || defaultReviewChatsReply;
 }
 
+/** Successful Business Bot answers between stop-reminder tips. Reset when a new test starts. */
+export const TEST_STOP_REMINDER_EVERY = 2;
+
 /**
  * In-memory session. Profile persists on disk at session.profilePath
  * (default: data/business-profile.json) unless session.store + senderId set.
@@ -93,6 +96,7 @@ export function createSession(profilePathOrOpts) {
     buildHistory: [],
     testHistory: [],
     testSessionId: `test-${Date.now()}`,
+    testCustomerCount: 0,
     profilePath: opts.profilePath || defaultProfilePath(),
     leadIntake: null,
     reviewChats: null,
@@ -118,6 +122,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     buildHistory: saved.buildHistory || [],
     testHistory: saved.testHistory || [],
     testSessionId: saved.testSessionId || `test-${Date.now()}`,
+    testCustomerCount: saved.testCustomerCount ?? 0,
     leadIntake: saved.leadIntake || null,
     reviewChats: saved.reviewChats || null,
     loggedTestMessages: [],
@@ -241,6 +246,7 @@ export async function handleMessage(session, text) {
     session.testHistory = [];
     session.mode = 'BUILD';
     session.testSessionId = `test-${Date.now()}`;
+    session.testCustomerCount = 0;
     session.leadIntake = null;
     session.reviewChats = null;
     session.loggedTestMessages = [];
@@ -550,6 +556,7 @@ async function enterTest(session) {
   const composed = composeReply({ kind: 'test_enter', profile });
   session.testHistory = [{ role: 'assistant', content: composed.replies[1] }];
   session.testSessionId = `test-${Date.now()}`;
+  session.testCustomerCount = 0;
   logLocalMessage(session, { direction: 'outbound', body: composed.reply, mode: 'command' });
   return {
     ok: true,
@@ -1027,12 +1034,15 @@ async function handleTest(session, question) {
 
   let reply;
   let source = 'real-llm';
+  let remindStop = false;
   try {
     reply = await businessBotReplyFn(session)({
       profile,
       history: session.testHistory,
       question,
     });
+    session.testCustomerCount += 1;
+    remindStop = session.testCustomerCount % TEST_STOP_REMINDER_EVERY === 0;
     session.testHistory.push({ role: 'user', content: question });
     session.testHistory.push({ role: 'assistant', content: reply });
     session.testHistory = session.testHistory.slice(-BUSINESS_BOT_STORED_MESSAGES);
@@ -1056,9 +1066,15 @@ async function handleTest(session, question) {
     await saveAsync(session, profile);
   }
 
+  const composed = composeReply({
+    kind: 'test_turn',
+    profile,
+    parts: { modelReply: reply, remindStop },
+  });
   return {
     ok: true,
-    reply,
+    reply: composed.reply,
+    ...(composed.replies ? { replies: composed.replies } : {}),
     source,
     event: 'test_turn',
     profileUnchanged: before === after,

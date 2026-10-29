@@ -43,6 +43,7 @@ import {
   DEMO_START_OPTION,
   enterTestBannerText,
   exitTestBannerText,
+  TEST_STOP_REMINDER,
 } from '../src/copy.js';
 import { topicByKey, topicQuestion } from '../src/builderTopics.js';
 import {
@@ -325,12 +326,38 @@ test('off_purpose reset test_refuse parse_fallback errors', () => {
 
 test('test_enter and banners', () => {
   const banner = enterTestBannerText(NAME);
+  assert.equal(
+    banner,
+    [
+      `From here on, I'll answer just like I would for ${NAME}'s customers 😊`,
+      'Spotted something wrong? Type *stop* and tell me what to fix.',
+      'Done trying me out? Type *stop* too.',
+    ].join('\n')
+  );
   const opening = customerOpeningText(salon);
   const out = composeReply({ kind: 'test_enter', profile: salon });
   assert.equal(out.reply, banner);
   assert.deepEqual(out.replies, [banner, opening]);
   assert.equal(opening, defaultCustomerOpening(salon));
   assert.equal(opening, defaultCustomerOpeningText(NAME));
+});
+
+test('test_turn stop reminder is a second message', () => {
+  const model = 'A cut is 100 shekel.';
+  assert.equal(
+    TEST_STOP_REMINDER,
+    "💡 You're testing your bot, this is what your customers will see. Type *stop* anytime to make changes or end the test."
+  );
+  const plain = composeReply({ kind: 'test_turn', parts: { modelReply: model } });
+  assert.equal(plain.reply, model);
+  assert.equal(plain.replies, undefined);
+
+  const reminded = composeReply({
+    kind: 'test_turn',
+    parts: { modelReply: model, remindStop: true },
+  });
+  assert.equal(reminded.reply, model);
+  assert.deepEqual(reminded.replies, [model, TEST_STOP_REMINDER]);
 });
 
 test('test_exit and stop_build', () => {

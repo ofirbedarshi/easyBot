@@ -39,6 +39,7 @@ import {
   demoOpeningReply,
   enterTestBannerText,
   exitTestBannerText,
+  TEST_STOP_REMINDER,
 } from './copy.js';
 import { topicQuestion } from './builderTopics.js';
 import {
@@ -68,6 +69,7 @@ export const COMPOSE_KINDS = Object.freeze([
   'reset',
   'test_refuse',
   'test_enter',
+  'test_turn',
   'test_exit',
   'stop_build',
   'section',
@@ -485,6 +487,14 @@ export function composeReply(spec = {}) {
       const banner = enterTestBannerText(businessDisplayName(profile));
       const opening = customerOpeningText(profile);
       return done(banner, { replies: [banner, opening] });
+    }
+
+    case 'test_turn': {
+      const text = parts.modelReply;
+      if (parts.remindStop) {
+        return done(text, { replies: [text, TEST_STOP_REMINDER] });
+      }
+      return done(text);
     }
 
     case 'test_exit': {

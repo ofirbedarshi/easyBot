@@ -1020,7 +1020,7 @@ await test(
           approvedAt: APPROVED_AT,
           nav: 'section:1',
           startsWith: SECTION_INTROS[1],
-          excludes: ['*Test mode is on*', '🚀 Get me working for your business'],
+          excludes: ["From here on, I'll answer just like I would for", '🚀 Get me working for your business'],
         },
       },
     ]);
@@ -1043,7 +1043,7 @@ await test(
             mode: 'BUILD',
             approvedAt: APPROVED_AT,
             nav: 'menu',
-            excludes: ['*Test mode is on*'],
+            excludes: ["From here on, I'll answer just like I would for"],
           },
         },
       ],
