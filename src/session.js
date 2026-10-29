@@ -9,6 +9,7 @@ import {
   hasEnoughForFirstBot,
   mergeDraft,
   withKnownProfileKeys,
+  customerOpeningText,
 } from './profile.js';
 import {
   applyReviewGate,
@@ -22,6 +23,10 @@ import {
   EMPTY_MESSAGE_ERROR,
   normalizeOwnerName,
 } from './copy.js';
+import {
+  clientProfileFromRow,
+  parseClientCode,
+} from './clients.js';
 import {
   findClaimableDemo,
   isDemoBindEligible,
@@ -94,6 +99,7 @@ export function createSession(profilePathOrOpts) {
     loggedTestMessages: [],
     ownerName: null,
     demoOrigin: false,
+    clientId: null,
     store: null,
     senderId: null,
     deps: opts.deps || null,
@@ -117,6 +123,7 @@ export async function createSenderSession(store, senderId, options = {}) {
     loggedTestMessages: [],
     ownerName: saved.ownerName ?? null,
     demoOrigin: saved.demoOrigin === true,
+    clientId: saved.clientId ?? null,
     profilePath: null,
     store,
     senderId,
@@ -219,6 +226,10 @@ export async function handleMessage(session, text) {
     return { ok: false, error: EMPTY_MESSAGE_ERROR, ...(await getStateAsync(session)) };
   }
 
+  if (session.clientId) {
+    return handleClientBot(session, trimmed);
+  }
+
   // Commands handled in app code — never by the LLM.
   // /reset is first so a flow-2 offer does not swallow it.
   if (trimmed === '/reset') {
@@ -273,6 +284,8 @@ export async function handleMessage(session, text) {
   // First inbound in BUILD only wakes the bot — discard content, send opening.
   // Brand-new senders may claim a pre-built demo and skip detail collection.
   if (phase === 'wake') {
+    const clientBound = await tryBindClient(session, trimmed);
+    if (clientBound) return clientBound;
     const bound = await tryBindPrebuiltDemo(session, trimmed);
     if (bound) return bound;
     const open = composeReply({ kind: 'opening' });
@@ -379,6 +392,99 @@ async function tryBindPrebuiltDemo(session, text) {
   await saveAsync(session, profile);
 
   return sendDemoOpening(session, profile);
+}
+
+/**
+ * First-wake only: bind a shared client by exact bot-XXXXXXXX.
+ * No claim. Invalid codes fall through (no error). Never overwrites
+ * an existing sender or profile. After bind, this number stays on
+ * the Business Bot; there is no chat command to leave.
+ */
+async function tryBindClient(session, text) {
+  if (!session.store || !session.senderId) return null;
+  if (session.mode !== 'BUILD') return null;
+  if ((session.buildHistory || []).length) return null;
+  if ((session.testHistory || []).length) return null;
+  if (session.clientId) return null;
+  if (!(await isDemoBindEligible(session))) return null;
+  if (typeof session.store.findClientByCode !== 'function') return null;
+
+  const current = await loadAsync(session);
+  if (!isFreshOwnerProfile(current)) return null;
+
+  const code = parseClientCode(text);
+  if (!code) return null;
+
+  const match = await session.store.findClientByCode(code);
+  if (!match) return null;
+
+  session.clientId = match.id;
+  return sendClientOpening(session, clientProfileFromRow(match));
+}
+
+async function sendClientOpening(session, profile) {
+  const reply = customerOpeningText(profile);
+  session.testHistory = [{ role: 'assistant', content: reply }];
+  return {
+    ok: true,
+    reply,
+    source: 'app',
+    event: 'client_opening',
+    ...(await getStateAsync(session)),
+  };
+}
+
+async function loadClientProfile(session) {
+  if (!session.store || !session.clientId) {
+    throw new Error('client session is missing a store or client_id');
+  }
+  if (typeof session.store.findClientById !== 'function') {
+    throw new Error('store cannot load clients');
+  }
+  const row = await session.store.findClientById(session.clientId);
+  if (!row) throw new Error('client not found');
+  return clientProfileFromRow(row);
+}
+
+async function handleClientBot(session, question) {
+  let profile;
+  try {
+    profile = await loadClientProfile(session);
+  } catch (err) {
+    console.error('Client profile load failed:', err?.name || 'error');
+    return {
+      ok: false,
+      reply: composeReply({ kind: 'error_business' }).reply,
+      source: 'error',
+      event: 'client_turn',
+      ...(await getStateAsync(session)),
+    };
+  }
+
+  let reply;
+  let source = 'real-llm';
+  try {
+    reply = await businessBotReplyFn(session)({
+      profile,
+      history: session.testHistory,
+      question,
+    });
+    session.testHistory.push({ role: 'user', content: question });
+    session.testHistory.push({ role: 'assistant', content: reply });
+    session.testHistory = session.testHistory.slice(-BUSINESS_BOT_STORED_MESSAGES);
+  } catch (err) {
+    console.error('Business Bot reply failed:', err?.status || err?.code || err?.name || 'error');
+    reply = composeReply({ kind: 'error_business' }).reply;
+    source = 'error';
+  }
+
+  return {
+    ok: true,
+    reply,
+    source,
+    event: 'client_turn',
+    ...(await getStateAsync(session)),
+  };
 }
 
 async function sendDemoOpening(session, profile) {

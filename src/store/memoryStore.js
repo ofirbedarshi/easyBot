@@ -29,6 +29,8 @@ export function createMemoryStore() {
   const leads = new Map();
   /** @type {Map<string, object>} */
   const demos = new Map();
+  /** @type {Map<string, object>} */
+  const clients = new Map();
   let nextId = 1;
   let nextMessageId = 1;
 
@@ -73,6 +75,7 @@ export function createMemoryStore() {
           reviewChats: null,
           ownerName: null,
           demoOrigin: false,
+          clientId: null,
         });
       }
     },
@@ -104,6 +107,7 @@ export function createMemoryStore() {
         reviewChats: structuredClone(session.reviewChats ?? null),
         ownerName: session.ownerName ?? null,
         demoOrigin: session.demoOrigin === true,
+        clientId: session.clientId ?? null,
       });
     },
 
@@ -434,6 +438,43 @@ export function createMemoryStore() {
       return counts;
     },
 
+    async insertClient(row) {
+      const id = row.id || crypto.randomUUID();
+      const code = String(row.code || '').toUpperCase();
+      if (!code) throw new Error('insertClient: code required');
+      for (const existing of clients.values()) {
+        if (existing.code === code) throw new Error('insertClient: code already exists');
+      }
+      const rec = {
+        id,
+        name: row.name ?? null,
+        business_name: row.business_name,
+        contact_channel: row.contact_channel ?? null,
+        status: row.status,
+        code,
+        profile: structuredClone(row.profile),
+        notes: row.notes ?? null,
+        created_at: row.created_at || new Date().toISOString(),
+      };
+      clients.set(id, rec);
+      return structuredClone(rec);
+    },
+
+    async findClientByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      for (const row of clients.values()) {
+        if (row.code === needle) return structuredClone(row);
+      }
+      return null;
+    },
+
+    async findClientById(id) {
+      if (!id) return null;
+      const row = clients.get(id);
+      return row ? structuredClone(row) : null;
+    },
+
     async deleteDemo(id) {
       if (!demos.has(id)) return 0;
       demos.delete(id);
@@ -457,6 +498,7 @@ export function createMemoryStore() {
         messages: messages.map((m) => ({ ...m })),
         leads: Object.fromEntries(leads),
         demos: Object.fromEntries(demos),
+        clients: Object.fromEntries(clients),
       };
     },
 
