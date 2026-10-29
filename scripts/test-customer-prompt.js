@@ -24,7 +24,7 @@ function sectionBetween(prompt, startMarker, endMarker) {
 }
 
 const VOICE_LINE =
-  "Sound like a cheerful receptionist texting a regular: a friendly opener, 1-2 fitting emoji in most replies, upbeat close. Facts stay strict; the voice doesn't.";
+  'Friendly receptionist texting a customer; speak as the business ("we"). Greet only once. Short lines, blank line between ideas, max one emoji (none when you can\'t help). If you don\'t know, say so; never redirect them to the business. End with a next step. Facts stay strict.';
 
 function testFactsGoStraightToSettings() {
   const prompt = buildCustomerSystemPrompt({
