@@ -10,7 +10,11 @@ import 'dotenv/config';
 import { applyReviewGate, runBuilderTurn } from '../src/builder.js';
 import { topicJustAsked } from '../src/builderTopics.js';
 import { businessBotReply } from '../src/businessBot.js';
-import { customerOpeningText, emptyProfile } from '../src/profile.js';
+import {
+  customerOpeningText,
+  DEFAULT_CUSTOMER_HELP_LINE,
+  emptyProfile,
+} from '../src/profile.js';
 import { attachCostTracker } from './lib/modelCost.js';
 
 const MODEL = process.env.OPENAI_MODEL || process.env.OPENAI_BUILDER_MODEL || 'gpt-6-luna';
@@ -111,7 +115,9 @@ async function replayBusinessBot() {
   const intake = transcript.find((t) => /Dana Cohen/i.test(t.question))?.reply || '';
   const booked = transcript.find((t) => /i'?m booked/i.test(t.question))?.reply || '';
   const score = {
-    firstOpens: first.startsWith(`${customerOpeningText(SALON)}\n\n`),
+    firstOpens: first.startsWith(
+      `${customerOpeningText(SALON).replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '')}\n\n`
+    ),
     colorProcess: answersColorProcess(color),
     colorNoOwnerRedirect: !redirectsToOwner(color),
     confirms: confirmsDetails(intake),

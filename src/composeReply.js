@@ -556,7 +556,7 @@ export function composeReply(spec = {}) {
       const text = (modelText || '').trim();
       if (!text) return done('');
       if (!parts.prependOpening) return done(text);
-      return done(`${customerOpeningText(profile)}\n\n${text}`);
+      return done(`${customerOpeningText(profile).replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '')}\n\n${text}`);
     }
 
     case 'parse_fallback':

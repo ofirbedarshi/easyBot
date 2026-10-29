@@ -75,8 +75,8 @@ function priceLine(behavior) {
 
 function intakeLine(profile) {
   return intakeGoalEnabled(profile)
-    ? `Ask for listed details only on interest or a booking request (missing items now). After other answers, don't. Once every listed item is in this chat: thank them, restate the details, ask if there's anything else, and don't ask again. If they ask whether they are booked, say they are not and restate those details.`
-    : `After answering, ask if there's anything else they'd like to know. Don't ask for any details.`;
+    ? `Ask for listed details only on interest or a booking request (missing items now). Once every listed item is in this chat: thank them, restate the details, and don't ask again. If they ask whether they are booked, say they are not and restate those details. Concrete next step only when there is one; otherwise stop, no generic offers.`
+    : `Don't ask for any details. Concrete next step only when there is one; otherwise stop, no generic offers.`;
 }
 
 /**

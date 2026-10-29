@@ -112,7 +112,8 @@ function testEmptyIntakeAnswerOnly() {
     'empty intake must instruct collect nothing'
   );
   assert.doesNotMatch(prompt, /=== BOT OBJECTIVE ===/);
-  assert.match(prompt, /ask if there's anything else they'd like to know/i);
+  assert.match(prompt, /Concrete next step only when there is one; otherwise stop, no generic offers/);
+  assert.doesNotMatch(prompt, /ask if there's anything else they'd like to know/i);
   assert.ok(!intakeGoalEnabled({ informationToCollect: [] }));
   assert.ok(!intakeGoalEnabled({ informationToCollect: null }));
   assert.ok(!intakeGoalEnabled({}));
@@ -278,12 +279,15 @@ function testNextStepFollowsIntake() {
   assert.ok(intakeGoalEnabled({ informationToCollect: ['name'] }));
 
   assert.match(collect, /Ask for listed details only on interest or a booking request/);
-  assert.match(collect, /After other answers, don't/);
+  assert.match(collect, /Concrete next step only when there is one; otherwise stop, no generic offers/);
+  assert.doesNotMatch(collect, /After other answers, don't/);
   assert.doesNotMatch(collect, /Don't ask for any details/);
   assert.doesNotMatch(collect, /After answering, invite them to leave the listed details/i);
+  assert.doesNotMatch(collect, /ask if there's anything else/i);
 
-  assert.match(questions, /ask if there's anything else they'd like to know/i);
   assert.match(questions, /Don't ask for any details/);
+  assert.match(questions, /Concrete next step only when there is one; otherwise stop, no generic offers/);
+  assert.doesNotMatch(questions, /ask if there's anything else they'd like to know/i);
   assert.doesNotMatch(questions, /Ask for listed details only on interest/i);
 
   assert.match(unset, /Don't ask for any details/);
