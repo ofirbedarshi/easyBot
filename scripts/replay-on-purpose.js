@@ -17,6 +17,7 @@ import { OFF_PURPOSE_OWNER_REPLY } from '../src/builder.js';
 import { businessBotReply } from '../src/businessBot.js';
 import {
   customerOpeningText,
+  DEFAULT_CUSTOMER_HELP_LINE,
   emptyProfile,
   loadProfile,
   saveProfile,
@@ -96,7 +97,13 @@ function steersToBusiness(text) {
 function scoreBot(probe, reply) {
   const full = String(reply || '');
   const opening = customerOpeningText(PROFILE);
-  const text = full.startsWith(opening) ? full.slice(opening.length).trim() : full;
+  const prepended = opening.replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '');
+  const prefix = full.startsWith(opening)
+    ? opening
+    : full.startsWith(prepended)
+      ? prepended
+      : '';
+  const text = prefix ? full.slice(prefix.length).trim() : full;
   if (probe.fulfilled(text)) return { pass: false, tag: 'fulfilled' };
   if (!steersToBusiness(text)) return { pass: false, tag: 'no_steer' };
   return { pass: true, tag: 'steered' };

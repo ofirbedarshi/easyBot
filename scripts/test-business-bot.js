@@ -150,7 +150,7 @@ async function testReasoningModelFallback() {
   });
   assert.equal(
     reply,
-    `${customerOpeningText(approvedProfile())}\n\nreasoned`
+    `${customerOpeningText(approvedProfile()).replace(`\n\n${DEFAULT_CUSTOMER_HELP_LINE}`, '')}\n\nreasoned`
   );
   assert.equal(client.requests[0].temperature, 0);
   const ok = [...client.requests].reverse().find((r) => r.temperature == null);
