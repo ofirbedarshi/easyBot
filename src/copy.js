@@ -209,7 +209,7 @@ export function enterTestBannerText(business) {
 }
 
 export const TEST_STOP_REMINDER =
-  '💡 Tip: type *stop* anytime to fix something or end the test.';
+  "💡 You're testing your bot, this is what your customers will see. Type *stop* anytime to make changes or end the test.";
 
 export function exitTestBannerText() {
   return [

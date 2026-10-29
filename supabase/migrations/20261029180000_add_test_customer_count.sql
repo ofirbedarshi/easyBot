@@ -1,4 +1,4 @@
--- Count of customer messages in the current TEST session (stop-reminder every 5).
+-- Count of successful Business Bot answers in the current TEST session (stop-reminder every 2).
 -- APPROVAL REQUIRED before applying to live Supabase.
 -- Do not run from the agent.
 

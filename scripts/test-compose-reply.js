@@ -344,6 +344,10 @@ test('test_enter and banners', () => {
 
 test('test_turn stop reminder is a second message', () => {
   const model = 'A cut is 100 shekel.';
+  assert.equal(
+    TEST_STOP_REMINDER,
+    "💡 You're testing your bot, this is what your customers will see. Type *stop* anytime to make changes or end the test."
+  );
   const plain = composeReply({ kind: 'test_turn', parts: { modelReply: model } });
   assert.equal(plain.reply, model);
   assert.equal(plain.replies, undefined);
@@ -354,10 +358,6 @@ test('test_turn stop reminder is a second message', () => {
   });
   assert.equal(reminded.reply, model);
   assert.deepEqual(reminded.replies, [model, TEST_STOP_REMINDER]);
-  assert.equal(
-    TEST_STOP_REMINDER,
-    '💡 Tip: type *stop* anytime to fix something or end the test.'
-  );
 });
 
 test('test_exit and stop_build', () => {

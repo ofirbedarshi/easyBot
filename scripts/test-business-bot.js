@@ -443,11 +443,12 @@ async function testApprovalIsLiveImmediately() {
   console.log('PASS edit_is_live_immediately');
 }
 
-/** Stop-reminder every 5 customer TEST messages; count is session state. */
-async function testStopReminderEveryFiveCustomerMessages() {
+/** Stop-reminder after every 2nd Business Bot answer; count is session state. */
+async function testStopReminderEverySecondBusinessBotAnswer() {
   const store = createMemoryStore();
   const sender = 'whatsapp:+15550021';
   const profile = approvedProfile();
+  const tip = TEST_STOP_REMINDER;
   await store.saveProfile(sender, profile);
   const session = await createSenderSession(store, sender, {
     deps: { businessBotReply: async ({ question }) => `ok ${question}` },
@@ -459,37 +460,35 @@ async function testStopReminderEveryFiveCustomerMessages() {
   assert.equal(session.testCustomerCount, 0);
   assert.ok(entered.reply.includes("From here on, I'll answer just like I would for Studio Yoga's customers"));
   assert.ok(!entered.reply.includes('*Test mode is on*'));
+  assert.equal(TEST_STOP_REMINDER_EVERY, 2);
 
-  for (let i = 1; i <= 4; i += 1) {
-    const turn = await handleMessage(session, `q${i}`);
-    assert.equal(turn.reply, `ok q${i}`);
-    assert.equal(turn.replies, undefined);
-    assert.equal(session.testCustomerCount, i);
-    assert.ok(!session.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
-  }
+  const first = await handleMessage(session, 'q1');
+  assert.equal(first.reply, 'ok q1');
+  assert.equal(first.replies, undefined);
+  assert.equal(session.testCustomerCount, 1);
+  assert.ok(!session.testHistory.some((m) => m.content === tip));
 
-  const fifth = await handleMessage(session, 'q5');
-  assert.equal(fifth.reply, 'ok q5');
-  assert.deepEqual(fifth.replies, ['ok q5', TEST_STOP_REMINDER]);
+  const second = await handleMessage(session, 'q2');
+  assert.equal(second.reply, 'ok q2');
+  assert.deepEqual(second.replies, ['ok q2', tip]);
   assert.equal(session.testCustomerCount, TEST_STOP_REMINDER_EVERY);
-  assert.ok(!session.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
-  assert.deepEqual(session.testHistory.at(-1), { role: 'assistant', content: 'ok q5' });
+  assert.ok(!session.testHistory.some((m) => m.content === tip));
+  assert.deepEqual(session.testHistory.at(-1), { role: 'assistant', content: 'ok q2' });
+
+  const third = await handleMessage(session, 'q3');
+  assert.equal(third.replies, undefined);
+  assert.equal(session.testCustomerCount, 3);
+
+  const fourth = await handleMessage(session, 'q4');
+  assert.deepEqual(fourth.replies, ['ok q4', tip]);
+  assert.equal(session.testCustomerCount, 4);
 
   await persistSenderSession(session);
   const reloaded = await createSenderSession(store, sender, {
     deps: { businessBotReply: async ({ question }) => `ok ${question}` },
   });
-  assert.equal(reloaded.testCustomerCount, TEST_STOP_REMINDER_EVERY);
+  assert.equal(reloaded.testCustomerCount, 4);
   assert.equal(reloaded.mode, 'TEST');
-
-  for (let i = 6; i <= 9; i += 1) {
-    const turn = await handleMessage(reloaded, `q${i}`);
-    assert.equal(turn.replies, undefined);
-    assert.equal(reloaded.testCustomerCount, i);
-  }
-  const tenth = await handleMessage(reloaded, 'q10');
-  assert.deepEqual(tenth.replies, ['ok q10', TEST_STOP_REMINDER]);
-  assert.equal(reloaded.testCustomerCount, 10);
 
   assert.equal((await handleMessage(reloaded, '/test')).event, 'enter_test');
   assert.equal(reloaded.testCustomerCount, 0);
@@ -500,27 +499,44 @@ async function testStopReminderEveryFiveCustomerMessages() {
   const origError = console.error;
   console.error = () => {};
   try {
+    let shouldFail = true;
     const failSession = await createSenderSession(store, 'whatsapp:+15550022', {
       deps: {
-        businessBotReply: async () => {
-          throw new Error('boom');
+        businessBotReply: async ({ question }) => {
+          if (shouldFail) throw new Error('boom');
+          return `ok ${question}`;
         },
       },
     });
     await store.saveProfile('whatsapp:+15550022', profile);
     failSession.buildHistory.push({ role: 'assistant', content: '(opened)' });
     await handleMessage(failSession, '/test');
-    for (let i = 1; i <= 4; i += 1) await handleMessage(failSession, `e${i}`);
-    const failFifth = await handleMessage(failSession, 'e5');
-    assert.equal(failFifth.source, 'error');
-    assert.equal(failSession.testCustomerCount, 5);
-    assert.deepEqual(failFifth.replies, [failFifth.reply, TEST_STOP_REMINDER]);
-    assert.ok(!failSession.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
+    const failFirst = await handleMessage(failSession, 'e1');
+    assert.equal(failFirst.source, 'error');
+    assert.equal(failSession.testCustomerCount, 0);
+    assert.equal(failFirst.replies, undefined);
+
+    shouldFail = false;
+    const ok1 = await handleMessage(failSession, 'e2');
+    assert.equal(ok1.replies, undefined);
+    assert.equal(failSession.testCustomerCount, 1);
+
+    shouldFail = true;
+    const failMid = await handleMessage(failSession, 'e3');
+    assert.equal(failMid.source, 'error');
+    assert.equal(failSession.testCustomerCount, 1);
+    assert.equal(failMid.replies, undefined);
+
+    shouldFail = false;
+    const ok2 = await handleMessage(failSession, 'e4');
+    assert.equal(failSession.testCustomerCount, 2);
+    assert.deepEqual(ok2.replies, ['ok e4', tip]);
+    assert.ok(!failSession.testHistory.some((m) => m.content === tip));
   } finally {
     console.error = origError;
   }
 
-  console.log('PASS test_stop_reminder_every_five_customer_messages');
+  console.log('PASS test_stop_reminder_every_second_business_bot_answer');
 }
 
 /** The cleanup migration's key list must match emptyProfile(). */
@@ -560,7 +576,7 @@ async function main() {
   await testErrorTurnNotStored();
   await testApprovalIsLiveImmediately();
   testMigrationKeysMatchProfile();
-  await testStopReminderEveryFiveCustomerMessages();
+  await testStopReminderEverySecondBusinessBotAnswer();
   console.log('\nAll Business Bot tests passed.');
 }
 
