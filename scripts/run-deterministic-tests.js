@@ -40,6 +40,7 @@ const SUITES = [
   { id: 'demo-playback', file: 'scripts/test-demo-playback.js' },
   { id: 'demo-profiles', file: 'scripts/test-demo-profiles.js' },
   { id: 'delete-demo', file: 'scripts/test-delete-demo.js' },
+  { id: 'clients', file: 'scripts/test-clients.js' },
 ];
 
 function runSuite(suite) {

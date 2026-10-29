@@ -17,6 +17,8 @@ export const MESSAGE_MODES = [
 const EVENT_MODE = {
   opening: 'opening',
   demo_opening: 'opening',
+  client_opening: 'test',
+  client_turn: 'test',
   enter_test: 'command',
   enter_build: 'command',
   reset: 'command',
@@ -39,6 +41,7 @@ const EVENT_MODE = {
  */
 export function modeFromSessionPreview(session) {
   if (!session) return 'opening';
+  if (session.clientId) return 'test';
   if (session.mode === 'TEST') return 'test';
   if (!session.buildHistory || session.buildHistory.length === 0) return 'opening';
   return 'builder';

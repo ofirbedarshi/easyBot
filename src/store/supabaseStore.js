@@ -165,6 +165,7 @@ export function createSupabaseStore() {
         reviewChats: data.review_chats ?? null,
         ownerName: data.owner_name ?? null,
         demoOrigin: data.demo_origin === true,
+        clientId: data.client_id ?? null,
       };
     },
 
@@ -179,6 +180,7 @@ export function createSupabaseStore() {
         review_chats: session.reviewChats ?? null,
         owner_name: session.ownerName ?? null,
         demo_origin: session.demoOrigin === true,
+        client_id: session.clientId ?? null,
         updated_at: new Date().toISOString(),
       };
       let { error } = await sb
@@ -566,6 +568,49 @@ export function createSupabaseStore() {
         .eq('code', needle)
         .maybeSingle();
       if (error) throw new Error(`findDemoByCode: ${error.message}`);
+      return data || null;
+    },
+
+    async insertClient(row) {
+      const payload = {
+        name: row.name ?? null,
+        business_name: row.business_name,
+        contact_channel: row.contact_channel ?? null,
+        status: row.status,
+        code: String(row.code || '').toUpperCase(),
+        profile: row.profile,
+        notes: row.notes ?? null,
+      };
+      if (row.id) payload.id = row.id;
+      const { data, error } = await sb
+        .from('easybot_clients')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (error) throw new Error(`insertClient: ${error.message}`);
+      return data;
+    },
+
+    async findClientByCode(code) {
+      const needle = String(code || '').toUpperCase();
+      if (!needle) return null;
+      const { data, error } = await sb
+        .from('easybot_clients')
+        .select('*')
+        .eq('code', needle)
+        .maybeSingle();
+      if (error) throw new Error(`findClientByCode: ${error.message}`);
+      return data || null;
+    },
+
+    async findClientById(id) {
+      if (!id) return null;
+      const { data, error } = await sb
+        .from('easybot_clients')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw new Error(`findClientById: ${error.message}`);
       return data || null;
     },
 
