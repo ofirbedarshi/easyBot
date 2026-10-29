@@ -202,14 +202,14 @@ export function demoOpeningReply(ownerName, business) {
 
 export function enterTestBannerText(business) {
   return [
-    '🎭 ━━━━━━━━━━━━ 🎭',
-    '*Test mode is on*',
-    '',
-    `Now you're the customer, and I'm ${business}'s assistant.`,
-    'Type *stop* when you want to keep teaching me.',
-    '🎭 ━━━━━━━━━━━━ 🎭',
+    `From here on, I'll answer just like I would for ${business}'s customers 😊`,
+    'Spotted something wrong? Type *stop* and tell me what to fix.',
+    'Done trying me out? Type *stop* too.',
   ].join('\n');
 }
+
+export const TEST_STOP_REMINDER =
+  '💡 Tip: type *stop* anytime to fix something or end the test.';
 
 export function exitTestBannerText() {
   return [

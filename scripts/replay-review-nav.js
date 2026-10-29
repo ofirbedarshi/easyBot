@@ -144,7 +144,7 @@ async function main() {
     (menuRestored || reviewActive(courtesy.session.buildHistory)) &&
     tryA.event === 'enter_test' &&
     courtesy.session.mode === 'TEST' &&
-    /\*Test mode is on\*/.test(tryA.reply);
+    /From here on, I'll answer just like I would for/.test(tryA.reply);
   results.push(
     okCourtesy
       ? 'PASS courtesy/answer restored next-step UI and Try my bot entered TEST'
@@ -172,7 +172,7 @@ async function main() {
     !questionFlag &&
     oneB.event === 'enter_test' &&
     question.session.mode === 'TEST' &&
-    /\*Test mode is on\*/.test(oneB.reply);
+    /From here on, I'll answer just like I would for/.test(oneB.reply);
   results.push(
     okQuestionTurn
       ? 'PASS real question then 1 entered TEST (Chat is menu item 1)'

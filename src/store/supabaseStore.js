@@ -80,6 +80,7 @@ export function createSupabaseStore() {
           build_history: [],
           test_history: [],
           test_session_id: `test-${Date.now()}`,
+          test_customer_count: 0,
         });
         if (sErr && sErr.code !== '23505') {
           throw new Error(`ensureSession: ${sErr.message}`);
@@ -161,6 +162,7 @@ export function createSupabaseStore() {
         buildHistory: data.build_history || [],
         testHistory: data.test_history || [],
         testSessionId: data.test_session_id || `test-${Date.now()}`,
+        testCustomerCount: data.test_customer_count ?? 0,
         leadIntake: data.lead_intake ?? null,
         reviewChats: data.review_chats ?? null,
         ownerName: data.owner_name ?? null,
@@ -176,6 +178,7 @@ export function createSupabaseStore() {
         build_history: session.buildHistory || [],
         test_history: session.testHistory || [],
         test_session_id: session.testSessionId,
+        test_customer_count: session.testCustomerCount ?? 0,
         lead_intake: session.leadIntake ?? null,
         review_chats: session.reviewChats ?? null,
         owner_name: session.ownerName ?? null,

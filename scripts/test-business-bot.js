@@ -22,11 +22,13 @@ import {
   emptyProfile,
   withKnownProfileKeys,
 } from '../src/profile.js';
+import { TEST_STOP_REMINDER } from '../src/copy.js';
 import {
   enterTestBanner,
   createSenderSession,
   handleMessage,
   persistSenderSession,
+  TEST_STOP_REMINDER_EVERY,
 } from '../src/session.js';
 import { createMemoryStore } from '../src/store/memoryStore.js';
 
@@ -441,6 +443,86 @@ async function testApprovalIsLiveImmediately() {
   console.log('PASS edit_is_live_immediately');
 }
 
+/** Stop-reminder every 5 customer TEST messages; count is session state. */
+async function testStopReminderEveryFiveCustomerMessages() {
+  const store = createMemoryStore();
+  const sender = 'whatsapp:+15550021';
+  const profile = approvedProfile();
+  await store.saveProfile(sender, profile);
+  const session = await createSenderSession(store, sender, {
+    deps: { businessBotReply: async ({ question }) => `ok ${question}` },
+  });
+  session.buildHistory.push({ role: 'assistant', content: '(opened)' });
+
+  const entered = await handleMessage(session, '/test');
+  assert.equal(entered.event, 'enter_test');
+  assert.equal(session.testCustomerCount, 0);
+  assert.ok(entered.reply.includes("From here on, I'll answer just like I would for Studio Yoga's customers"));
+  assert.ok(!entered.reply.includes('*Test mode is on*'));
+
+  for (let i = 1; i <= 4; i += 1) {
+    const turn = await handleMessage(session, `q${i}`);
+    assert.equal(turn.reply, `ok q${i}`);
+    assert.equal(turn.replies, undefined);
+    assert.equal(session.testCustomerCount, i);
+    assert.ok(!session.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
+  }
+
+  const fifth = await handleMessage(session, 'q5');
+  assert.equal(fifth.reply, 'ok q5');
+  assert.deepEqual(fifth.replies, ['ok q5', TEST_STOP_REMINDER]);
+  assert.equal(session.testCustomerCount, TEST_STOP_REMINDER_EVERY);
+  assert.ok(!session.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
+  assert.deepEqual(session.testHistory.at(-1), { role: 'assistant', content: 'ok q5' });
+
+  await persistSenderSession(session);
+  const reloaded = await createSenderSession(store, sender, {
+    deps: { businessBotReply: async ({ question }) => `ok ${question}` },
+  });
+  assert.equal(reloaded.testCustomerCount, TEST_STOP_REMINDER_EVERY);
+  assert.equal(reloaded.mode, 'TEST');
+
+  for (let i = 6; i <= 9; i += 1) {
+    const turn = await handleMessage(reloaded, `q${i}`);
+    assert.equal(turn.replies, undefined);
+    assert.equal(reloaded.testCustomerCount, i);
+  }
+  const tenth = await handleMessage(reloaded, 'q10');
+  assert.deepEqual(tenth.replies, ['ok q10', TEST_STOP_REMINDER]);
+  assert.equal(reloaded.testCustomerCount, 10);
+
+  assert.equal((await handleMessage(reloaded, '/test')).event, 'enter_test');
+  assert.equal(reloaded.testCustomerCount, 0);
+  const afterRestart = await handleMessage(reloaded, 'again');
+  assert.equal(afterRestart.replies, undefined);
+  assert.equal(reloaded.testCustomerCount, 1);
+
+  const origError = console.error;
+  console.error = () => {};
+  try {
+    const failSession = await createSenderSession(store, 'whatsapp:+15550022', {
+      deps: {
+        businessBotReply: async () => {
+          throw new Error('boom');
+        },
+      },
+    });
+    await store.saveProfile('whatsapp:+15550022', profile);
+    failSession.buildHistory.push({ role: 'assistant', content: '(opened)' });
+    await handleMessage(failSession, '/test');
+    for (let i = 1; i <= 4; i += 1) await handleMessage(failSession, `e${i}`);
+    const failFifth = await handleMessage(failSession, 'e5');
+    assert.equal(failFifth.source, 'error');
+    assert.equal(failSession.testCustomerCount, 5);
+    assert.deepEqual(failFifth.replies, [failFifth.reply, TEST_STOP_REMINDER]);
+    assert.ok(!failSession.testHistory.some((m) => m.content === TEST_STOP_REMINDER));
+  } finally {
+    console.error = origError;
+  }
+
+  console.log('PASS test_stop_reminder_every_five_customer_messages');
+}
+
 /** The cleanup migration's key list must match emptyProfile(). */
 function testMigrationKeysMatchProfile() {
   const sql = fs.readFileSync(
@@ -478,6 +560,7 @@ async function main() {
   await testErrorTurnNotStored();
   await testApprovalIsLiveImmediately();
   testMigrationKeysMatchProfile();
+  await testStopReminderEveryFiveCustomerMessages();
   console.log('\nAll Business Bot tests passed.');
 }
 
